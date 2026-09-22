@@ -97,6 +97,29 @@ npx expo prebuild --platform ios --clean && npx expo run:ios
 | Apple: botón no responde / error 1000 | Capability no activa en el App ID, o simulador sin Apple ID |
 | `auth/invalid-credential` con Google | El `webClientId` no es el de este proyecto Firebase |
 
+## Probar en un iPhone sin Xcode (EAS Build)
+
+Google y Apple necesitan un development build; en Expo Go no existen esos
+módulos nativos. Si el Mac no puede compilar para la versión de iOS del
+teléfono, EAS compila en la nube:
+
+```bash
+npx eas login                                      # cuenta de Expo
+npx eas device:create                              # registra el UDID del iPhone
+npx eas build --profile development --platform ios # compila y da un enlace
+```
+
+`eas device:create` abre un perfil de registro que se instala desde el propio
+iPhone; después, el build se descarga desde el enlace que imprime el comando.
+La primera vez pide las credenciales de Apple Developer para generar el
+certificado y el perfil de aprovisionamiento.
+
+Una vez instalada la app, se conecta a Metro como cualquier development build:
+
+```bash
+npx expo start --dev-client
+```
+
 ## Tests
 
 ```bash
