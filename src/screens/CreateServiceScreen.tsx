@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -59,6 +60,21 @@ export default function CreateServiceScreen({ navigation }: Props) {
     ]);
   };
 
+  /**
+   * Coordenadas donde se publica, para poder situarlo en el mapa. Si el
+   * usuario no da permiso o el GPS tarda, se publica igual sin ellas.
+   */
+  const obtenerCoordenadas = async () => {
+    try {
+      const { granted } = await Location.requestForegroundPermissionsAsync();
+      if (!granted) return null;
+      const posicion = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      return { latitude: posicion.coords.latitude, longitude: posicion.coords.longitude };
+    } catch {
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!title.trim()) {
       Alert.alert('Add a title', 'Give your service a short title first.');
@@ -67,13 +83,17 @@ export default function CreateServiceScreen({ navigation }: Props) {
     setSubmitting(true);
     try {
       // Las fotos se suben antes: el documento guarda ya sus URLs.
-      const subidas = await Promise.all(photos.map((uri) => api.uploadServicePhoto(uri)));
+      const [subidas, coords] = await Promise.all([
+        Promise.all(photos.map((uri) => api.uploadServicePhoto(uri))),
+        obtenerCoordenadas(),
+      ]);
       await api.createService({
         title: title.trim(),
         category,
         description: description.trim(),
         credits: 0,
         photos: subidas,
+        coords,
         durationLabel: duration.trim() || '—',
         availableLabel: 'Flexible',
         locationLabel: '0 km away',

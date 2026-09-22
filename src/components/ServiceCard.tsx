@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { colors, fonts, radii, shadow } from '../theme';
 import CategoryIcon from './CategoryIcon';
 import type { ServiceRequest } from '../data/mock';
@@ -7,6 +7,14 @@ import type { ServiceRequest } from '../data/mock';
 export default function ServiceCard({ service, onPress }: { service: ServiceRequest; onPress?: () => void }) {
   return (
     <Pressable style={styles.card} onPress={onPress}>
+      {service.photos.length > 0 && (
+        <Image
+          source={{ uri: service.photos[0] }}
+          style={styles.cover}
+          resizeMode="cover"
+          accessibilityLabel={`Foto de ${service.title}`}
+        />
+      )}
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <CategoryIcon category={service.category} />
         <View style={{ flex: 1 }}>
@@ -33,6 +41,7 @@ export default function ServiceCard({ service, onPress }: { service: ServiceRequ
 
 const styles = StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radii.lg, padding: 16, ...shadow },
+  cover: { width: '100%', height: 132, borderRadius: radii.sm, marginBottom: 12, backgroundColor: colors.accentTint },
   title: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, lineHeight: 19, color: colors.ink },
   meta: { marginTop: 6, fontFamily: fonts.body, fontSize: 12, color: colors.muted },
   footer: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

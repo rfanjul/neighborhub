@@ -13,6 +13,10 @@ export type ServiceRequest = {
   status: ServiceStatus;
   durationLabel: string;
   availableLabel: string;
+  /** URLs en Firebase Storage; vacío si el servicio no lleva fotos. */
+  photos: string[];
+  /** Dónde se publicó, para pintarlo en el mapa. null si no se pudo obtener. */
+  coords: { latitude: number; longitude: number } | null;
   requester: {
     name: string;
     rating: number;
@@ -45,6 +49,8 @@ export const mockServices: ServiceRequest[] = [
     status: 'approved',
     durationLabel: '~30 min',
     availableLabel: 'Today',
+    photos: [],
+    coords: null,
     requester: { name: 'Peter M.', rating: 4.6, ratingCount: 18, responseLabel: '~2h', avatarColor: '#E7C9A9' },
   },
   {
@@ -59,6 +65,8 @@ export const mockServices: ServiceRequest[] = [
     status: 'approved',
     durationLabel: '~2 hours',
     availableLabel: 'Sat, Aug 29',
+    photos: [],
+    coords: null,
     requester: { name: 'Lena K.', rating: 4.8, ratingCount: 32, responseLabel: '~1h', avatarColor: '#C9E0D2' },
   },
   {
@@ -72,6 +80,8 @@ export const mockServices: ServiceRequest[] = [
     status: 'approved',
     durationLabel: '~20 min',
     availableLabel: 'Tomorrow',
+    photos: [],
+    coords: null,
     requester: { name: 'Tom S.', rating: 4.9, ratingCount: 41, responseLabel: '~30 min', avatarColor: '#C9D6F2' },
   },
 ];

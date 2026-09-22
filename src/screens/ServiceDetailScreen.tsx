@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Dimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -33,6 +33,8 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
   const fallback = mockServices.find((s) => s.id === route.params.serviceId) ?? mockServices[0];
   const [service, setService] = useState<ServiceRequest>(fallback);
   const [accepting, setAccepting] = useState(false);
+  const [foto, setFoto] = useState(0);
+  const anchoPantalla = Dimensions.get('window').width;
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -57,14 +59,35 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
       <View style={styles.photo}>
+        {service.photos.length > 0 && (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={(e) => setFoto(Math.round(e.nativeEvent.contentOffset.x / anchoPantalla))}
+            scrollEventThrottle={16}
+          >
+            {service.photos.map((uri) => (
+              <Image
+                key={uri}
+                source={{ uri }}
+                style={{ width: anchoPantalla, height: 260 }}
+                resizeMode="cover"
+                accessibilityLabel={`Foto de ${service.title}`}
+              />
+            ))}
+          </ScrollView>
+        )}
         <Pressable style={[styles.backButton, { top: insets.top + 12 }]} onPress={() => navigation.goBack()}>
           <BackIcon size={18} />
         </Pressable>
-        <View style={styles.dots}>
-          <View style={[styles.dot, styles.dotActive]} />
-          <View style={styles.dot} />
-          <View style={styles.dot} />
-        </View>
+        {service.photos.length > 1 && (
+          <View style={styles.dots}>
+            {service.photos.map((uri, i) => (
+              <View key={uri} style={[styles.dot, i === foto && styles.dotActive]} />
+            ))}
+          </View>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>

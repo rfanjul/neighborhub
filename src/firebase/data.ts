@@ -116,6 +116,8 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
     status: d.status ?? 'pending',
     durationLabel: d.durationLabel ?? '',
     availableLabel: d.availableLabel ?? '',
+    photos: Array.isArray(d.photos) ? d.photos : [],
+    coords: d.coords ?? null,
     requester: {
       name: d.requesterName ?? 'Neighbor',
       rating: d.requesterRating ?? 0,
@@ -190,6 +192,7 @@ export const api = {
     description: string;
     credits: number;
     photos?: string[];
+    coords?: { latitude: number; longitude: number } | null;
     durationLabel: string;
     availableLabel: string;
     locationLabel: string;
