@@ -21,6 +21,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-dev-client',
+    'expo-font',
+    [
+      'expo-camera',
+      {
+        cameraPermission: 'Neighborhub usa la cámara para que te hagas la foto de perfil.',
+        recordAudioAndroid: false,
+      },
+    ],
+    [
+      'expo-location',
+      { locationWhenInUsePermission: 'Neighborhub usa tu ubicación para mostrarte peticiones de ayuda cerca.' },
+    ],
     [
       'expo-splash-screen',
       { image: './assets/splash-icon.png', resizeMode: 'contain', backgroundColor: '#FBF3EA', imageWidth: 180 },

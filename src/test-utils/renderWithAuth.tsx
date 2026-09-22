@@ -9,6 +9,8 @@ type AuthValue = ReturnType<typeof import('../auth/AuthContext').useAuth>;
 export function authValue(overrides: Partial<AuthValue> = {}): AuthValue {
   return {
     user: null,
+    profile: null,
+    refreshProfile: jest.fn().mockResolvedValue(undefined),
     initializing: false,
     register: jest.fn().mockResolvedValue(undefined),
     login: jest.fn().mockResolvedValue(undefined),

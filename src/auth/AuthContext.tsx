@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
   GoogleAuthProvider,
   OAuthProvider,
@@ -14,6 +14,7 @@ import {
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { auth } from '../firebase';
+import { api, ensureUserDocument, type ApiUserProfile } from '../firebase/data';
 import { isExpoGo } from './environment';
 
 // El módulo de Google es nativo y no existe en Expo Go: importarlo ahí rompe
@@ -32,6 +33,10 @@ if (!isExpoGo) {
 
 type AuthContextValue = {
   user: User | null;
+  /** Documento del usuario en Firestore; null mientras no haya sesión */
+  profile: ApiUserProfile | null;
+  /** Relee el perfil tras editarlo o completar el onboarding */
+  refreshProfile: () => Promise<void>;
   /** true mientras Firebase restaura la sesión guardada al arrancar */
   initializing: boolean;
   register: (name: string, email: string, password: string) => Promise<void>;
@@ -47,14 +52,38 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<ApiUserProfile | null>(null);
   const [initializing, setInitializing] = useState(true);
 
+  const refreshProfile = useCallback(async () => {
+    const actual = auth.currentUser;
+    if (!actual) {
+      setProfile(null);
+      return;
+    }
+    try {
+      // El documento puede no existir todavía si es el primer acceso con
+      // Google o Apple, donde no pasamos por el registro con email.
+      await ensureUserDocument(actual.uid, { name: actual.displayName ?? '', email: actual.email ?? '' });
+      setProfile(await api.getMe());
+    } catch {
+      // Sin Firestore (offline o reglas) la app sigue usable: se entra sin
+      // perfil y el wizard lo vuelve a intentar.
+      setProfile(null);
+    }
+  }, []);
+
   useEffect(() => {
-    return onAuthStateChanged(auth, (next) => {
+    return onAuthStateChanged(auth, async (next) => {
       setUser(next);
+      if (next) {
+        await refreshProfile();
+      } else {
+        setProfile(null);
+      }
       setInitializing(false);
     });
-  }, []);
+  }, [refreshProfile]);
 
   const register = async (name: string, email: string, password: string) => {
     const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -152,7 +181,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, initializing, register, login, resetPassword, loginWithGoogle, loginWithApple, logout }}
+      value={{
+        user,
+        profile,
+        refreshProfile,
+        initializing,
+        register,
+        login,
+        resetPassword,
+        loginWithGoogle,
+        loginWithApple,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>
