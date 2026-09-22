@@ -54,16 +54,18 @@ export default function WelcomeScreen({ navigation }: Props) {
   return (
     <Screen>
       <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-      <Image
-        source={require('../../assets/splash-icon.png')}
-        style={{ width: 72, height: 72, marginBottom: 12 }}
-        resizeMode="contain"
-        accessibilityIgnoresInvertColors
-      />
-      <Text style={styles.title}>Neighborhub</Text>
-      <Text style={styles.subtitle}>
-        La plataforma donde los vecinos se ayudan entre sí y, en lugar de pagarse en dinero, acumulan créditos.
-      </Text>
+      <View style={styles.hero}>
+        <Image
+          source={require('../../assets/splash-icon.png')}
+          style={styles.heroMark}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+        <Text style={[styles.title, styles.centered]}>Neighborhub</Text>
+        <Text style={[styles.subtitle, styles.centered, { marginBottom: 4 }]}>
+          La plataforma donde los vecinos se ayudan entre sí y, en lugar de pagarse en dinero, acumulan créditos.
+        </Text>
+      </View>
 
       <ComoFunciona />
 

@@ -72,7 +72,7 @@ export function Screen({ children }: { children: React.ReactNode }) {
 }
 
 export const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24, paddingTop: 72, gap: 12 },
+  screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24, paddingTop: 56, gap: 12 },
   title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 4, letterSpacing: -0.5 },
   subtitle: { fontSize: 16, color: colors.muted, marginBottom: 16 },
   input: {
@@ -92,6 +92,9 @@ export const styles = StyleSheet.create({
   buttonText: { fontSize: 16, fontWeight: '500', color: colors.text },
   linkText: { fontWeight: '400', textDecorationLine: 'underline' },
   error: { color: colors.danger, fontSize: 14 },
+  hero: { alignItems: 'center', marginBottom: 20 },
+  heroMark: { width: 132, height: 132, marginBottom: 4 },
+  centered: { textAlign: 'center' },
   steps: { gap: 14, marginBottom: 8 },
   step: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   stepNumber: {
