@@ -12,12 +12,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: 'logindemo',
   ios: {
     ...config.ios,
-    bundleIdentifier: 'com.neighborhub',
+    bundleIdentifier: 'com.app.neighborhub',
     usesAppleSignIn: true,
   },
   android: {
     ...config.android,
-    package: 'com.neighborhub',
+    package: 'com.app.neighborhub',
   },
   plugins: [
     'expo-dev-client',
