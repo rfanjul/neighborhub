@@ -9,6 +9,7 @@ import { colors, fonts, radii } from '../theme';
 import { CloseIcon, PlusIcon } from '../icons';
 import PillButton from '../components/PillButton';
 import { api } from '../firebase/data';
+import { dataErrorMessage } from '../firebase/errors';
 import type { ServiceCategory } from '../data/mock';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateService'>;
@@ -81,12 +82,16 @@ export default function CreateServiceScreen({ navigation }: Props) {
       return;
     }
     setSubmitting(true);
+    let subidas: string[] = [];
     try {
-      // Las fotos se suben antes: el documento guarda ya sus URLs.
-      const [subidas, coords] = await Promise.all([
+      // Antes de subir nada, comprobar que la base de datos responde: si no,
+      // las fotos acabarían en Storage sin ningún servicio que las use.
+      await api.getMe();
+      const [urls, coords] = await Promise.all([
         Promise.all(photos.map((uri) => api.uploadServicePhoto(uri))),
         obtenerCoordenadas(),
       ]);
+      subidas = urls;
       await api.createService({
         title: title.trim(),
         category,
@@ -100,9 +105,11 @@ export default function CreateServiceScreen({ navigation }: Props) {
         travelRadiusKm: Math.round(radius / 11),
       });
       navigation.goBack();
-    } catch (e: any) {
-      // Mostrar el motivo real ayuda a distinguir un fallo de red de uno de permisos.
-      Alert.alert("Couldn't submit your service", e?.message ?? 'Check your connection and try again.');
+    } catch (e) {
+      // Si el alta falla después de subir fotos, se borran para no dejarlas
+      // huérfanas. Un fallo al borrar no debe tapar el error original.
+      await Promise.all(subidas.map((url) => api.deleteServicePhoto(url).catch(() => undefined)));
+      Alert.alert("Couldn't submit your service", dataErrorMessage(e));
     } finally {
       setSubmitting(false);
     }

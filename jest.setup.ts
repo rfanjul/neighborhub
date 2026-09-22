@@ -21,5 +21,7 @@ jest.mock('./src/firebase/data', () => ({
     createService: jest.fn(async () => null),
     acceptService: jest.fn(async () => null),
     uploadMyPhoto: jest.fn(async () => null),
+    uploadServicePhoto: jest.fn(async () => ''),
+    deleteServicePhoto: jest.fn(async () => undefined),
   },
 }));

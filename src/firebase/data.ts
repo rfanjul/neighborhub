@@ -19,7 +19,7 @@ import {
 // Storage has no React Native-specific build, but unlike Firestore it
 // doesn't need one — it's just fetch()/Blob under the hood, which works
 // fine via the regular browser build in React Native.
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { auth, db } from './index';
 import type { ServiceCategory, ServiceRequest } from '../data/mock';
 
@@ -161,6 +161,11 @@ export const api = {
     const photoRef = ref(storage, `service-photos/${uid}/${nombre}`);
     await uploadBytes(photoRef, blob, { contentType: 'image/jpeg' });
     return getDownloadURL(photoRef);
+  },
+
+  /** Borra una foto de servicio a partir de su URL; para limpiar si el alta falla. */
+  async deleteServicePhoto(url: string): Promise<void> {
+    await deleteObject(ref(storage, url));
   },
 
   async uploadMyPhoto(localUri: string): Promise<ApiUserProfile> {
