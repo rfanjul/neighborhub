@@ -4,11 +4,13 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Foto de perfil: pública, como el avatar de cualquier app.
-    match /profile-photos/{userId}.jpg {
+    // Foto de perfil: pública, como el avatar de cualquier app. El archivo
+    // se llama <uid>.jpg, y eso se comprueba en la condición porque el
+    // validador no admite extensiones dentro del patrón de la ruta.
+    match /profile-photos/{file} {
       allow read: if true;
       allow write: if request.auth != null
-                   && request.auth.uid == userId
+                   && file == request.auth.uid + '.jpg'
                    && request.resource.size < 8 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*');
     }
