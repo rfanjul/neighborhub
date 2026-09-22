@@ -93,7 +93,7 @@ export const styles = StyleSheet.create({
   linkText: { fontWeight: '400', textDecorationLine: 'underline' },
   error: { color: colors.danger, fontSize: 14 },
   hero: { alignItems: 'center', marginBottom: 20 },
-  heroMark: { width: 132, height: 132, marginBottom: 4 },
+  heroMark: { width: 198, height: 198, marginBottom: 4 },
   centered: { textAlign: 'center' },
   steps: { gap: 14, marginBottom: 8 },
   step: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
