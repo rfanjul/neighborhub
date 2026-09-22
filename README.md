@@ -3,7 +3,7 @@
 App iOS en React Native (Expo SDK 57) con Firebase Authentication:
 email + contraseña, Google y Sign in with Apple.
 
-- Bundle ID: `com.rfanjul.logindemo`
+- Bundle ID: `com.neighborhub`
 - Proyecto Firebase: el mismo que Neighbo (config copiada en `.env`)
 - Necesita un **development build** (`expo run:ios`), no Expo Go: Google
   nativo y Apple usan módulos nativos.
@@ -31,7 +31,7 @@ desarrollador en *Settings → Accounts*.
 Consola de Firebase → proyecto Neighbo → *Project settings → General → Your
 apps → Add app → iOS*:
 
-1. Bundle ID: `com.rfanjul.logindemo`. Nombre cualquiera. Sin App Store ID.
+1. Bundle ID: `com.neighborhub`. Nombre cualquiera. Sin App Store ID.
 2. Descarga `GoogleService-Info.plist` y guárdalo en la raíz de este proyecto
    (está en `.gitignore`).
 3. Copia dos valores del plist a `.env`:
@@ -53,7 +53,7 @@ apps → Add app → iOS*:
 
 ### 4. Apple Developer: capability
 En https://developer.apple.com/account → *Certificates, IDs & Profiles →
-Identifiers*: si `com.rfanjul.logindemo` no existe, Xcode lo creará al
+Identifiers*: si `com.neighborhub` no existe, Xcode lo creará al
 compilar con firma automática. Comprueba que el App ID tiene marcada la
 capability **Sign In with Apple** (Xcode la añade sola por el entitlement
 que genera Expo; si no, márcala a mano y guarda).
