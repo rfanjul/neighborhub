@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Image, Platform, Text, View } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/types';
@@ -29,7 +29,13 @@ export default function WelcomeScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <Text style={styles.title}>Login Demo</Text>
+      <Image
+        source={require('../../assets/splash-icon.png')}
+        style={{ width: 72, height: 72, marginBottom: 12 }}
+        resizeMode="contain"
+        accessibilityIgnoresInvertColors
+      />
+      <Text style={styles.title}>Neighborhub</Text>
       <Text style={styles.subtitle}>Entra con Apple, Google o tu email.</Text>
 
       {isExpoGo && (

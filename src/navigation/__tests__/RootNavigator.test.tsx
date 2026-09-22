@@ -40,13 +40,13 @@ describe('RootNavigator', () => {
     await renderNavigator({ initializing: true });
 
     expect(screen.getByLabelText('Cargando')).toBeTruthy();
-    expect(screen.queryByText('Login Demo')).toBeNull();
+    expect(screen.queryByText('Neighborhub')).toBeNull();
   });
 
   it('sin sesión arranca en la pantalla de acceso', async () => {
     await renderNavigator({ initializing: false, user: null });
 
-    await waitFor(() => expect(screen.getByText('Login Demo')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Neighborhub')).toBeTruthy());
     expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy();
   });
 
@@ -64,7 +64,7 @@ describe('RootNavigator', () => {
     mockedUseAuth.mockReturnValue(authValue({ initializing: false, user: null }));
     await view.rerender(<RootNavigator />);
 
-    await waitFor(() => expect(screen.getByText('Login Demo')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Neighborhub')).toBeTruthy());
     expect(screen.queryByText('Hola, Ana')).toBeNull();
   });
 });

@@ -21,6 +21,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-dev-client',
+    [
+      'expo-splash-screen',
+      { image: './assets/splash-icon.png', resizeMode: 'contain', backgroundColor: '#FBF3EA', imageWidth: 180 },
+    ],
     'expo-apple-authentication',
     ['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }],
   ],

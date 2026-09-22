@@ -1,12 +1,16 @@
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
+// Paleta de marca: crema de fondo, tinta cálida para el texto y terracota
+// como color de acción. Es la misma del icono.
 export const colors = {
-  background: '#FFFFFF',
-  text: '#111111',
-  muted: '#6B6B6B',
-  border: '#D9D9D9',
-  primary: '#111111',
+  background: '#FBF3EA',
+  card: '#FFFFFF',
+  text: '#33261F',
+  muted: '#6B5B52',
+  border: '#E4DDD3',
+  primary: '#DD6B3E',
+  primaryDark: '#B4472A',
   danger: '#B3261E',
 };
 
@@ -68,21 +72,22 @@ export function Screen({ children }: { children: React.ReactNode }) {
 }
 
 export const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24, paddingTop: 80, gap: 12 },
-  title: { fontSize: 28, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 24, paddingTop: 72, gap: 12 },
+  title: { fontSize: 32, fontWeight: '700', color: colors.text, marginBottom: 4, letterSpacing: -0.5 },
   subtitle: { fontSize: 16, color: colors.muted, marginBottom: 16 },
   input: {
-    height: 48,
+    height: 52,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 10,
+    backgroundColor: colors.card,
+    borderRadius: 14,
     paddingHorizontal: 14,
     fontSize: 16,
     color: colors.text,
   },
-  button: { height: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  button: { height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   buttonPrimary: { backgroundColor: colors.primary },
-  buttonSecondary: { borderWidth: 1, borderColor: colors.border },
+  buttonSecondary: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   buttonLink: { height: 40 },
   buttonText: { fontSize: 16, fontWeight: '500', color: colors.text },
   linkText: { fontWeight: '400', textDecorationLine: 'underline' },
