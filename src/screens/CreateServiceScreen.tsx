@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator, Image } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -24,9 +25,39 @@ export default function CreateServiceScreen({ navigation }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState('');
-  const [credits, setCredits] = useState('');
   const [radius, setRadius] = useState(55);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const anadirFoto = (desde: 'camara' | 'galeria') => async () => {
+    const permiso =
+      desde === 'camara'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert(
+        'Permission needed',
+        desde === 'camara' ? 'Allow camera access to take a photo.' : 'Allow photo access to pick a picture.'
+      );
+      return;
+    }
+    const opciones: ImagePicker.ImagePickerOptions = { quality: 0.7, allowsEditing: true };
+    const resultado =
+      desde === 'camara'
+        ? await ImagePicker.launchCameraAsync(opciones)
+        : await ImagePicker.launchImageLibraryAsync({ ...opciones, mediaTypes: ['images'] });
+    if (!resultado.canceled && resultado.assets[0]) {
+      setPhotos((previas) => [...previas, resultado.assets[0].uri]);
+    }
+  };
+
+  const elegirOrigenFoto = () => {
+    Alert.alert('Add a photo', undefined, [
+      { text: 'Take photo', onPress: anadirFoto('camara') },
+      { text: 'Choose from library', onPress: anadirFoto('galeria') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -35,19 +66,23 @@ export default function CreateServiceScreen({ navigation }: Props) {
     }
     setSubmitting(true);
     try {
+      // Las fotos se suben antes: el documento guarda ya sus URLs.
+      const subidas = await Promise.all(photos.map((uri) => api.uploadServicePhoto(uri)));
       await api.createService({
         title: title.trim(),
         category,
         description: description.trim(),
-        credits: parseInt(credits, 10) || 0,
+        credits: 0,
+        photos: subidas,
         durationLabel: duration.trim() || '—',
         availableLabel: 'Flexible',
         locationLabel: '0 km away',
         travelRadiusKm: Math.round(radius / 11),
       });
       navigation.goBack();
-    } catch {
-      Alert.alert("Couldn't submit your service", 'Check your connection and try again.');
+    } catch (e: any) {
+      // Mostrar el motivo real ayuda a distinguir un fallo de red de uno de permisos.
+      Alert.alert("Couldn't submit your service", e?.message ?? 'Check your connection and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -103,22 +138,38 @@ export default function CreateServiceScreen({ navigation }: Props) {
 
         <View style={{ gap: 8 }}>
           <Text style={styles.label}>Photos</Text>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <View style={styles.addPhoto}>
+          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+            {photos.map((uri) => (
+              <Pressable
+                key={uri}
+                onLongPress={() => setPhotos((previas) => previas.filter((p) => p !== uri))}
+                accessibilityRole="button"
+                accessibilityLabel="Photo, long press to remove"
+              >
+                <Image source={{ uri }} style={styles.photo} />
+              </Pressable>
+            ))}
+            <Pressable
+              style={styles.addPhoto}
+              onPress={elegirOrigenFoto}
+              accessibilityRole="button"
+              accessibilityLabel="Add a photo"
+            >
               <PlusIcon size={20} color={colors.mutedLight} />
-            </View>
+            </Pressable>
           </View>
+          {photos.length > 0 && <Text style={styles.photoHint}>Long press a photo to remove it.</Text>}
         </View>
 
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.label}>Duration</Text>
-            <TextInput style={styles.input} placeholder="2 hours" placeholderTextColor={colors.mutedLight} value={duration} onChangeText={setDuration} />
-          </View>
-          <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.label}>Credits</Text>
-            <TextInput style={styles.input} placeholder="15 cr" placeholderTextColor={colors.mutedLight} value={credits} onChangeText={setCredits} />
-          </View>
+        <View style={{ gap: 6 }}>
+          <Text style={styles.label}>Duration</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="2 hours"
+            placeholderTextColor={colors.mutedLight}
+            value={duration}
+            onChangeText={setDuration}
+          />
         </View>
 
         <View style={{ gap: 8 }}>
@@ -147,6 +198,8 @@ export default function CreateServiceScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.backgroundAlt },
+  photo: { width: 96, height: 96, borderRadius: radii.sm },
+  photoHint: { fontFamily: fonts.body, fontSize: 11, color: colors.mutedLight },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.ink },
   closeButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },

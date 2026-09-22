@@ -25,14 +25,18 @@ function Field({ label, placeholder, value, onChangeText }: { label: string; pla
   );
 }
 
-export default function ProfileDetailsScreen({}: Props) {
-  const { profile, refreshProfile, logout } = useAuth();
-  const [name, setName] = useState(profile?.name ?? '');
-  const [dob, setDob] = useState('');
-  const [city, setCity] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-  const [bio, setBio] = useState('');
-  const [languages, setLanguages] = useState(['English', 'German']);
+export default function ProfileDetailsScreen({ navigation }: Props) {
+  const { user, profile, refreshProfile, logout } = useAuth();
+  // Lo que ya sabemos del acceso (nombre de Apple/Google o del registro)
+  // sirve de punto de partida; el resto viene del documento de Firestore.
+  const [name, setName] = useState(profile?.name || user?.displayName || '');
+  const [dob, setDob] = useState(profile?.dateOfBirth ?? '');
+  const [city, setCity] = useState(profile?.city ?? '');
+  const [postalCode, setPostalCode] = useState(profile?.postalCode ?? '');
+  const [bio, setBio] = useState(profile?.bio ?? '');
+  const [languages, setLanguages] = useState(
+    profile?.languages ? profile.languages.split(',').map((l) => l.trim()).filter(Boolean) : ['English', 'German']
+  );
   const [submitting, setSubmitting] = useState(false);
 
   const handleContinue = async () => {
@@ -48,8 +52,7 @@ export default function ProfileDetailsScreen({}: Props) {
         onboardingCompleted: true,
       });
       await refreshProfile();
-      // RootNavigator switches to the main app automatically once
-      // profile.onboardingCompleted is true.
+      navigation.goBack();
     } catch (e: any) {
       Alert.alert("Couldn't save your profile", e?.message ?? 'Please try again.');
     } finally {
@@ -113,7 +116,7 @@ export default function ProfileDetailsScreen({}: Props) {
 
       <View style={styles.footer}>
         <PillButton
-          label={submitting ? 'Saving…' : 'Continue'}
+          label={submitting ? 'Saving…' : 'Save'}
           onPress={handleContinue}
           icon={submitting ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
         />

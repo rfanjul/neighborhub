@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getFirestore, initializeFirestore, type Firestore } from '@firebase/firestore';
 import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -28,4 +29,14 @@ try {
   auth = getAuth(app);
 }
 
-export { auth };
+// Sin esto, addDoc/getDoc se quedan pendientes para siempre en React Native
+// en cuanto la red no deja pasar el WebChannel de Firestore.
+let db: Firestore;
+try {
+  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+} catch {
+  // Fast Refresh: ya estaba inicializado.
+  db = getFirestore(app);
+}
+
+export { auth, db };

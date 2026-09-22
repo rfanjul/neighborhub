@@ -64,21 +64,21 @@ describe('RootNavigator', () => {
     expect(screen.queryByRole('button', { name: 'Entrar con email' })).toBeNull();
   });
 
-  it('con sesión pero sin onboarding manda al wizard de perfil', async () => {
+  it('entra al muro aunque el perfil esté a medias: editarlo ya no es obligatorio', async () => {
     await renderNavigator({
       initializing: false,
       user: signedInUser as never,
       profile: { ...perfilCompleto, onboardingCompleted: false } as never,
     });
 
-    await waitFor(() => expect(screen.getByText('Tell us about you')).toBeTruthy());
-    expect(screen.queryByText('Home')).toBeNull();
+    await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
+    expect(screen.queryByText('Tell us about you')).toBeNull();
   });
 
-  it('sin perfil en Firestore también manda al wizard', async () => {
+  it('entra al muro incluso sin documento de perfil en Firestore', async () => {
     await renderNavigator({ initializing: false, user: signedInUser as never, profile: null });
 
-    await waitFor(() => expect(screen.getByText('Tell us about you')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
   });
 
   it('al cerrar sesión vuelve a la pantalla de acceso', async () => {

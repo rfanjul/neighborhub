@@ -30,6 +30,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      'expo-image-picker',
+      { photosPermission: 'Neighborhub usa tus fotos para que ilustres los servicios que publicas.' },
+    ],
+    [
       'expo-location',
       { locationWhenInUsePermission: 'Neighborhub usa tu ubicación para mostrarte peticiones de ayuda cerca.' },
     ],

@@ -1,7 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, shadow } from '../theme';
 import { SettingsIcon, CoinIcon, BadgeStarIcon, BadgeVeteranIcon, BadgeExemplaryIcon } from '../icons';
 import { currentUser as mockCurrentUser } from '../data/mock';
@@ -11,6 +13,7 @@ import PhotoCaptureModal from '../components/PhotoCaptureModal';
 
 export default function MyProfileScreen() {
   const { logout } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [currentUser, setCurrentUser] = useState(mockCurrentUser);
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [photoVersion, setPhotoVersion] = useState(0);
@@ -19,6 +22,7 @@ export default function MyProfileScreen() {
   const handleSettingsPress = () => {
     Alert.alert('Account', undefined, [
       { text: 'Cancel', style: 'cancel' },
+      { text: 'Edit my details', onPress: () => navigation.navigate('ProfileDetails') },
       { text: 'Log out', style: 'destructive', onPress: () => logout() },
     ]);
   };

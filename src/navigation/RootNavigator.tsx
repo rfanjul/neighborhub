@@ -19,7 +19,7 @@ const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AppStack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  const { user, profile, initializing } = useAuth();
+  const { user, initializing } = useAuth();
 
   if (initializing) {
     // Splash mientras Firebase restaura la sesión de AsyncStorage.
@@ -29,9 +29,6 @@ export default function RootNavigator() {
       </View>
     );
   }
-
-  // Sin perfil completo no se entra a la app: el wizard es obligatorio.
-  const onboardingPendiente = !profile?.onboardingCompleted;
 
   return (
     <NavigationContainer>
@@ -46,11 +43,6 @@ export default function RootNavigator() {
             options={{ headerShown: true, title: '' }}
           />
         </AuthStack.Navigator>
-      ) : onboardingPendiente ? (
-        <AppStack.Navigator screenOptions={{ headerShown: false }}>
-          <AppStack.Screen name="ProfileDetails" component={ProfileDetailsScreen} />
-          <AppStack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
-        </AppStack.Navigator>
       ) : (
         <AppStack.Navigator screenOptions={{ headerShown: false }}>
           <AppStack.Screen name="Main" component={MainTabs} />
@@ -60,6 +52,14 @@ export default function RootNavigator() {
             component={CreateServiceScreen}
             options={{ presentation: 'modal' }}
           />
+          {/* Los datos del perfil se editan desde Profile, ya no son un paso
+              obligatorio antes de ver el muro. */}
+          <AppStack.Screen
+            name="ProfileDetails"
+            component={ProfileDetailsScreen}
+            options={{ presentation: 'modal' }}
+          />
+          <AppStack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
         </AppStack.Navigator>
       )}
     </NavigationContainer>

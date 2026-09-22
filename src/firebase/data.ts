@@ -4,7 +4,6 @@
 // (IndexedDB, WebChannel) that don't work right in React Native.
 // @firebase/firestore does declare that condition, so import from there.
 import {
-  getFirestore,
   collection,
   doc,
   getDoc,
@@ -21,10 +20,9 @@ import {
 // doesn't need one — it's just fetch()/Blob under the hood, which works
 // fine via the regular browser build in React Native.
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth } from './index';
+import { auth, db } from './index';
 import type { ServiceCategory, ServiceRequest } from '../data/mock';
 
-const db = getFirestore();
 const storage = getStorage();
 
 export type ApiUserProfile = {
@@ -152,6 +150,17 @@ export const api = {
   },
 
   /** `localUri` is a file:// path from expo-camera's takePictureAsync(). */
+  /** Sube una foto de servicio y devuelve su URL pública. */
+  async uploadServicePhoto(localUri: string): Promise<string> {
+    const uid = currentUid();
+    const response = await fetch(localUri);
+    const blob = await response.blob();
+    const nombre = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+    const photoRef = ref(storage, `service-photos/${uid}/${nombre}`);
+    await uploadBytes(photoRef, blob, { contentType: 'image/jpeg' });
+    return getDownloadURL(photoRef);
+  },
+
   async uploadMyPhoto(localUri: string): Promise<ApiUserProfile> {
     const uid = currentUid();
     const response = await fetch(localUri);
@@ -180,6 +189,7 @@ export const api = {
     category: ServiceCategory;
     description: string;
     credits: number;
+    photos?: string[];
     durationLabel: string;
     availableLabel: string;
     locationLabel: string;
