@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "login-demo",
+    "name": "Login Demo",
     "slug": "login-demo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {
