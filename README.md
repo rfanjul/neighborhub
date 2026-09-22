@@ -120,6 +120,13 @@ Una vez instalada la app, se conecta a Metro como cualquier development build:
 npx expo start --dev-client
 ```
 
+## Reglas de seguridad
+
+`firestore.rules` y `storage.rules` son las que hay que publicar en la
+consola (Firestore -> Rules y Storage -> Rules). Sin la de
+`service-photos/` la subida de fotos de un servicio falla con
+`storage/unauthorized`.
+
 ## Tests
 
 ```bash

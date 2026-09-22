@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Paste this into Firebase Console -> Firestore Database -> Rules -> Publish.
+//
+// Demo-grade rules: they stop randoms from reading/writing data that isn't
+// theirs, but there's no real "admin" concept here yet (moderation happens
+// by editing documents directly in the Firebase Console, which uses
+// privileged access and bypasses these rules entirely). Harden this with
+// custom claims + a Cloud Function before this goes anywhere near real users.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /helpRequests/{requestId} {
+      allow read: if request.auth != null && (
+        resource.data.status == 'approved' ||
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.helperId == request.auth.uid
+      );
+
+      allow create: if request.auth != null &&
+        request.resource.data.requesterId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+
+      allow update: if request.auth != null && (
+        // A neighbor accepting an approved request becomes its helper.
+        (resource.data.status == 'approved' &&
+         request.resource.data.status == 'accepted' &&
+         request.resource.data.helperId == request.auth.uid) ||
+        // Either party can update a request they're already part of
+        // (e.g. marking it in-progress/completed).
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.helperId == request.auth.uid
+      );
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/helpRequests/$(requestId)).data.requesterId == request.auth.uid ||
+          get(/databases/$(database)/documents/helpRequests/$(requestId)).data.helperId == request.auth.uid
+        );
+        allow create: if request.auth != null && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+  }
+}
