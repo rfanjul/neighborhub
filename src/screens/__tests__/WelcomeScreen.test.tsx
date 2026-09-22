@@ -53,6 +53,15 @@ describe('WelcomeScreen en el development build', () => {
     expect(screen.getByRole('button', { name: 'Crear una cuenta' })).toBeTruthy();
   });
 
+  it('explica de qué va la app y sus tres pasos', async () => {
+    await renderWelcome();
+
+    expect(screen.getByText(/acumulan créditos/)).toBeTruthy();
+    expect(screen.getByText('Ofrece ayuda')).toBeTruthy();
+    expect(screen.getByText('Gana créditos')).toBeTruthy();
+    expect(screen.getByText('Recibe ayuda')).toBeTruthy();
+  });
+
   it('entra con Google', async () => {
     const { value } = await renderWelcome();
 
