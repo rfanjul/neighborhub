@@ -99,11 +99,11 @@ describe('inicialización de Firebase', () => {
     expect(firebase.auth).toEqual({ id: 'auth-nuevo' });
   });
 
-  it('activa long polling en Firestore, que en React Native se cuelga sin él', () => {
+  it('fuerza long polling en Firestore, que en React Native falla sin él', () => {
     const { firebase, mocks } = loadFirebase();
 
     expect(mocks.initializeFirestore).toHaveBeenCalledWith(expect.anything(), {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
     });
     expect(firebase.db).toEqual({ id: 'firestore' });
   });

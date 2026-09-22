@@ -29,11 +29,13 @@ try {
   auth = getAuth(app);
 }
 
-// Sin esto, addDoc/getDoc se quedan pendientes para siempre en React Native
-// en cuanto la red no deja pasar el WebChannel de Firestore.
+// El transporte por WebChannel de Firestore no funciona de forma fiable en
+// React Native: unas redes lo bloquean y la autodetección no siempre acierta
+// (el síntoma es "client is offline" o una promesa que nunca resuelve). Con
+// long polling forzado va siempre, a cambio de algo más de tráfico.
 let db: Firestore;
 try {
-  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  db = initializeFirestore(app, { experimentalForceLongPolling: true });
 } catch {
   // Fast Refresh: ya estaba inicializado.
   db = getFirestore(app);
