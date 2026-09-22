@@ -96,3 +96,33 @@ npx expo prebuild --platform ios --clean && npx expo run:ios
 | Apple: `auth/operation-not-allowed` | Proveedor Apple sin activar en Firebase |
 | Apple: botón no responde / error 1000 | Capability no activa en el App ID, o simulador sin Apple ID |
 | `auth/invalid-credential` con Google | El `webClientId` no es el de este proyecto Firebase |
+
+## Tests
+
+```bash
+npm test              # 90 tests, 8 suites
+npm run test:coverage # además escribe coverage/ (HTML en coverage/lcov-report)
+npm run typecheck     # tsc --noEmit
+```
+
+Cubren el contexto de autenticación (email, Google, Apple, logout, sesión
+restaurada), la traducción de los códigos de error de Firebase, las cuatro
+pantallas y el enrutado según haya sesión. Firebase y los módulos nativos
+van mockeados, así que no tocan la red ni necesitan simulador.
+
+## CI (GitLab)
+
+`.gitlab-ci.yml` ejecuta en cada push:
+
+1. `npm run typecheck`
+2. `npm test -- --coverage`
+
+El porcentaje de cobertura sale en el pipeline y en los merge requests
+(anotado línea a línea vía Cobertura), los resultados de los tests en la
+pestaña *Tests*, y el informe HTML completo queda como artefacto — además
+de publicarse en GitLab Pages desde la rama por defecto.
+
+Para que el badge de cobertura salga en el repositorio: *Settings → CI/CD →
+General pipelines → Test coverage parsing* ya no hace falta (lo fija el
+campo `coverage:` del job), basta con añadir el badge
+`%{default_branch}/coverage.svg` en *Settings → General → Badges*.
