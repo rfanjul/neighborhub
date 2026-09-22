@@ -104,9 +104,9 @@ módulos nativos. Si el Mac no puede compilar para la versión de iOS del
 teléfono, EAS compila en la nube:
 
 ```bash
-npx eas login                                      # cuenta de Expo
-npx eas device:create                              # registra el UDID del iPhone
-npx eas build --profile development --platform ios # compila y da un enlace
+npx eas-cli login                                      # cuenta de Expo
+npx eas-cli device:create                              # registra el UDID del iPhone
+npx eas-cli build --profile development --platform ios # compila y da un enlace
 ```
 
 `eas device:create` abre un perfil de registro que se instala desde el propio
