@@ -1,0 +1,51 @@
+name: CI
+
+# Cada commit: push a cualquier rama y cada pull request.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    name: Tests y cobertura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Comprobar tipos
+        run: npm run typecheck
+
+      # El umbral del 90% está en jest.config.js (coverageThreshold), así que
+      # este paso falla tanto si un test se pone en rojo como si la cobertura
+      # baja de ese mínimo.
+      - name: Tests con cobertura
+        run: npm test -- --coverage --ci --runInBand
+
+      - name: Resumen de cobertura en el job
+        if: always()
+        run: |
+          node -e '
+            const t = require("./coverage/coverage-summary.json").total;
+            const row = (k) => `| ${k} | ${t[k].pct}% | ${t[k].covered}/${t[k].total} |`;
+            console.log("### Cobertura\n");
+            console.log("| Métrica | % | Cubierto |");
+            console.log("|---|---|---|");
+            for (const k of ["statements", "branches", "functions", "lines"]) console.log(row(k));
+            console.log("\nMínimo exigido: 90% en las cuatro.");
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar el informe HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14

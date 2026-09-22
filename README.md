@@ -110,6 +110,36 @@ restaurada), la traducción de los códigos de error de Firebase, las cuatro
 pantallas y el enrutado según haya sesión. Firebase y los módulos nativos
 van mockeados, así que no tocan la red ni necesitan simulador.
 
+## CI (GitHub Actions)
+
+`.github/workflows/ci.yml` se ejecuta en cada push a cualquier rama y en cada
+pull request:
+
+1. `npm run typecheck`
+2. `npm test -- --coverage --ci`
+
+El job falla si algún test se pone en rojo **o** si la cobertura baja del 90%
+en statements, branches, functions o lines — el umbral está en
+`coverageThreshold` dentro de `jest.config.js`, así que se aplica igual en
+local. El resumen de cobertura queda en la página del workflow y el informe
+HTML como artefacto (`coverage`, 14 días).
+
+### Bloquear el merge (hay que activarlo a mano en GitHub)
+
+El workflow por sí solo marca la PR en rojo, pero no impide el merge hasta
+que la rama esté protegida. En el repositorio: *Settings → Branches → Add
+branch ruleset* (o *Add rule* en la interfaz clásica) sobre `main`, y activa:
+
+- **Require status checks to pass before merging** → busca y añade el check
+  **`Tests y cobertura`**.
+- **Require branches to be up to date before merging** (opcional pero
+  recomendable: evita que una PR verde rompa main al mezclarse con otra).
+- **Do not allow bypassing the above settings**, si quieres que la regla
+  aplique también a los administradores.
+
+Con eso, una PR con tests en rojo o con menos del 90% de cobertura deja el
+botón de merge deshabilitado.
+
 ## CI (GitLab)
 
 `.gitlab-ci.yml` ejecuta en cada push:
