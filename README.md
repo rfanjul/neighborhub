@@ -123,13 +123,14 @@ npx expo start --dev-client
 ## Tests
 
 ```bash
-npm test              # 90 tests, 8 suites
+npm test              # 101 tests, 10 suites
 npm run test:coverage # además escribe coverage/ (HTML en coverage/lcov-report)
 npm run typecheck     # tsc --noEmit
 ```
 
 Cubren el contexto de autenticación (email, Google, Apple, logout, sesión
-restaurada), la traducción de los códigos de error de Firebase, las cuatro
+restaurada), la traducción de los códigos de error de Firebase, la
+inicialización del SDK con persistencia, la detección de Expo Go, las cuatro
 pantallas y el enrutado según haya sesión. Firebase y los módulos nativos
 van mockeados, así que no tocan la red ni necesitan simulador.
 

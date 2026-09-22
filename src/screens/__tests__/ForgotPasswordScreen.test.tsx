@@ -72,6 +72,16 @@ describe('ForgotPasswordScreen', () => {
     expect(screen.getByRole('button', { name: 'Enviar enlace' })).toBeTruthy();
   });
 
+  it('vuelve atrás desde la confirmación', async () => {
+    const { nav } = await renderForgot({}, { email: 'ana@example.com' });
+
+    await send();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Volver' })).toBeTruthy());
+    await fireEvent.press(screen.getByRole('button', { name: 'Volver' }));
+
+    expect(nav.spies.goBack).toHaveBeenCalled();
+  });
+
   it('vuelve atrás al cancelar', async () => {
     const { nav } = await renderForgot();
 
