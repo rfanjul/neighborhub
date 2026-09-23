@@ -120,6 +120,20 @@ Una vez instalada la app, se conecta a Metro como cualquier development build:
 npx expo start --dev-client
 ```
 
+Si el iPhone no está en la misma red que el Mac, con túnel
+(`npx expo start --dev-client --tunnel`). En ese caso la URL que se abre en
+la app tiene que ser **https**:
+
+```
+exp+login-demo://expo-development-client/?url=https%3A%2F%2F<subdominio>.exp.direct
+```
+
+Con `http://` la app descarga el manifiesto pero no el bundle y sale
+"Could not connect to development server": iOS (App Transport Security)
+solo permite HTTP sin cifrar en la red local, no hacia un dominio de
+internet como `exp.direct`. Safari sí lo abre, porque no está sujeto a esa
+restricción, y eso despista.
+
 ## Mapa
 
 El mapa pinta los servicios que tienen coordenadas (se guardan al
