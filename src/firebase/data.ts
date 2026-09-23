@@ -147,7 +147,10 @@ export const api = {
     onboardingCompleted: boolean;
   }>): Promise<ApiUserProfile> {
     const uid = currentUid();
-    await updateDoc(doc(db, 'users', uid), input);
+    // Firestore rechaza undefined; un campo vacío del formulario simplemente
+    // no se toca.
+    const cambios = Object.fromEntries(Object.entries(input).filter(([, valor]) => valor !== undefined));
+    await updateDoc(doc(db, 'users', uid), cambios);
     return api.getMe();
   },
 

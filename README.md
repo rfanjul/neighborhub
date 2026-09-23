@@ -127,6 +127,20 @@ consola (Firestore -> Rules y Storage -> Rules). Sin la de
 `service-photos/` la subida de fotos de un servicio falla con
 `storage/unauthorized`.
 
+Están probadas contra los emuladores de Firebase, sin tocar el proyecto
+real ni necesitar que Firestore esté activado en la nube:
+
+```bash
+npm run test:rules   # arranca Firestore y Storage locales, prueba y los apaga
+```
+
+Hace falta Java (17 o superior). `firebase-tools` está fijado a la v13
+porque la 14 en adelante exige Java 21; en CI se usa Java 21 igualmente.
+
+Cubren, entre otras cosas, que nadie pueda darse créditos, valoración o
+verificación a sí mismo, aprobarse sus propios servicios o escribir en
+conversaciones ajenas.
+
 ## Tests
 
 ```bash

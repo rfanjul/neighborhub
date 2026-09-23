@@ -13,6 +13,12 @@ jest.mock('../index', () => ({ auth: { currentUser: { uid: 'uid-1' } }, db: {} }
 
 jest.mock('@firebase/firestore', () => {
   const ruta = (segmentos: string[]) => segmentos.join('/');
+  // Igual que el SDK real: undefined no es un valor válido en Firestore.
+  const validar = (data: Doc) => {
+    for (const [campo, valor] of Object.entries(data)) {
+      if (valor === undefined) throw new Error(`Unsupported field value: undefined (found in field ${campo})`);
+    }
+  };
   return {
     doc: (_db: unknown, ...s: string[]) => ({ path: ruta(s), id: s[s.length - 1] }),
     collection: (_db: unknown, ...s: string[]) => ({ path: ruta(s) }),
@@ -21,12 +27,17 @@ jest.mock('@firebase/firestore', () => {
       exists: () => mockStore.has(r.path),
       data: () => mockStore.get(r.path),
     }),
-    setDoc: async (r: { path: string }, data: Doc) => void mockStore.set(r.path, { ...data }),
+    setDoc: async (r: { path: string }, data: Doc) => {
+      validar(data);
+      mockStore.set(r.path, { ...data });
+    },
     updateDoc: async (r: { path: string }, data: Doc) => {
+      validar(data);
       if (!mockStore.has(r.path)) throw new Error('No document to update');
       mockStore.set(r.path, { ...mockStore.get(r.path), ...data });
     },
     addDoc: async (c: { path: string }, data: Doc) => {
+      validar(data);
       const id = `auto-${++mockSecuencia}`;
       mockStore.set(`${c.path}/${id}`, { ...data });
       return { id };
@@ -111,6 +122,14 @@ describe('perfil', () => {
     const perfil = await api.updateMe({ bio: 'Me gusta pintar', languages: 'English, German' });
 
     expect(perfil).toMatchObject({ bio: 'Me gusta pintar', languages: 'English, German' });
+  });
+
+  it('guarda aunque haya campos vacíos, sin mandar undefined a Firestore', async () => {
+    await ensureUserDocument('uid-1', { name: 'Ana', email: 'ana@example.com' });
+
+    const perfil = await api.updateMe({ name: 'Ana', city: undefined, bio: 'Hola' });
+
+    expect(perfil).toMatchObject({ name: 'Ana', bio: 'Hola', city: null });
   });
 
   it('sube la foto de perfil con el uid como nombre y guarda la URL', async () => {

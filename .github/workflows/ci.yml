@@ -49,3 +49,33 @@ jobs:
           name: coverage
           path: coverage/
           retention-days: 14
+
+  rules:
+    name: Reglas de Firebase
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Los emuladores de Firestore y Storage son Java.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Caché de los emuladores
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('package-lock.json') }}
+
+      - run: npm ci
+
+      # Prueba firestore.rules y storage.rules contra los emuladores: cada
+      # permiso que debería concederse y cada abuso que debería bloquearse.
+      - name: Tests de reglas contra el emulador
+        run: npm run test:rules

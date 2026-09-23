@@ -46,3 +46,9 @@ GoogleService-Info.plist
 
 # tests
 coverage/
+
+# emuladores de Firebase
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+ui-debug.log
