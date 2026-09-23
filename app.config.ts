@@ -7,7 +7,7 @@ const googleIosUrlScheme =
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Login Demo',
+  name: 'Neighborhub',
   slug: 'login-demo',
   scheme: 'logindemo',
   ios: {

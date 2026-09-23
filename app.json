@@ -1,13 +1,12 @@
 {
   "expo": {
-    "name": "Login Demo",
+    "name": "Neighborhub",
     "slug": "login-demo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FBF3EA",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.app.neighborhub",
