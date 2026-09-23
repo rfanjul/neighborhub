@@ -151,7 +151,6 @@ export const api = {
     return api.getMe();
   },
 
-  /** `localUri` is a file:// path from expo-camera's takePictureAsync(). */
   /** Sube una foto de servicio y devuelve su URL pública. */
   async uploadServicePhoto(localUri: string): Promise<string> {
     const uid = currentUid();
@@ -168,6 +167,7 @@ export const api = {
     await deleteObject(ref(storage, url));
   },
 
+  /** `localUri` is a file:// path from expo-camera's takePictureAsync(). */
   async uploadMyPhoto(localUri: string): Promise<ApiUserProfile> {
     const uid = currentUid();
     const response = await fetch(localUri);

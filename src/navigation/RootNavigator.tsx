@@ -10,7 +10,6 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ProfileDetailsScreen from '../screens/ProfileDetailsScreen';
-import ProfilePhotoScreen from '../screens/ProfilePhotoScreen';
 import ServiceDetailScreen from '../screens/ServiceDetailScreen';
 import CreateServiceScreen from '../screens/CreateServiceScreen';
 import MainTabs from './MainTabs';
@@ -59,7 +58,6 @@ export default function RootNavigator() {
             component={ProfileDetailsScreen}
             options={{ presentation: 'modal' }}
           />
-          <AppStack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
         </AppStack.Navigator>
       )}
     </NavigationContainer>

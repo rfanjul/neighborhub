@@ -40,7 +40,7 @@ export default function PhotoCaptureModal({ visible, onClose, onCaptured }: Prop
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable style={styles.closeButton} onPress={onClose}>
+          <Pressable style={styles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
             <CloseIcon size={14} />
           </Pressable>
           <Text style={styles.title}>Update photo</Text>
@@ -60,7 +60,13 @@ export default function PhotoCaptureModal({ visible, onClose, onCaptured }: Prop
           {!permission?.granted ? (
             <PillButton label="Allow camera access" onPress={requestPermission} style={{ width: '100%' }} />
           ) : (
-            <Pressable style={styles.shutter} onPress={handleCapture} disabled={saving}>
+            <Pressable
+              style={styles.shutter}
+              onPress={handleCapture}
+              disabled={saving}
+              accessibilityRole="button"
+              accessibilityLabel="Take photo"
+            >
               {saving && <ActivityIndicator color={colors.white} />}
             </Pressable>
           )}

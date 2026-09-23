@@ -72,7 +72,7 @@ describe('RootNavigator', () => {
     });
 
     await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
-    expect(screen.queryByText('Tell us about you')).toBeNull();
+    expect(screen.queryByText('Your details')).toBeNull();
   });
 
   it('entra al muro incluso sin documento de perfil en Firestore', async () => {

@@ -25,3 +25,7 @@ jest.mock('./src/firebase/data', () => ({
     deleteServicePhoto: jest.fn(async () => undefined),
   },
 }));
+
+// Las pantallas leen los márgenes seguros del dispositivo; en test no hay
+// dispositivo, así que se usa el mock que publica la propia librería.
+jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);

@@ -11,6 +11,7 @@ import { CoinIcon, SearchIcon, FilterIcon } from '../icons';
 import { currentUser, mockServices, type ServiceRequest } from '../data/mock';
 import ServiceCard from '../components/ServiceCard';
 import { api } from '../firebase/data';
+import { useAuth } from '../auth/AuthContext';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'HomeTab'>,
@@ -18,6 +19,9 @@ type Props = CompositeScreenProps<
 >;
 
 export default function WallScreen({ navigation }: Props) {
+  const { user, profile } = useAuth();
+  // El saludo es para quien ha entrado, no para el usuario de ejemplo.
+  const nombre = (profile?.name || user?.displayName || '').split(' ')[0];
   const [services, setServices] = useState<ServiceRequest[]>(mockServices);
   const [credits, setCredits] = useState(currentUser.credits);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,7 +70,7 @@ export default function WallScreen({ navigation }: Props) {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hi, {currentUser.name.split(' ')[0]} 👋</Text>
+          <Text style={styles.greeting}>{nombre ? `Hi, ${nombre} 👋` : 'Hi 👋'}</Text>
           <Text style={styles.headline}>Need help nearby?</Text>
         </View>
         <View style={styles.creditsPill}>
@@ -103,7 +107,9 @@ export default function WallScreen({ navigation }: Props) {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No requests match "{query}".</Text>
+          <Text style={styles.emptyText}>
+            {query.trim() ? `No requests match "${query.trim()}".` : 'No requests nearby yet. Be the first to ask for help!'}
+          </Text>
         }
         renderItem={({ item }) => (
           <ServiceCard service={item} onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.id })} />

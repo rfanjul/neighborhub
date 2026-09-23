@@ -58,14 +58,19 @@ export default function MyProfileScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
-        <Pressable style={styles.settingsButton} onPress={handleSettingsPress}>
+        <Pressable
+          style={styles.settingsButton}
+          onPress={handleSettingsPress}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+        >
           <SettingsIcon size={15} />
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
         <View style={styles.identity}>
-          <Pressable onPress={() => setShowCamera(true)}>
+          <Pressable onPress={() => setShowCamera(true)} accessibilityRole="button" accessibilityLabel="Change photo">
             {photoURL ? (
               <Image source={{ uri: `${photoURL}${photoURL.includes('?') ? '&' : '?'}v=${photoVersion}` }} style={styles.avatar} />
             ) : (

@@ -20,7 +20,6 @@ export type MainTabParamList = {
 /** Pantallas con sesión iniciada: wizard de perfil, pestañas y modales. */
 export type RootStackParamList = {
   ProfileDetails: undefined;
-  ProfilePhoto: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   ServiceDetail: { serviceId: string };
   CreateService: undefined;

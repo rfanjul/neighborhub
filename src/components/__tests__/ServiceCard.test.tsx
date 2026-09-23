@@ -44,6 +44,12 @@ describe('ServiceCard', () => {
     expect(screen.queryByLabelText('Foto de Pintar una pared')).toBeNull();
   });
 
+  it('no enseña "0 cr" en servicios sin créditos', async () => {
+    await render(<ServiceCard service={servicio({ credits: 0 })} />);
+
+    expect(screen.queryByText('0 cr')).toBeNull();
+  });
+
   it('avisa al pulsarla', async () => {
     const onPress = jest.fn();
     await render(<ServiceCard service={servicio()} onPress={onPress} />);

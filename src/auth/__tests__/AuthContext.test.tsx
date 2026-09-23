@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth';
 import { AuthProvider, useAuth } from '../AuthContext';
 import { auth } from '../../firebase';
+import { api, ensureUserDocument } from '../../firebase/data';
 import { googleCancelled, googleCancelledError, googleSignInMock, googleSuccess } from '../../test-utils/mocks';
 import { firebaseError } from '../../test-utils/firebaseError';
 
@@ -104,6 +105,60 @@ describe('sesión', () => {
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
     await expect(renderHook(() => useAuth())).rejects.toThrow('useAuth debe usarse dentro de <AuthProvider>');
     consoleError.mockRestore();
+  });
+});
+
+describe('perfil de Firestore', () => {
+  it('al entrar crea el perfil si falta y lo expone', async () => {
+    (auth as any).currentUser = { uid: 'uid-1', displayName: 'Ruben', email: 'r@example.com' };
+    (api.getMe as jest.Mock).mockResolvedValueOnce({ id: 'uid-1', name: 'Ruben' });
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await authStateCallback()(fakeUser());
+    });
+
+    expect(ensureUserDocument).toHaveBeenCalledWith('uid-1', { name: 'Ruben', email: 'r@example.com' });
+    expect(result.current.profile).toEqual({ id: 'uid-1', name: 'Ruben' });
+    delete (auth as any).currentUser;
+  });
+
+  it('usa valores vacíos si el proveedor no dio nombre ni email', async () => {
+    (auth as any).currentUser = { uid: 'uid-2', displayName: null, email: null };
+    await renderAuth();
+
+    await act(async () => {
+      await authStateCallback()(fakeUser());
+    });
+
+    expect(ensureUserDocument).toHaveBeenCalledWith('uid-2', { name: '', email: '' });
+    delete (auth as any).currentUser;
+  });
+
+  it('si Firestore falla se entra igual, sin perfil', async () => {
+    (auth as any).currentUser = { uid: 'uid-1', displayName: 'Ruben', email: 'r@example.com' };
+    (api.getMe as jest.Mock).mockRejectedValueOnce(new Error('client is offline'));
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await authStateCallback()(fakeUser());
+    });
+
+    expect(result.current.user).not.toBeNull();
+    expect(result.current.profile).toBeNull();
+    expect(result.current.initializing).toBe(false);
+    delete (auth as any).currentUser;
+  });
+
+  it('refrescar sin sesión deja el perfil vacío', async () => {
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await result.current.refreshProfile();
+    });
+
+    expect(result.current.profile).toBeNull();
+    expect(api.getMe).not.toHaveBeenCalled();
   });
 });
 

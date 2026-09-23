@@ -51,7 +51,7 @@ export default function ChatScreen() {
           value={draft}
           onChangeText={setDraft}
         />
-        <Pressable style={styles.sendButton} onPress={send}>
+        <Pressable style={styles.sendButton} onPress={send} accessibilityRole="button" accessibilityLabel="Send">
           <SendIcon size={18} />
         </Pressable>
       </View>

@@ -67,8 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await ensureUserDocument(actual.uid, { name: actual.displayName ?? '', email: actual.email ?? '' });
       setProfile(await api.getMe());
     } catch {
-      // Sin Firestore (offline o reglas) la app sigue usable: se entra sin
-      // perfil y el wizard lo vuelve a intentar.
+      // Sin Firestore (offline o reglas) la app sigue usable: se entra al
+      // muro sin perfil y se reintenta al editar los datos.
       setProfile(null);
     }
   }, []);

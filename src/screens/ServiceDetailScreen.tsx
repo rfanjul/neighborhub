@@ -78,7 +78,12 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
             ))}
           </ScrollView>
         )}
-        <Pressable style={[styles.backButton, { top: insets.top + 12 }]} onPress={() => navigation.goBack()}>
+        <Pressable
+          style={[styles.backButton, { top: insets.top + 12 }]}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <BackIcon size={18} />
         </Pressable>
         {service.photos.length > 1 && (
@@ -115,10 +120,12 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
             <Text style={styles.infoLabel}>Duration</Text>
             <Text style={styles.infoValue}>{service.durationLabel}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Credits requested</Text>
-            <Text style={[styles.infoValue, { color: colors.accentDark }]}>{service.credits} cr</Text>
-          </View>
+          {service.credits > 0 && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Credits requested</Text>
+              <Text style={[styles.infoValue, { color: colors.accentDark }]}>{service.credits} cr</Text>
+            </View>
+          )}
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Location</Text>
             <Text style={styles.infoValue}>{service.distanceKm} km away</Text>

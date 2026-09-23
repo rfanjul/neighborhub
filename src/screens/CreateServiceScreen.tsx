@@ -119,7 +119,12 @@ export default function CreateServiceScreen({ navigation }: Props) {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>New service</Text>
-        <Pressable style={styles.closeButton} onPress={() => navigation.goBack()}>
+        <Pressable
+          style={styles.closeButton}
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
           <CloseIcon size={14} />
         </Pressable>
       </View>

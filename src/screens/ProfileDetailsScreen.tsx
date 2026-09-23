@@ -10,6 +10,9 @@ import { api } from '../firebase/data';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProfileDetails'>;
 
+/** Idiomas que se pueden marcar; el lanzamiento es en inglés y alemán. */
+const idiomasDisponibles = ['English', 'German', 'Spanish', 'French', 'Italian', 'Portuguese'];
+
 function Field({ label, placeholder, value, onChangeText }: { label: string; placeholder: string; value: string; onChangeText: (t: string) => void }) {
   return (
     <View style={{ gap: 6 }}>
@@ -26,7 +29,7 @@ function Field({ label, placeholder, value, onChangeText }: { label: string; pla
 }
 
 export default function ProfileDetailsScreen({ navigation }: Props) {
-  const { user, profile, refreshProfile, logout } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   // Lo que ya sabemos del acceso (nombre de Apple/Google o del registro)
   // sirve de punto de partida; el resto viene del documento de Firestore.
   const [name, setName] = useState(profile?.name || user?.displayName || '');
@@ -38,6 +41,9 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
     profile?.languages ? profile.languages.split(',').map((l) => l.trim()).filter(Boolean) : ['English', 'German']
   );
   const [submitting, setSubmitting] = useState(false);
+
+  const alternarIdioma = (idioma: string) =>
+    setLanguages((previos) => (previos.includes(idioma) ? previos.filter((i) => i !== idioma) : [...previos, idioma]));
 
   const handleContinue = async () => {
     setSubmitting(true);
@@ -63,9 +69,9 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Tell us about you</Text>
-        <Pressable onPress={() => logout()}>
-          <Text style={styles.logoutLink}>Log out</Text>
+        <Text style={styles.title}>Your details</Text>
+        <Pressable onPress={() => navigation.goBack()} accessibilityRole="button">
+          <Text style={styles.logoutLink}>Cancel</Text>
         </Pressable>
       </View>
 
@@ -87,17 +93,21 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
         <View style={{ gap: 8 }}>
           <Text style={styles.label}>Languages you speak</Text>
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-            {languages.map((lang) => (
-              <View key={lang} style={styles.langChip}>
-                <Text style={styles.langChipLabel}>{lang}</Text>
-              </View>
-            ))}
-            <Pressable
-              style={styles.addChip}
-              onPress={() => setLanguages((prev) => [...prev, `Language ${prev.length + 1}`])}
-            >
-              <Text style={styles.addChipLabel}>+ Add</Text>
-            </Pressable>
+            {idiomasDisponibles.map((idioma) => {
+              const marcado = languages.includes(idioma);
+              return (
+                <Pressable
+                  key={idioma}
+                  style={marcado ? styles.langChip : styles.addChip}
+                  onPress={() => alternarIdioma(idioma)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: marcado }}
+                  accessibilityLabel={idioma}
+                >
+                  <Text style={marcado ? styles.langChipLabel : styles.addChipLabel}>{idioma}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 

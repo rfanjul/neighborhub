@@ -27,16 +27,21 @@ function renderScreen() {
   );
 }
 
-/** Pulsa "Add a photo" y elige la opción indicada en el Alert. */
+/**
+ * Pulsa "Add a photo" y elige la opción indicada en el Alert. Devuelve todas
+ * las alertas mostradas por el camino (p. ej. la de permiso denegado).
+ */
 async function anadirFoto(opcion: 'Take photo' | 'Choose from library') {
   const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   await fireEvent.press(screen.getByRole('button', { name: 'Add a photo' }));
   const botones = alerta.mock.calls.at(-1)![2]!;
-  alerta.mockRestore();
   // La opción del Alert actualiza el estado al volver del selector: dentro de act.
   await act(async () => {
     await botones.find((b) => b.text === opcion)!.onPress!();
   });
+  const mostradas = alerta.mock.calls.map(([titulo, mensaje]) => [titulo, mensaje]);
+  alerta.mockRestore();
+  return mostradas;
 }
 
 beforeEach(() => {
@@ -91,6 +96,58 @@ describe('CreateServiceScreen', () => {
     await anadirFoto('Choose from library');
 
     expect(screen.getByLabelText('Photo, long press to remove')).toBeTruthy();
+  });
+
+  it.each([
+    ['Take photo', 'requestCameraPermissionsAsync', 'Allow camera access to take a photo.'],
+    ['Choose from library', 'requestMediaLibraryPermissionsAsync', 'Allow photo access to pick a picture.'],
+  ] as const)('explica qué permiso falta si se deniega (%s)', async (opcion, permiso, mensaje) => {
+    (ImagePicker[permiso] as jest.Mock).mockResolvedValueOnce({ granted: false });
+    await renderScreen();
+
+    const mostradas = await anadirFoto(opcion);
+
+    expect(mostradas).toContainEqual(['Permission needed', mensaje]);
+    expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled();
+    expect(ImagePicker.launchImageLibraryAsync).not.toHaveBeenCalled();
+  });
+
+  it('no añade nada si se cancela el selector', async () => {
+    (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: true, assets: [] });
+    await renderScreen();
+
+    await anadirFoto('Take photo');
+
+    expect(screen.queryByLabelText('Photo, long press to remove')).toBeNull();
+  });
+
+  it('quita una foto con pulsación larga', async () => {
+    (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'foto-1.jpg' }] });
+    await renderScreen();
+    await anadirFoto('Take photo');
+
+    await fireEvent(screen.getByLabelText('Photo, long press to remove'), 'longPress');
+
+    expect(screen.queryByLabelText('Photo, long press to remove')).toBeNull();
+  });
+
+  it('publica sin coordenadas si el GPS falla', async () => {
+    (Location.getCurrentPositionAsync as jest.Mock).mockRejectedValueOnce(new Error('sin señal'));
+    await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Pasear perro');
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    await waitFor(() => expect(mockedApi.createService).toHaveBeenCalledWith(expect.objectContaining({ coords: null })));
+  });
+
+  it('se cierra sin publicar', async () => {
+    const navigation = await renderScreen();
+
+    await fireEvent.press(screen.getByLabelText('Close'));
+
+    expect(navigation.goBack).toHaveBeenCalled();
+    expect(mockedApi.createService).not.toHaveBeenCalled();
   });
 
   it('publica sin coordenadas si no hay permiso de ubicación', async () => {

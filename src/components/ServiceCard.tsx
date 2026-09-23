@@ -31,9 +31,12 @@ export default function ServiceCard({ service, onPress }: { service: ServiceRequ
           <View style={[styles.avatar, { backgroundColor: service.requester.avatarColor }]} />
           <Text style={styles.requester}>{service.requester.name}</Text>
         </View>
-        <View style={styles.creditsChip}>
-          <Text style={styles.creditsLabel}>{service.credits} cr</Text>
-        </View>
+        {/* Quien publica ya no fija créditos: sin cifra no se enseña "0 cr". */}
+        {service.credits > 0 && (
+          <View style={styles.creditsChip}>
+            <Text style={styles.creditsLabel}>{service.credits} cr</Text>
+          </View>
+        )}
       </View>
     </Pressable>
   );
