@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Dimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii } from '../theme';
@@ -8,7 +9,8 @@ import { BackIcon } from '../icons';
 import Chip from '../components/Chip';
 import PillButton from '../components/PillButton';
 import { mockServices, type ServiceRequest } from '../data/mock';
-import { api } from '../firebase/data';
+import { api, type Application } from '../firebase/data';
+import { useAuth } from '../auth/AuthContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
 
@@ -19,6 +21,28 @@ const categoryLabel: Record<string, string> = {
   moving: 'Moving',
   other: 'Other',
 };
+
+type Accion = {
+  label: string;
+  /** Pantalla a la que lleva el botón; sin destino el botón va desactivado. */
+  destino?: 'Apply' | 'ServiceOffers' | 'Chat';
+  nota?: string;
+};
+
+/**
+ * Qué puede hacer quien mira el servicio: ofrecerse solo si está aprobado y
+ * no es suyo; quien lo publicó gestiona las ofertas; quien fue elegido abre
+ * el chat.
+ */
+export function accionPrincipal(service: ServiceRequest, uid: string | null, miOferta: Application | null): Accion {
+  if (uid && service.requesterId === uid) return { label: 'View offers', destino: 'ServiceOffers' };
+  if (uid && service.helperId === uid) return { label: 'Open chat', destino: 'Chat' };
+  if (miOferta?.status === 'pending') return { label: 'Offer sent', nota: 'Waiting for the owner to choose.' };
+  if (miOferta?.status === 'rejected') return { label: 'Offer not selected', nota: 'The owner chose another neighbor.' };
+  if (service.status === 'approved') return { label: 'Apply to help', destino: 'Apply' };
+  if (service.status === 'pending') return { label: 'Waiting for review', nota: 'Offers open once an admin approves it.' };
+  return { label: 'No longer taking offers' };
+}
 
 const statusLabel: Record<string, string> = {
   pending: 'Pending review',
@@ -32,29 +56,28 @@ const statusLabel: Record<string, string> = {
 export default function ServiceDetailScreen({ route, navigation }: Props) {
   const fallback = mockServices.find((s) => s.id === route.params.serviceId) ?? mockServices[0];
   const [service, setService] = useState<ServiceRequest>(fallback);
-  const [accepting, setAccepting] = useState(false);
+  const [miOferta, setMiOferta] = useState<Application | null>(null);
+  const { user } = useAuth();
   const [foto, setFoto] = useState(0);
   const anchoPantalla = Dimensions.get('window').width;
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    api.getService(route.params.serviceId).then(setService).catch(() => {
-      // Backend not reachable — keep showing the local mock version.
-    });
-  }, [route.params.serviceId]);
+  const serviceId = route.params.serviceId;
 
-  const handleApply = async () => {
-    setAccepting(true);
-    try {
-      const updated = await api.acceptService(service.id);
-      setService(updated);
-    } catch {
-      // Backend not reachable — proceed with the demo flow anyway.
-    } finally {
-      setAccepting(false);
-      navigation.navigate('Main', { screen: 'ChatTab' });
-    }
-  };
+  // Al volver de hacer una oferta hay que releer su estado.
+  useFocusEffect(
+    useCallback(() => {
+      api.getService(serviceId).then(setService).catch(() => {
+        // Backend not reachable — keep showing the local mock version.
+      });
+      api
+        .listMyApplications()
+        .then((ofertas) => setMiOferta(ofertas.find((o) => o.serviceId === serviceId) ?? null))
+        .catch(() => setMiOferta(null));
+    }, [serviceId])
+  );
+
+  const accion = accionPrincipal(service, user?.uid ?? null, miOferta);
 
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
@@ -139,10 +162,13 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
 
       <View style={styles.footer}>
         <PillButton
-          label="Apply to help"
-          onPress={handleApply}
-          icon={accepting ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
+          label={accion.label}
+          disabled={!accion.destino}
+          onPress={() => {
+            if (accion.destino) navigation.navigate(accion.destino, { serviceId: service.id });
+          }}
         />
+        {accion.nota && <Text style={styles.nota}>{accion.nota}</Text>}
       </View>
     </SafeAreaView>
   );
@@ -184,4 +210,5 @@ const styles = StyleSheet.create({
   infoLabel: { fontFamily: fonts.body, fontSize: 13.5, color: colors.muted },
   infoValue: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink },
   footer: { padding: 20, paddingTop: 8 },
+  nota: { marginTop: 8, textAlign: 'center', fontFamily: fonts.body, fontSize: 12, color: colors.muted },
 });

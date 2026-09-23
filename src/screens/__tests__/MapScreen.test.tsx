@@ -44,26 +44,7 @@ describe('MapScreen', () => {
     expect(screen.queryByTestId('marcador-sin')).toBeNull();
   });
 
-  it('con ubicación filtra por el radio elegido', async () => {
-    conUbicacion();
-    await renderMapa();
 
-    await waitFor(() => expect(screen.queryByTestId('marcador-lejos')).toBeNull());
-    expect(screen.getByTestId('marcador-cerca')).toBeTruthy();
-
-    await fireEvent.press(screen.getByText('10 km'));
-    expect(screen.queryByTestId('marcador-lejos')).toBeNull();
-  });
-
-  it('avisa si en el radio no hay nada', async () => {
-    conUbicacion();
-    await renderMapa();
-    await screen.findByTestId('marcador-cerca');
-
-    await fireEvent.press(screen.getByText('1 km'));
-
-    expect(screen.getByText('No services within 1 km.')).toBeTruthy();
-  });
 
   it('avisa si aún no hay servicios con ubicación', async () => {
     mockedApi.listServices.mockResolvedValue([sinSitio]);
@@ -79,12 +60,29 @@ describe('MapScreen', () => {
     expect(await screen.findByText(/Couldn't load services/)).toBeTruthy();
   });
 
+  it('no filtra por radio: con ubicación siguen saliendo también los lejanos', async () => {
+    conUbicacion();
+    await renderMapa();
+
+    expect(await screen.findByTestId('marcador-lejos')).toBeTruthy();
+    expect(screen.queryByText('1 km')).toBeNull();
+  });
+
+  it('la tarjeta enseña la foto del servicio si tiene', async () => {
+    mockedApi.listServices.mockResolvedValue([{ ...cerca, photos: ['https://ej/pared.jpg'] }]);
+    await renderMapa();
+
+    await fireEvent.press(await screen.findByTestId('marcador-cerca'));
+
+    expect(screen.getByLabelText('Foto de Pintar pared').props.source).toEqual({ uri: 'https://ej/pared.jpg' });
+  });
+
   it('al tocar un marcador enseña el servicio con su distancia y lleva al detalle', async () => {
     conUbicacion();
     const navigation = await renderMapa();
 
-    await waitFor(() => expect(screen.queryByTestId('marcador-lejos')).toBeNull());
-    await fireEvent.press(screen.getByTestId('marcador-cerca'));
+    await waitFor(() => expect(Location.getCurrentPositionAsync).toHaveBeenCalled());
+    await fireEvent.press(await screen.findByTestId('marcador-cerca'));
 
     expect(screen.getByText('Pintar pared')).toBeTruthy();
     expect(screen.getByText('1.3 km away · Ana')).toBeTruthy();

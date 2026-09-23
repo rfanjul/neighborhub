@@ -7,7 +7,7 @@ import { colors } from '../theme';
 import { HomeIcon, MapIcon, ChatIcon, ProfileIcon, PlusIcon } from '../icons';
 import WallScreen from '../screens/WallScreen';
 import MapScreen from '../screens/MapScreen';
-import ChatScreen from '../screens/ChatScreen';
+import ActivityScreen from '../screens/ActivityScreen';
 import MyProfileScreen from '../screens/MyProfileScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -59,9 +59,9 @@ export default function MainTabs({ navigation }: Props) {
         }}
       />
       <Tab.Screen
-        name="ChatTab"
-        component={ChatScreen}
-        options={{ title: 'Chat', tabBarIcon: ({ color }) => <ChatIcon color={color} /> }}
+        name="ActivityTab"
+        component={ActivityScreen}
+        options={{ title: 'Activity', tabBarIcon: ({ color }) => <ChatIcon color={color} /> }}
       />
       <Tab.Screen
         name="ProfileTab"

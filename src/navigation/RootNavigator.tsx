@@ -12,6 +12,9 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ProfileDetailsScreen from '../screens/ProfileDetailsScreen';
 import ServiceDetailScreen from '../screens/ServiceDetailScreen';
 import CreateServiceScreen from '../screens/CreateServiceScreen';
+import ApplyScreen from '../screens/ApplyScreen';
+import ServiceOffersScreen from '../screens/ServiceOffersScreen';
+import ChatScreen from '../screens/ChatScreen';
 import MainTabs from './MainTabs';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -46,6 +49,9 @@ export default function RootNavigator() {
         <AppStack.Navigator screenOptions={{ headerShown: false }}>
           <AppStack.Screen name="Main" component={MainTabs} />
           <AppStack.Screen name="ServiceDetail" component={ServiceDetailScreen} />
+          <AppStack.Screen name="Apply" component={ApplyScreen} options={{ presentation: 'modal' }} />
+          <AppStack.Screen name="ServiceOffers" component={ServiceOffersScreen} />
+          <AppStack.Screen name="Chat" component={ChatScreen} />
           <AppStack.Screen
             name="CreateService"
             component={CreateServiceScreen}

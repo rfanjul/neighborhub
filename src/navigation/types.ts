@@ -13,7 +13,7 @@ export type MainTabParamList = {
   HomeTab: undefined;
   MapTab: undefined;
   CreateTab: undefined;
-  ChatTab: undefined;
+  ActivityTab: { segmento?: 'services' | 'offers' } | undefined;
   ProfileTab: undefined;
 };
 
@@ -22,6 +22,11 @@ export type RootStackParamList = {
   ProfileDetails: undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   ServiceDetail: { serviceId: string };
+  /** Hacer una oferta sobre un servicio, con comentario. */
+  Apply: { serviceId: string };
+  /** Ofertas recibidas en un servicio propio: elegir, chatear, completar. */
+  ServiceOffers: { serviceId: string };
+  Chat: { serviceId: string };
   CreateService: undefined;
 };
 

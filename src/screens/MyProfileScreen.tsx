@@ -11,6 +11,56 @@ import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 
+type Insignia = {
+  clave: string;
+  titulo: string;
+  requisito: string;
+  conseguida: boolean;
+  icono: React.ReactNode;
+  fondo: string;
+};
+
+/**
+ * Insignias según las ayudas completadas: el contador siempre, y Amateur,
+ * Veterano y Ejemplar al superar 10, 25 y 50.
+ */
+export function insignias(ayudas: number): Insignia[] {
+  return [
+    {
+      clave: 'ayudas',
+      titulo: ayudas === 1 ? '1 ayuda' : `${ayudas} ayudas`,
+      requisito: '',
+      conseguida: true,
+      icono: <BadgeStarIcon size={22} />,
+      fondo: colors.amberTint,
+    },
+    {
+      clave: 'amateur',
+      titulo: 'Amateur',
+      requisito: 'Más de 10 ayudas',
+      conseguida: ayudas > 10,
+      icono: <BadgeStarIcon size={22} />,
+      fondo: colors.accentTint,
+    },
+    {
+      clave: 'veterano',
+      titulo: 'Veterano',
+      requisito: 'Más de 25 ayudas',
+      conseguida: ayudas > 25,
+      icono: <BadgeVeteranIcon size={22} />,
+      fondo: colors.blueTint,
+    },
+    {
+      clave: 'ejemplar',
+      titulo: 'Ejemplar',
+      requisito: 'Más de 50 ayudas',
+      conseguida: ayudas > 50,
+      icono: <BadgeExemplaryIcon size={22} />,
+      fondo: colors.greenTint,
+    },
+  ];
+}
+
 export default function MyProfileScreen() {
   const { logout } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -18,6 +68,9 @@ export default function MyProfileScreen() {
   const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [photoVersion, setPhotoVersion] = useState(0);
   const [showCamera, setShowCamera] = useState(false);
+  // Servicios completados en los que he ayudado: la cifra de "Services" y
+  // la base de las insignias. Se calcula, no se guarda en el perfil.
+  const [ayudas, setAyudas] = useState(0);
 
   const handleSettingsPress = () => {
     Alert.alert('Account', undefined, [
@@ -35,6 +88,10 @@ export default function MyProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      api
+        .countCompletedHelps()
+        .then(setAyudas)
+        .catch(() => setAyudas(0));
       api
         .getMe()
         .then((me) => {
@@ -93,7 +150,7 @@ export default function MyProfileScreen() {
 
         <View style={styles.statsCard}>
           <View style={[styles.statItem, styles.statBorder]}>
-            <Text style={styles.statValue}>{currentUser.servicesCompleted}</Text>
+            <Text style={styles.statValue}>{ayudas}</Text>
             <Text style={styles.statLabel}>Services</Text>
           </View>
           <View style={[styles.statItem, styles.statBorder]}>
@@ -119,24 +176,17 @@ export default function MyProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Badges</Text>
           <View style={styles.badgesRow}>
-            <View style={styles.badgeItem}>
-              <View style={[styles.badgeIcon, { backgroundColor: colors.amberTint }]}>
-                <BadgeStarIcon size={22} />
+            {insignias(ayudas).map((b) => (
+              <View
+                key={b.clave}
+                style={[styles.badgeItem, !b.conseguida && { opacity: 0.35 }]}
+                accessibilityLabel={b.conseguida ? b.titulo : `${b.titulo}, locked: ${b.requisito}`}
+              >
+                <View style={[styles.badgeIcon, { backgroundColor: b.fondo }]}>{b.icono}</View>
+                <Text style={styles.badgeLabel}>{b.titulo}</Text>
+                {!b.conseguida && <Text style={styles.badgeRequisito}>{b.requisito}</Text>}
               </View>
-              <Text style={styles.badgeLabel}>10 ayudas</Text>
-            </View>
-            <View style={styles.badgeItem}>
-              <View style={[styles.badgeIcon, { backgroundColor: colors.blueTint }]}>
-                <BadgeVeteranIcon size={22} />
-              </View>
-              <Text style={styles.badgeLabel}>Veterano</Text>
-            </View>
-            <View style={styles.badgeItem}>
-              <View style={[styles.badgeIcon, { backgroundColor: colors.greenTint }]}>
-                <BadgeExemplaryIcon size={22} />
-              </View>
-              <Text style={styles.badgeLabel}>Ejemplar</Text>
-            </View>
+            ))}
           </View>
         </View>
 
@@ -193,9 +243,10 @@ const styles = StyleSheet.create({
   addCreditsLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.white },
   section: { marginHorizontal: 20, marginTop: 20 },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.muted },
-  badgesRow: { marginTop: 10, flexDirection: 'row', gap: 16 },
-  badgeItem: { alignItems: 'center', gap: 6 },
+  badgesRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  badgeItem: { width: 72, alignItems: 'center', gap: 6 },
   badgeIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  badgeRequisito: { marginTop: 2, fontFamily: fonts.body, fontSize: 10, color: colors.muted, textAlign: 'center' },
   badgeLabel: { fontFamily: fonts.body, fontSize: 10, color: colors.muted, textAlign: 'center' },
   bio: { marginHorizontal: 20, marginTop: 20, fontFamily: fonts.body, fontSize: 13, lineHeight: 20, color: colors.muted },
 });

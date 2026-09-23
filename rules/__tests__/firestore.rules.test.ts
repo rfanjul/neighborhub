@@ -5,7 +5,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 
@@ -160,21 +160,23 @@ describe('helpRequests', () => {
     await assertFails(getDocs(query(collection(como('luis'), 'helpRequests'), where('requesterId', '==', 'ana'))));
   });
 
+  it('se pueden listar aquellos en los que uno ayuda', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'completed', helperId: 'luis' }));
+
+    await assertSucceeds(getDocs(query(collection(como('luis'), 'helpRequests'), where('helperId', '==', 'luis'))));
+  });
+
+  it('quien publica marca como completado un servicio aceptado', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+
+    await assertSucceeds(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'completed' }));
+  });
+
   it('no se puede listar todo sin filtrar', async () => {
     await assertFails(getDocs(collection(como('ana'), 'helpRequests')));
   });
 
-  it('un vecino acepta un servicio aprobado y pasa a ser quien ayuda', async () => {
-    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
 
-    await assertSucceeds(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis' }));
-  });
-
-  it('nadie acepta en nombre de otro', async () => {
-    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
-
-    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'accepted', helperId: 'marta' }));
-  });
 
   it('quien publica no se aprueba su propio servicio (eso es cosa del admin)', async () => {
     await sembrar('helpRequests/s1', servicio());
@@ -200,13 +202,6 @@ describe('helpRequests', () => {
     await assertFails(updateDoc(doc(como('marta'), 'helpRequests/s1'), { title: 'Otra cosa' }));
   });
 
-  it('aceptar no permite tocar nada más que el estado y los datos de quien ayuda', async () => {
-    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
-
-    await assertFails(
-      updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', title: 'Cambiado' })
-    );
-  });
 
   it('una vez aceptado, quien ayuda lo marca como hecho', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
@@ -231,6 +226,141 @@ describe('helpRequests', () => {
     await sembrar('helpRequests/s1', servicio());
 
     await assertFails(deleteDoc(doc(como('ana'), 'helpRequests/s1')));
+  });
+});
+
+describe('ofertas', () => {
+  const oferta = (overrides: object = {}) => ({
+    serviceId: 's1',
+    applicantId: 'luis',
+    requesterId: 'ana',
+    comment: 'Tengo rodillo y escalera',
+    status: 'pending',
+    ...overrides,
+  });
+  const ofertar = (uid: string, datos: object, id = `s1_${uid}`) => setDoc(doc(como(uid), `applications/${id}`), datos);
+
+  describe('hacer una oferta', () => {
+    it('se oferta sobre un servicio aprobado ajeno', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+      await assertSucceeds(ofertar('luis', oferta()));
+    });
+
+    it('no sobre uno pendiente de revisión', async () => {
+      await sembrar('helpRequests/s1', servicio());
+
+      await assertFails(ofertar('luis', oferta()));
+    });
+
+    it('no sobre uno ya aceptado', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'marta' }));
+
+      await assertFails(ofertar('luis', oferta()));
+    });
+
+    it('no sobre el propio', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+      await assertFails(ofertar('ana', oferta({ applicantId: 'ana' })));
+    });
+
+    it('no a nombre de otro', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+      await assertFails(ofertar('luis', oferta({ applicantId: 'marta' }), 's1_marta'));
+    });
+
+    it('una sola por persona: el id tiene que ser servicio_uid', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+      await assertFails(ofertar('luis', oferta(), 's1_luis_2'));
+    });
+
+    it('nace pendiente, no seleccionada', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+      await assertFails(ofertar('luis', oferta({ status: 'selected' })));
+    });
+
+    it('no se engaña sobre a quién va dirigida', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+      await assertFails(ofertar('luis', oferta({ requesterId: 'marta' })));
+    });
+  });
+
+  describe('ver ofertas', () => {
+    beforeEach(() => sembrar('applications/s1_luis', oferta()));
+
+    it('quien oferta ve las suyas (mis ofertas)', async () => {
+      await assertSucceeds(getDocs(query(collection(como('luis'), 'applications'), where('applicantId', '==', 'luis'))));
+    });
+
+    it('quien publica ve las de su servicio', async () => {
+      await assertSucceeds(
+        getDocs(query(collection(como('ana'), 'applications'), where('serviceId', '==', 's1'), where('requesterId', '==', 'ana')))
+      );
+    });
+
+    it('un tercero no las ve', async () => {
+      await assertFails(getDoc(doc(como('marta'), 'applications/s1_luis')));
+      await assertFails(getDocs(query(collection(como('marta'), 'applications'), where('serviceId', '==', 's1'))));
+    });
+  });
+
+  describe('elegir una oferta', () => {
+    beforeEach(async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+      await sembrar('applications/s1_luis', oferta());
+      await sembrar('applications/s1_marta', oferta({ applicantId: 'marta' }));
+    });
+
+    /** Lo que hace la app al elegir: todo en un lote. */
+    function elegir(uid: string, elegido: string, otros: string[]) {
+      const db = como(uid);
+      const lote = writeBatch(db);
+      lote.update(doc(db, 'helpRequests/s1'), { status: 'accepted', helperId: elegido, helperName: elegido });
+      lote.update(doc(db, `applications/s1_${elegido}`), { status: 'selected' });
+      for (const o of otros) lote.update(doc(db, `applications/s1_${o}`), { status: 'rejected' });
+      return lote.commit();
+    }
+
+    it('quien publica elige una y rechaza el resto', async () => {
+      await assertSucceeds(elegir('ana', 'luis', ['marta']));
+    });
+
+    it('nadie más puede elegir', async () => {
+      await assertFails(elegir('luis', 'luis', ['marta']));
+    });
+
+    it('no se elige a quien no ha ofertado', async () => {
+      await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'pedro' }));
+    });
+
+    it('solo se elige una vez', async () => {
+      await elegir('ana', 'luis', ['marta']);
+
+      await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'marta' }));
+    });
+
+    it('elegir no permite tocar otros campos del servicio', async () => {
+      await assertFails(
+        updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', title: 'Otra cosa' })
+      );
+    });
+
+    it('quien oferta no se selecciona a sí mismo', async () => {
+      await assertFails(updateDoc(doc(como('luis'), 'applications/s1_luis'), { status: 'selected' }));
+    });
+
+    it('en una oferta solo cambia su estado', async () => {
+      await assertFails(updateDoc(doc(como('ana'), 'applications/s1_luis'), { status: 'selected', comment: 'otro' }));
+    });
+
+    it('las ofertas no se borran', async () => {
+      await assertFails(deleteDoc(doc(como('luis'), 'applications/s1_luis')));
+    });
   });
 });
 

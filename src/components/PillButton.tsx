@@ -8,19 +8,24 @@ type Props = {
   variant?: 'primary' | 'dark' | 'outline';
   icon?: React.ReactNode;
   style?: ViewStyle;
+  disabled?: boolean;
 };
 
-export default function PillButton({ label, onPress, variant = 'primary', icon, style }: Props) {
+export default function PillButton({ label, onPress, variant = 'primary', icon, style, disabled }: Props) {
   const isPrimary = variant === 'primary';
   const isDark = variant === 'dark';
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
       style={[
         styles.base,
         isPrimary && { backgroundColor: colors.accent },
         isDark && { backgroundColor: colors.black },
         variant === 'outline' && { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+        disabled && { opacity: 0.45 },
         style,
       ]}
     >

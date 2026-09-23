@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import MyProfileScreen from '../MyProfileScreen';
+import MyProfileScreen, { insignias } from '../MyProfileScreen';
 import { api } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue } from '../../test-utils/renderWithAuth';
@@ -47,7 +47,44 @@ beforeEach(() => {
   mockedApi.getMe.mockResolvedValue(perfil as never);
 });
 
+describe('insignias', () => {
+  const conseguidas = (n: number) => insignias(n).filter((b) => b.conseguida).map((b) => b.titulo);
+
+  it('el contador de ayudas siempre está', () => {
+    expect(conseguidas(0)).toEqual(['0 ayudas']);
+    expect(conseguidas(1)).toEqual(['1 ayuda']);
+  });
+
+  it.each([
+    [10, ['10 ayudas']],
+    [11, ['11 ayudas', 'Amateur']],
+    [25, ['25 ayudas', 'Amateur']],
+    [26, ['26 ayudas', 'Amateur', 'Veterano']],
+    [50, ['50 ayudas', 'Amateur', 'Veterano']],
+    [51, ['51 ayudas', 'Amateur', 'Veterano', 'Ejemplar']],
+  ])('con %i ayudas se consiguen %p', (n, esperadas) => {
+    expect(conseguidas(n)).toEqual(esperadas);
+  });
+});
+
 describe('MyProfileScreen', () => {
+  it('la cifra de servicios y las insignias salen de las ayudas reales', async () => {
+    mockedApi.countCompletedHelps.mockResolvedValue(12);
+    await render(<MyProfileScreen />);
+
+    expect(await screen.findByText('12 ayudas')).toBeTruthy();
+    expect(screen.getByText('12')).toBeTruthy();
+    expect(screen.getByLabelText('Amateur')).toBeTruthy();
+    expect(screen.getByLabelText('Veterano, locked: Más de 25 ayudas')).toBeTruthy();
+  });
+
+  it('si no se pueden contar, cero en vez de romperse', async () => {
+    mockedApi.countCompletedHelps.mockRejectedValue(new Error('offline'));
+    await render(<MyProfileScreen />);
+
+    expect(await screen.findByText('0 ayudas')).toBeTruthy();
+  });
+
   it('enseña los datos reales del perfil', async () => {
     await render(<MyProfileScreen />);
 

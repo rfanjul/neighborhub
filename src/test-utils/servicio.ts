@@ -15,6 +15,9 @@ export function servicio(overrides: Partial<ServiceRequest> = {}): ServiceReques
     availableLabel: 'Flexible',
     photos: [],
     coords: null,
+    requesterId: 'ana',
+    helperId: null,
+    helperName: null,
     requester: { name: 'Ana', rating: 4.8, ratingCount: 12, responseLabel: '< 1 h', avatarColor: '#E7C9A9' },
     ...overrides,
   };

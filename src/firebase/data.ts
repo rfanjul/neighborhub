@@ -15,6 +15,8 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  writeBatch,
+  onSnapshot,
 } from '@firebase/firestore';
 // Storage has no React Native-specific build, but unlike Firestore it
 // doesn't need one — it's just fetch()/Blob under the hood, which works
@@ -24,6 +26,46 @@ import { auth, db } from './index';
 import type { ServiceCategory, ServiceRequest } from '../data/mock';
 
 const storage = getStorage();
+
+export type ApplicationStatus = 'pending' | 'selected' | 'rejected';
+
+/** Oferta de ayuda de un vecino sobre un servicio. */
+export type Application = {
+  id: string;
+  serviceId: string;
+  serviceTitle: string;
+  applicantId: string;
+  applicantName: string;
+  requesterId: string;
+  comment: string;
+  status: ApplicationStatus;
+};
+
+export type ChatMessage = {
+  id: string;
+  senderId: string;
+  senderName: string;
+  fromMe: boolean;
+  text: string;
+};
+
+function applicationFromDoc(id: string, d: any): Application {
+  return {
+    id,
+    serviceId: d.serviceId,
+    serviceTitle: d.serviceTitle ?? '',
+    applicantId: d.applicantId,
+    applicantName: d.applicantName ?? 'Neighbor',
+    requesterId: d.requesterId,
+    comment: d.comment ?? '',
+    status: d.status ?? 'pending',
+  };
+}
+
+/** Ordena documentos crudos del más nuevo al más viejo. */
+function masNuevosPrimero<T extends { data: () => any }>(docs: T[]): T[] {
+  return [...docs].sort((a, b) => milisegundos(b.data().createdAt) - milisegundos(a.data().createdAt));
+}
 
 export type ApiUserProfile = {
   id: string;
@@ -124,6 +166,9 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
     availableLabel: d.availableLabel ?? '',
     photos: Array.isArray(d.photos) ? d.photos : [],
     coords: d.coords ?? null,
+    requesterId: d.requesterId ?? null,
+    helperId: d.helperId ?? null,
+    helperName: d.helperName ?? null,
     requester: {
       name: d.requesterName ?? 'Neighbor',
       rating: d.requesterRating ?? 0,
@@ -248,23 +293,112 @@ export const api = {
     return api.getService(created.id);
   },
 
-  async acceptService(id: string): Promise<ServiceRequest> {
-    const me = await api.getMe();
-    const ref = doc(db, 'helpRequests', id);
-    const snap = await getDoc(ref);
+
+  /** Servicios que he publicado, en cualquier estado. */
+  async listMyServices(): Promise<ServiceRequest[]> {
+    const snap = await getDocs(query(collection(db, 'helpRequests'), where('requesterId', '==', currentUid())));
+    return masNuevosPrimero(snap.docs).map((d) => serviceFromDoc(d.id, d.data()));
+  },
+
+  /** Número de servicios completados en los que he ayudado. */
+  async countCompletedHelps(): Promise<number> {
+    const snap = await getDocs(query(collection(db, 'helpRequests'), where('helperId', '==', currentUid())));
+    return snap.docs.filter((d) => ['completed', 'rated'].includes(d.data().status)).length;
+  },
+
+  /** Quien publica confirma que la ayuda ya está hecha. */
+  async completeService(id: string): Promise<void> {
+    await updateDoc(doc(db, 'helpRequests', id), { status: 'completed', updatedAt: serverTimestamp() });
+  },
+
+  /** Ofrecerse para un servicio aprobado, con un comentario para quien lo publicó. */
+  async applyToService(serviceId: string, comment: string): Promise<Application> {
+    const uid = currentUid();
+    const [me, snap] = await Promise.all([api.getMe(), getDoc(doc(db, 'helpRequests', serviceId))]);
     if (!snap.exists()) throw new Error('Service not found');
-    const data = snap.data();
-    if (data.status !== 'approved') throw new Error('Only approved services can be accepted');
-    if (data.requesterId === me.id) throw new Error("You can't accept your own request");
-    await updateDoc(ref, {
+    const servicio = snap.data();
+    if (servicio.status !== 'approved') throw new Error('Only approved services accept offers');
+    const requesterId = servicio.requesterId;
+    if (requesterId === uid) throw new Error("You can't make an offer on your own service");
+    const id = `${serviceId}_${uid}`;
+    const datos = {
+      serviceId,
+      serviceTitle: servicio.title,
+      applicantId: uid,
+      applicantName: me.name,
+      requesterId,
+      comment: comment.trim(),
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    };
+    await setDoc(doc(db, 'applications', id), datos);
+    return applicationFromDoc(id, datos);
+  },
+
+  /** Ofertas que he hecho yo (mis ofertas). */
+  async listMyApplications(): Promise<Application[]> {
+    const snap = await getDocs(query(collection(db, 'applications'), where('applicantId', '==', currentUid())));
+    return masNuevosPrimero(snap.docs).map((d) => applicationFromDoc(d.id, d.data()));
+  },
+
+  /** Ofertas recibidas en un servicio mío. */
+  async listApplicationsForService(serviceId: string): Promise<Application[]> {
+    const snap = await getDocs(
+      query(collection(db, 'applications'), where('serviceId', '==', serviceId), where('requesterId', '==', currentUid()))
+    );
+    return masNuevosPrimero(snap.docs).map((d) => applicationFromDoc(d.id, d.data()));
+  },
+
+  /**
+   * Elige una oferta: esa pasa a seleccionada, el resto a rechazadas y el
+   * servicio a aceptado con esa persona como ayudante. Todo en un lote, para
+   * no quedar a medias.
+   */
+  async selectApplicant(serviceId: string, applicationId: string): Promise<void> {
+    const ofertas = await api.listApplicationsForService(serviceId);
+    const elegida = ofertas.find((o) => o.id === applicationId);
+    if (!elegida) throw new Error('Offer not found');
+    const lote = writeBatch(db);
+    lote.update(doc(db, 'helpRequests', serviceId), {
       status: 'accepted',
-      helperId: me.id,
-      helperName: me.name,
-      helperRating: me.rating,
-      helperResponseLabel: me.responseLabel,
+      helperId: elegida.applicantId,
+      helperName: elegida.applicantName,
       updatedAt: serverTimestamp(),
     });
-    return api.getService(id);
+    for (const o of ofertas) {
+      lote.update(doc(db, 'applications', o.id), {
+        status: o.id === applicationId ? 'selected' : 'rejected',
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await lote.commit();
+  },
+
+  /** Mensajes del chat de un servicio en tiempo real. Devuelve cómo dejar de escuchar. */
+  subscribeMessages(
+    helpRequestId: string,
+    onMessages: (mensajes: ChatMessage[]) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    const uid = currentUid();
+    const q = query(collection(db, 'helpRequests', helpRequestId, 'messages'), orderBy('createdAt', 'asc'));
+    return onSnapshot(
+      q,
+      (snap) =>
+        onMessages(
+          snap.docs.map((d) => {
+            const data = d.data();
+            return {
+              id: d.id,
+              senderId: data.senderId,
+              senderName: data.senderName,
+              fromMe: data.senderId === uid,
+              text: data.text,
+            };
+          })
+        ),
+      onError
+    );
   },
 
   async listMessages(helpRequestId: string) {

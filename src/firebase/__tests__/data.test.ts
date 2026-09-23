@@ -59,6 +59,38 @@ jest.mock('@firebase/firestore', () => {
       return { docs };
     },
     serverTimestamp: () => ++mockReloj,
+    writeBatch: () => {
+      const operaciones: Array<() => void> = [];
+      return {
+        update(r: { path: string }, data: Doc) {
+          validar(data);
+          operaciones.push(() => {
+            if (!mockStore.has(r.path)) throw new Error('No document to update');
+            mockStore.set(r.path, { ...mockStore.get(r.path), ...data });
+          });
+        },
+        // Como el lote real: o se aplica todo o nada.
+        async commit() {
+          const copia = new Map(mockStore);
+          try {
+            operaciones.forEach((op) => op());
+          } catch (e) {
+            mockStore.clear();
+            copia.forEach((v, k) => mockStore.set(k, v));
+            throw e;
+          }
+        },
+      };
+    },
+    onSnapshot: (q: { path: string; filtros: any[] }, next: (snap: any) => void) => {
+      const prefijo = `${q.path}/`;
+      const docs = [...mockStore.entries()]
+        .filter(([p]) => p.startsWith(prefijo) && !p.slice(prefijo.length).includes('/'))
+        .map(([p, data]) => ({ id: p.slice(prefijo.length), data: () => data }))
+        .sort((a, b) => a.data().createdAt - b.data().createdAt);
+      next({ docs });
+      return () => {};
+    },
   };
 });
 
@@ -228,35 +260,106 @@ describe('servicios', () => {
     await expect(api.getService('no-existe')).rejects.toThrow('Service not found');
   });
 
-  describe('aceptar', () => {
-    function servicioAjeno(status: string) {
-      mockStore.set('helpRequests/s1', { ...servicioBase, status, requesterId: 'otro', requesterName: 'Luis' });
-    }
+});
 
-    it('convierte al usuario en quien ayuda', async () => {
-      servicioAjeno('approved');
+describe('ofertas', () => {
+  beforeEach(async () => {
+    await ensureUserDocument('uid-1', { name: 'Luis', email: 'luis@example.com' });
+    mockStore.set('helpRequests/s1', { ...servicioBase, status: 'approved', requesterId: 'ana', createdAt: 1 });
+  });
 
-      const aceptado = await api.acceptService('s1');
+  it('me ofrezco con un comentario y queda pendiente a mi nombre', async () => {
+    const oferta = await api.applyToService('s1', '  Tengo escalera  ');
 
-      expect(aceptado.status).toBe('accepted');
-      expect(mockStore.get('helpRequests/s1')).toMatchObject({ helperId: 'uid-1', helperName: 'Ana' });
+    expect(oferta).toMatchObject({ id: 's1_uid-1', status: 'pending', comment: 'Tengo escalera', serviceTitle: 'Pintar pared' });
+    expect(mockStore.get('applications/s1_uid-1')).toMatchObject({ applicantId: 'uid-1', applicantName: 'Luis', requesterId: 'ana' });
+  });
+
+  it('no me ofrezco a un servicio sin aprobar', async () => {
+    mockStore.set('helpRequests/s1', { ...servicioBase, status: 'pending', requesterId: 'ana' });
+
+    await expect(api.applyToService('s1', 'Hola')).rejects.toThrow('Only approved services');
+  });
+
+  it('no me ofrezco a mi propio servicio', async () => {
+    mockStore.set('helpRequests/s1', { ...servicioBase, status: 'approved', requesterId: 'uid-1' });
+
+    await expect(api.applyToService('s1', 'Hola')).rejects.toThrow('your own service');
+  });
+
+  it('avisa si el servicio no existe', async () => {
+    await expect(api.applyToService('no-existe', 'Hola')).rejects.toThrow('Service not found');
+  });
+
+  it('mis ofertas: las que he hecho yo, de la más nueva a la más vieja', async () => {
+    mockStore.set('applications/a_uid-1', { serviceId: 'a', serviceTitle: 'Vieja', applicantId: 'uid-1', createdAt: 1 });
+    mockStore.set('applications/b_uid-1', { serviceId: 'b', serviceTitle: 'Nueva', applicantId: 'uid-1', createdAt: 5 });
+    mockStore.set('applications/b_otro', { serviceId: 'b', serviceTitle: 'Ajena', applicantId: 'otro', createdAt: 9 });
+
+    expect((await api.listMyApplications()).map((o) => o.serviceTitle)).toEqual(['Nueva', 'Vieja']);
+  });
+
+  describe('como quien publica', () => {
+    beforeEach(() => {
+      mockStore.set('helpRequests/mio', { ...servicioBase, status: 'approved', requesterId: 'uid-1', createdAt: 1 });
+      mockStore.set('applications/mio_luis', { serviceId: 'mio', applicantId: 'luis', applicantName: 'Luis', requesterId: 'uid-1', status: 'pending', createdAt: 1 });
+      mockStore.set('applications/mio_marta', { serviceId: 'mio', applicantId: 'marta', applicantName: 'Marta', requesterId: 'uid-1', status: 'pending', createdAt: 2 });
     });
 
-    it('solo si está aprobado', async () => {
-      servicioAjeno('pending');
-
-      await expect(api.acceptService('s1')).rejects.toThrow('Only approved services');
+    it('veo las ofertas recibidas en mi servicio', async () => {
+      expect((await api.listApplicationsForService('mio')).map((o) => o.applicantName)).toEqual(['Marta', 'Luis']);
     });
 
-    it('nunca el propio', async () => {
-      mockStore.set('helpRequests/s1', { ...servicioBase, status: 'approved', requesterId: 'uid-1' });
+    it('al elegir una, el servicio pasa a aceptado con esa persona y el resto se rechaza', async () => {
+      await api.selectApplicant('mio', 'mio_luis');
 
-      await expect(api.acceptService('s1')).rejects.toThrow("can't accept your own");
+      expect(mockStore.get('helpRequests/mio')).toMatchObject({ status: 'accepted', helperId: 'luis', helperName: 'Luis' });
+      expect(mockStore.get('applications/mio_luis')?.status).toBe('selected');
+      expect(mockStore.get('applications/mio_marta')?.status).toBe('rejected');
     });
 
-    it('avisa si no existe', async () => {
-      await expect(api.acceptService('no-existe')).rejects.toThrow('Service not found');
+    it('no elige una oferta que no existe', async () => {
+      await expect(api.selectApplicant('mio', 'mio_pedro')).rejects.toThrow('Offer not found');
+      expect(mockStore.get('helpRequests/mio')?.status).toBe('approved');
     });
+
+    it('mis servicios: todos los que he publicado, en cualquier estado', async () => {
+      mockStore.set('helpRequests/mio2', { ...servicioBase, title: 'Pendiente', status: 'pending', requesterId: 'uid-1', createdAt: 5 });
+      mockStore.set('helpRequests/ajeno', { ...servicioBase, status: 'approved', requesterId: 'otro' });
+
+      expect((await api.listMyServices()).map((s) => s.id)).toEqual(['mio2', 'mio']);
+    });
+
+    it('marco un servicio como completado', async () => {
+      await api.completeService('mio');
+
+      expect(mockStore.get('helpRequests/mio')?.status).toBe('completed');
+    });
+  });
+
+  it('cuenta las ayudas completadas, no las que siguen en curso', async () => {
+    mockStore.set('helpRequests/h1', { ...servicioBase, status: 'completed', helperId: 'uid-1' });
+    mockStore.set('helpRequests/h2', { ...servicioBase, status: 'rated', helperId: 'uid-1' });
+    mockStore.set('helpRequests/h3', { ...servicioBase, status: 'accepted', helperId: 'uid-1' });
+    mockStore.set('helpRequests/h4', { ...servicioBase, status: 'completed', helperId: 'otro' });
+
+    expect(await api.countCompletedHelps()).toBe(2);
+  });
+});
+
+describe('chat en tiempo real', () => {
+  it('entrega los mensajes en orden y marca los propios', async () => {
+    mockStore.set('helpRequests/s1/messages/m2', { senderId: 'otro', senderName: 'Luis', text: 'Qué tal', createdAt: 2 });
+    mockStore.set('helpRequests/s1/messages/m1', { senderId: 'uid-1', senderName: 'Ana', text: 'Hola', createdAt: 1 });
+    const recibidos: Array<[string, boolean]> = [];
+
+    const dejar = api.subscribeMessages('s1', (mensajes) => recibidos.push(...mensajes.map((m) => [m.text, m.fromMe] as [string, boolean])));
+
+    expect(recibidos).toEqual([
+      ['Hola', true],
+      ['Qué tal', false],
+    ]);
+    expect(typeof dejar).toBe('function');
   });
 });
 

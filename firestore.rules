@@ -62,14 +62,14 @@ service cloud.firestore {
         && request.resource.data.status == 'pending';
 
       allow update: if signedIn() && (
-        // Un vecino acepta un servicio aprobado y pasa a ser quien ayuda.
-        // Solo puede tocar el estado y sus propios datos de ayudante.
-        (resource.data.status == 'approved'
+        // Quien publica elige a una de las personas que han ofertado. Solo
+        // mientras está aprobado (así solo se elige una vez) y solo a alguien
+        // con una oferta registrada.
+        (isRequester()
+          && resource.data.status == 'approved'
           && request.resource.data.status == 'accepted'
-          && request.resource.data.helperId == request.auth.uid
-          && changedKeys().hasOnly([
-            'status', 'helperId', 'helperName', 'helperRating', 'helperResponseLabel', 'updatedAt'
-          ]))
+          && exists(/databases/$(database)/documents/applications/$(requestId + '_' + request.resource.data.helperId))
+          && changedKeys().hasOnly(['status', 'helperId', 'helperName', 'updatedAt']))
         ||
         // Quien publica corrige el contenido, pero no el estado (aprobar es
         // cosa del admin) ni quién pide o quién ayuda.
@@ -99,6 +99,37 @@ service cloud.firestore {
           && request.resource.data.senderId == request.auth.uid;
         allow update, delete: if false;
       }
+    }
+
+    // Ofertas: una por persona y servicio (id = <servicio>_<uid>).
+    match /applications/{applicationId} {
+      function servicio(id) {
+        return get(/databases/$(database)/documents/helpRequests/$(id)).data;
+      }
+
+      // La ve quien la hace y quien publicó el servicio.
+      allow read: if signedIn() && (
+        resource.data.applicantId == request.auth.uid ||
+        resource.data.requesterId == request.auth.uid
+      );
+
+      // Se oferta a nombre propio, sobre un servicio aprobado y ajeno, y la
+      // oferta nace pendiente.
+      allow create: if signedIn()
+        && request.resource.data.applicantId == request.auth.uid
+        && applicationId == request.resource.data.serviceId + '_' + request.auth.uid
+        && request.resource.data.status == 'pending'
+        && servicio(request.resource.data.serviceId).status == 'approved'
+        && servicio(request.resource.data.serviceId).requesterId != request.auth.uid
+        && request.resource.data.requesterId == servicio(request.resource.data.serviceId).requesterId;
+
+      // Solo quien publicó el servicio la selecciona o la rechaza.
+      allow update: if signedIn()
+        && resource.data.requesterId == request.auth.uid
+        && request.resource.data.status in ['selected', 'rejected']
+        && changedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if false;
     }
   }
 }

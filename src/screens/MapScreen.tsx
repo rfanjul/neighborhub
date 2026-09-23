@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Constants from 'expo-constants';
@@ -22,8 +22,6 @@ type Props = CompositeScreenProps<
 
 type ConCoordenadas = ServiceRequest & { coords: Coordenadas };
 
-const radios = [1, 5, 10];
-
 // Si no hay ubicación ni servicios, el mapa arranca en Zúrich.
 const regionPorDefecto = { latitude: 47.3769, longitude: 8.5417 };
 
@@ -35,7 +33,6 @@ const usarGoogleMaps = Boolean(Constants.expoConfig?.extra?.googleMapsEnabled);
 export default function MapScreen({ navigation }: Props) {
   const ubicacion = useUbicacion();
   const [servicios, setServicios] = useState<ConCoordenadas[]>([]);
-  const [radioKm, setRadioKm] = useState(5);
   const [seleccionadoId, setSeleccionadoId] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -51,13 +48,7 @@ export default function MapScreen({ navigation }: Props) {
     }, [])
   );
 
-  // Sin ubicación no se puede filtrar por distancia: se enseñan todos.
-  const visibles = useMemo(
-    () => (ubicacion ? servicios.filter((s) => distanciaKm(ubicacion, s.coords) <= radioKm) : servicios),
-    [servicios, ubicacion, radioKm]
-  );
-
-  const seleccionado = visibles.find((s) => s.id === seleccionadoId) ?? null;
+  const seleccionado = servicios.find((s) => s.id === seleccionadoId) ?? null;
   const centro = ubicacion ?? servicios[0]?.coords ?? regionPorDefecto;
 
   return (
@@ -70,7 +61,7 @@ export default function MapScreen({ navigation }: Props) {
         onPress={() => setSeleccionadoId(null)}
         testID="mapa"
       >
-        {visibles.map((s) => (
+        {servicios.map((s) => (
           <Marker
             key={s.id}
             coordinate={s.coords}
@@ -85,28 +76,15 @@ export default function MapScreen({ navigation }: Props) {
         ))}
       </MapView>
 
-      <View style={styles.filterRow}>
-        {radios.map((km) => (
-          <Pressable
-            key={km}
-            style={[styles.filterChip, radioKm === km && styles.filterChipActive]}
-            onPress={() => setRadioKm(km)}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: radioKm === km }}
-          >
-            <Text style={[styles.filterLabel, radioKm === km && styles.filterLabelActive]}>{km} km</Text>
-          </Pressable>
-        ))}
-      </View>
 
       {error ? (
         <View style={styles.aviso}>
           <Text style={styles.avisoTexto}>Couldn't load services. Pull the wall to retry.</Text>
         </View>
-      ) : visibles.length === 0 ? (
+      ) : servicios.length === 0 ? (
         <View style={styles.aviso}>
           <Text style={styles.avisoTexto}>
-            {servicios.length === 0 ? 'No services with a location yet.' : `No services within ${radioKm} km.`}
+            No services with a location yet.
           </Text>
         </View>
       ) : null}
@@ -117,7 +95,15 @@ export default function MapScreen({ navigation }: Props) {
           onPress={() => navigation.navigate('ServiceDetail', { serviceId: seleccionado.id })}
           accessibilityRole="button"
         >
-          <CategoryIcon category={seleccionado.category} size={52} />
+          {seleccionado.photos.length > 0 ? (
+            <Image
+              source={{ uri: seleccionado.photos[0] }}
+              style={styles.previewFoto}
+              accessibilityLabel={`Foto de ${seleccionado.title}`}
+            />
+          ) : (
+            <CategoryIcon category={seleccionado.category} size={52} />
+          )}
           <View style={{ flex: 1 }}>
             <Text style={styles.previewTitle} numberOfLines={1}>
               {seleccionado.title}
@@ -135,13 +121,8 @@ export default function MapScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  filterRow: { marginTop: 12, marginLeft: 20, flexDirection: 'row', gap: 8 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, backgroundColor: colors.card },
-  filterChipActive: { backgroundColor: colors.accent },
-  filterLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.ink },
-  filterLabelActive: { color: colors.white },
   aviso: {
-    marginTop: 10,
+    marginTop: 12,
     marginHorizontal: 20,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -162,6 +143,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  previewFoto: { width: 64, height: 64, borderRadius: radii.sm, backgroundColor: colors.accentTint },
   previewTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
   previewMeta: { marginTop: 4, fontFamily: fonts.body, fontSize: 12, color: colors.muted },
 });

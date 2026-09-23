@@ -17,6 +17,11 @@ export type ServiceRequest = {
   photos: string[];
   /** Dónde se publicó, para pintarlo en el mapa. null si no se pudo obtener. */
   coords: { latitude: number; longitude: number } | null;
+  /** uid de quien lo publicó; null en los datos de ejemplo. */
+  requesterId: string | null;
+  /** uid y nombre de quien ayuda, una vez elegida una oferta. */
+  helperId: string | null;
+  helperName: string | null;
   requester: {
     name: string;
     rating: number;
@@ -51,6 +56,9 @@ export const mockServices: ServiceRequest[] = [
     availableLabel: 'Today',
     photos: [],
     coords: null,
+    requesterId: null,
+    helperId: null,
+    helperName: null,
     requester: { name: 'Peter M.', rating: 4.6, ratingCount: 18, responseLabel: '~2h', avatarColor: '#E7C9A9' },
   },
   {
@@ -67,6 +75,9 @@ export const mockServices: ServiceRequest[] = [
     availableLabel: 'Sat, Aug 29',
     photos: [],
     coords: null,
+    requesterId: null,
+    helperId: null,
+    helperName: null,
     requester: { name: 'Lena K.', rating: 4.8, ratingCount: 32, responseLabel: '~1h', avatarColor: '#C9E0D2' },
   },
   {
@@ -82,6 +93,9 @@ export const mockServices: ServiceRequest[] = [
     availableLabel: 'Tomorrow',
     photos: [],
     coords: null,
+    requesterId: null,
+    helperId: null,
+    helperName: null,
     requester: { name: 'Tom S.', rating: 4.9, ratingCount: 41, responseLabel: '~30 min', avatarColor: '#C9D6F2' },
   },
 ];
