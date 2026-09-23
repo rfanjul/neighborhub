@@ -5,7 +5,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { addDoc, collection, deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 
@@ -138,6 +138,30 @@ describe('helpRequests', () => {
 
     await assertSucceeds(getDoc(doc(como('ana'), 'helpRequests/s1')));
     await assertFails(getDoc(doc(como('luis'), 'helpRequests/s1')));
+  });
+
+  // Las dos consultas que hace el muro: Firestore solo las permite si el
+  // filtro garantiza que cada documento devuelto cumple la regla de lectura.
+  it('el muro puede listar todos los aprobados', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', requesterId: 'luis' }));
+
+    await assertSucceeds(getDocs(query(collection(como('ana'), 'helpRequests'), where('status', '==', 'approved'))));
+  });
+
+  it('el muro puede listar los propios, estén como estén', async () => {
+    await sembrar('helpRequests/s1', servicio());
+
+    await assertSucceeds(getDocs(query(collection(como('ana'), 'helpRequests'), where('requesterId', '==', 'ana'))));
+  });
+
+  it('no se pueden listar los servicios de otro', async () => {
+    await sembrar('helpRequests/s1', servicio());
+
+    await assertFails(getDocs(query(collection(como('luis'), 'helpRequests'), where('requesterId', '==', 'ana'))));
+  });
+
+  it('no se puede listar todo sin filtrar', async () => {
+    await assertFails(getDocs(collection(como('ana'), 'helpRequests')));
   });
 
   it('un vecino acepta un servicio aprobado y pasa a ser quien ayuda', async () => {

@@ -104,6 +104,12 @@ function profileFromDoc(id: string, d: any): ApiUserProfile {
   };
 }
 
+/** createdAt es un Timestamp de Firestore (o null si aún no ha llegado al servidor). */
+function milisegundos(valor: any): number {
+  if (typeof valor?.toMillis === 'function') return valor.toMillis();
+  return typeof valor === 'number' ? valor : 0;
+}
+
 function serviceFromDoc(id: string, d: any): ServiceRequest {
   return {
     id,
@@ -182,10 +188,28 @@ export const api = {
     return api.getMe();
   },
 
+  /**
+   * Servicios del muro: los aprobados de todos y, además, los propios aunque
+   * sigan pendientes de revisión, para que quien publica vea lo que ha
+   * publicado.
+   *
+   * Ordenar en la consulta (where status + orderBy createdAt) exigiría un
+   * índice compuesto en Firestore; sin él la consulta falla en producción
+   * (el emulador no lo comprueba). Se ordena aquí para no depender de él.
+   */
   async listServices(): Promise<ServiceRequest[]> {
-    const q = query(collection(db, 'helpRequests'), where('status', '==', 'approved'), orderBy('createdAt', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => serviceFromDoc(d.id, d.data()));
+    const uid = currentUid();
+    const [aprobados, mios] = await Promise.all([
+      getDocs(query(collection(db, 'helpRequests'), where('status', '==', 'approved'))),
+      getDocs(query(collection(db, 'helpRequests'), where('requesterId', '==', uid))),
+    ]);
+    const porId = new Map<string, any>();
+    for (const d of [...aprobados.docs, ...mios.docs]) {
+      porId.set(d.id, d.data());
+    }
+    return [...porId.entries()]
+      .sort(([, a], [, b]) => milisegundos(b.createdAt) - milisegundos(a.createdAt))
+      .map(([id, data]) => serviceFromDoc(id, data));
   },
 
   async getService(id: string): Promise<ServiceRequest> {

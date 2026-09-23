@@ -50,6 +50,18 @@ describe('ServiceCard', () => {
     expect(screen.queryByText('0 cr')).toBeNull();
   });
 
+  it('marca los propios que aún esperan revisión', async () => {
+    await render(<ServiceCard service={servicio({ status: 'pending' })} />);
+
+    expect(screen.getByText('Pending review')).toBeTruthy();
+  });
+
+  it('los aprobados no llevan esa marca', async () => {
+    await render(<ServiceCard service={servicio({ status: 'approved' })} />);
+
+    expect(screen.queryByText('Pending review')).toBeNull();
+  });
+
   it('avisa al pulsarla', async () => {
     const onPress = jest.fn();
     await render(<ServiceCard service={servicio()} onPress={onPress} />);

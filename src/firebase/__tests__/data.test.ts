@@ -186,18 +186,42 @@ describe('servicios', () => {
     expect(creado.coords).toBeNull();
   });
 
-  it('el muro solo lista los aprobados, del más nuevo al más viejo', async () => {
-    const a = await api.createService({ ...servicioBase, title: 'Viejo' });
-    const b = await api.createService({ ...servicioBase, title: 'Pendiente' });
-    const c = await api.createService({ ...servicioBase, title: 'Nuevo' });
-    for (const id of [a.id, c.id]) {
-      mockStore.set(`helpRequests/${id}`, { ...mockStore.get(`helpRequests/${id}`), status: 'approved' });
-    }
+  it('el muro enseña los aprobados de todos, del más nuevo al más viejo', async () => {
+    mockStore.set('helpRequests/viejo', { ...servicioBase, title: 'Viejo', status: 'approved', requesterId: 'otro', createdAt: 1 });
+    mockStore.set('helpRequests/nuevo', { ...servicioBase, title: 'Nuevo', status: 'approved', requesterId: 'otro', createdAt: 3 });
 
     const lista = await api.listServices();
 
     expect(lista.map((s) => s.title)).toEqual(['Nuevo', 'Viejo']);
-    expect(lista.find((s) => s.id === b.id)).toBeUndefined();
+  });
+
+  it('también enseña los propios pendientes, para que quien publica los vea', async () => {
+    await api.createService({ ...servicioBase, title: 'Mío pendiente' });
+
+    const lista = await api.listServices();
+
+    expect(lista).toEqual([expect.objectContaining({ title: 'Mío pendiente', status: 'pending' })]);
+  });
+
+  it('no enseña los pendientes de otros', async () => {
+    mockStore.set('helpRequests/ajeno', { ...servicioBase, title: 'Ajeno', status: 'pending', requesterId: 'otro', createdAt: 1 });
+
+    expect(await api.listServices()).toEqual([]);
+  });
+
+  it('un servicio propio aprobado no sale repetido', async () => {
+    mockStore.set('helpRequests/mio', { ...servicioBase, title: 'Mío', status: 'approved', requesterId: 'uid-1', createdAt: 1 });
+
+    expect((await api.listServices()).map((s) => s.id)).toEqual(['mio']);
+  });
+
+  it('ordena también con Timestamps de Firestore y con el servidor aún sin fecha', async () => {
+    const ts = (ms: number) => ({ toMillis: () => ms });
+    mockStore.set('helpRequests/a', { ...servicioBase, title: 'A', status: 'approved', requesterId: 'x', createdAt: ts(10) });
+    mockStore.set('helpRequests/b', { ...servicioBase, title: 'B', status: 'approved', requesterId: 'x', createdAt: null });
+    mockStore.set('helpRequests/c', { ...servicioBase, title: 'C', status: 'approved', requesterId: 'x', createdAt: ts(20) });
+
+    expect((await api.listServices()).map((s) => s.title)).toEqual(['C', 'A', 'B']);
   });
 
   it('avisa si el servicio no existe', async () => {
