@@ -2,6 +2,10 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // Expo CLI carga .env antes de evaluar este archivo, así que los valores
 // de Google llegan por process.env sin dotenv.
+// API key de Google Maps para iOS (Google Cloud -> Credentials). Sin ella la
+// app usa el mapa nativo de Apple; ver src/screens/MapScreen.tsx.
+const googleMapsIosApiKey = process.env.GOOGLE_MAPS_IOS_API_KEY;
+
 const googleIosUrlScheme =
   process.env.GOOGLE_IOS_URL_SCHEME || 'com.googleusercontent.apps.PENDIENTE-VER-README';
 
@@ -18,6 +22,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     ...config.android,
     package: 'com.app.neighborhub',
+  },
+  extra: {
+    ...config.extra,
+    googleMapsEnabled: Boolean(googleMapsIosApiKey),
   },
   plugins: [
     'expo-dev-client',
@@ -43,5 +51,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     'expo-apple-authentication',
     ['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }],
+    ['react-native-maps', googleMapsIosApiKey ? { iosGoogleMapsApiKey: googleMapsIosApiKey } : {}],
   ],
 });

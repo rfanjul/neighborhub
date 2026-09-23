@@ -101,7 +101,8 @@ export default function CreateServiceScreen({ navigation }: Props) {
         coords,
         durationLabel: duration.trim() || '—',
         availableLabel: 'Flexible',
-        locationLabel: '0 km away',
+        // La distancia se calcula al mostrarlo, desde coords.
+        locationLabel: '',
         travelRadiusKm: Math.round(radius / 11),
       });
       navigation.goBack();

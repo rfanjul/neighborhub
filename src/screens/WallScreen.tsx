@@ -12,6 +12,7 @@ import { currentUser, mockServices, type ServiceRequest } from '../data/mock';
 import ServiceCard from '../components/ServiceCard';
 import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
+import { useUbicacion } from '../geo/useUbicacion';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'HomeTab'>,
@@ -20,6 +21,7 @@ type Props = CompositeScreenProps<
 
 export default function WallScreen({ navigation }: Props) {
   const { user, profile } = useAuth();
+  const ubicacion = useUbicacion();
   // El saludo es para quien ha entrado, no para el usuario de ejemplo.
   const nombre = (profile?.name || user?.displayName || '').split(' ')[0];
   const [services, setServices] = useState<ServiceRequest[]>(mockServices);
@@ -112,7 +114,11 @@ export default function WallScreen({ navigation }: Props) {
           </Text>
         }
         renderItem={({ item }) => (
-          <ServiceCard service={item} onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.id })} />
+          <ServiceCard
+            service={item}
+            ubicacion={ubicacion}
+            onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.id })}
+          />
         )}
       />
     </SafeAreaView>

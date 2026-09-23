@@ -29,3 +29,28 @@ jest.mock('./src/firebase/data', () => ({
 // Las pantallas leen los márgenes seguros del dispositivo; en test no hay
 // dispositivo, así que se usa el mock que publica la propia librería.
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
+
+// El mapa es nativo: en test se sustituye por vistas que exponen sus props.
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const { View, Pressable } = require('react-native');
+  const MapView = ({ children, testID, onPress }: any) => (
+    <Pressable testID={testID} onPress={() => onPress?.()}>{children}</Pressable>
+  );
+  const Marker = ({ testID, onPress, title, coordinate }: any) => (
+    <Pressable
+      testID={testID}
+      accessibilityLabel={title}
+      onPress={() => onPress?.({ stopPropagation: () => {} })}
+      {...{ coordinate }}
+    />
+  );
+  return { __esModule: true, default: MapView, Marker, PROVIDER_GOOGLE: 'google', View };
+});
+
+// Ubicación por defecto: sin permiso. Cada test que la necesite la ajusta.
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn(async () => ({ granted: false })),
+  getCurrentPositionAsync: jest.fn(),
+  Accuracy: { Balanced: 3 },
+}));

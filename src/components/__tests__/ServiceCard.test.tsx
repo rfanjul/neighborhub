@@ -26,7 +26,7 @@ describe('ServiceCard', () => {
     await render(<ServiceCard service={servicio()} />);
 
     expect(screen.getByText('Pintar una pared')).toBeTruthy();
-    expect(screen.getByText(/1.2 km away/)).toBeTruthy();
+    expect(screen.getByText('1.2 km away · hace 2 h')).toBeTruthy();
     expect(screen.getByText('Ana')).toBeTruthy();
     expect(screen.getByText('15 cr')).toBeTruthy();
   });
@@ -48,6 +48,24 @@ describe('ServiceCard', () => {
     await render(<ServiceCard service={servicio({ credits: 0 })} />);
 
     expect(screen.queryByText('0 cr')).toBeNull();
+  });
+
+  it('calcula la distancia real con la ubicación del usuario', async () => {
+    await render(
+      <ServiceCard
+        service={servicio({ coords: { latitude: 47.3667, longitude: 8.5449 } })}
+        ubicacion={{ latitude: 47.3779, longitude: 8.5403 }}
+      />
+    );
+
+    expect(screen.getByText('1.3 km away · hace 2 h')).toBeTruthy();
+  });
+
+  it('sin distancia conocida no pone "0 km away"', async () => {
+    await render(<ServiceCard service={servicio({ distanceKm: 0, coords: null })} />);
+
+    expect(screen.queryByText(/km away/)).toBeNull();
+    expect(screen.getByText('hace 2 h')).toBeTruthy();
   });
 
   it('marca los propios que aún esperan revisión', async () => {

@@ -3,8 +3,26 @@ import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { colors, fonts, radii, shadow } from '../theme';
 import CategoryIcon from './CategoryIcon';
 import type { ServiceRequest } from '../data/mock';
+import { distanciaKm, formatearDistancia, type Coordenadas } from '../geo/distancia';
 
-export default function ServiceCard({ service, onPress }: { service: ServiceRequest; onPress?: () => void }) {
+/** Distancia real si hay coordenadas y ubicación; si no, la guardada; si tampoco, nada. */
+function textoDistancia(service: ServiceRequest, ubicacion?: Coordenadas | null): string | null {
+  if (service.coords && ubicacion) return `${formatearDistancia(distanciaKm(ubicacion, service.coords))} away`;
+  if (service.distanceKm > 0) return `${service.distanceKm} km away`;
+  return null;
+}
+
+export default function ServiceCard({
+  service,
+  onPress,
+  ubicacion,
+}: {
+  service: ServiceRequest;
+  onPress?: () => void;
+  /** Posición del usuario, para calcular la distancia real. */
+  ubicacion?: Coordenadas | null;
+}) {
+  const distancia = textoDistancia(service, ubicacion);
   return (
     <Pressable style={styles.card} onPress={onPress}>
       {service.photos.length > 0 && (
@@ -22,7 +40,7 @@ export default function ServiceCard({ service, onPress }: { service: ServiceRequ
             {service.title}
           </Text>
           <Text style={styles.meta}>
-            {service.distanceKm} km away · {service.postedLabel}
+            {[distancia, service.postedLabel].filter(Boolean).join(' · ')}
           </Text>
         </View>
       </View>

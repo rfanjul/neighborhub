@@ -120,6 +120,22 @@ Una vez instalada la app, se conecta a Metro como cualquier development build:
 npx expo start --dev-client
 ```
 
+## Mapa
+
+El mapa pinta los servicios que tienen coordenadas (se guardan al
+publicarlos) y los filtra por distancia a tu ubicación.
+
+Usa **Google Maps** si `GOOGLE_MAPS_IOS_API_KEY` está definida al compilar;
+si no, el mapa nativo de Apple. Para activarlo:
+
+1. Google Cloud Console del proyecto -> *APIs & Services* -> *Library* ->
+   **Maps SDK for iOS** -> Enable (requiere facturación activada).
+2. *Credentials* -> *Create credentials* -> *API key*. Restríngela a
+   *iOS apps* con el bundle `com.app.neighborhub` y a la API *Maps SDK for iOS*.
+3. Ponla en `.env` como `GOOGLE_MAPS_IOS_API_KEY` y en EAS
+   (`npx eas-cli env:create --name GOOGLE_MAPS_IOS_API_KEY ...`).
+4. Build nuevo: el SDK de Google Maps va dentro del binario.
+
 ## Reglas de seguridad
 
 `firestore.rules` y `storage.rules` son las que hay que publicar en la
