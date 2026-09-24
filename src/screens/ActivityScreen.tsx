@@ -39,7 +39,9 @@ export default function ActivityScreen({ navigation, route }: Props) {
   const [servicios, setServicios] = useState<ServiceRequest[]>([]);
   const [ofertas, setOfertas] = useState<Application[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState(false);
+  // Cada lista falla por separado: que no carguen las ofertas no debe dejar
+  // vacíos también los servicios.
+  const [errores, setErrores] = useState<{ services: boolean; offers: boolean }>({ services: false, offers: false });
 
   // Al llegar desde "Send offer" se abre directamente en "My offers".
   useEffect(() => {
@@ -48,16 +50,11 @@ export default function ActivityScreen({ navigation, route }: Props) {
 
   const cargar = useCallback(async () => {
     setCargando(true);
-    try {
-      const [misServicios, misOfertas] = await Promise.all([api.listMyServices(), api.listMyApplications()]);
-      setServicios(misServicios);
-      setOfertas(misOfertas);
-      setError(false);
-    } catch {
-      setError(true);
-    } finally {
-      setCargando(false);
-    }
+    const [misServicios, misOfertas] = await Promise.allSettled([api.listMyServices(), api.listMyApplications()]);
+    if (misServicios.status === 'fulfilled') setServicios(misServicios.value);
+    if (misOfertas.status === 'fulfilled') setOfertas(misOfertas.value);
+    setErrores({ services: misServicios.status === 'rejected', offers: misOfertas.status === 'rejected' });
+    setCargando(false);
   }, []);
 
   useFocusEffect(
@@ -66,6 +63,7 @@ export default function ActivityScreen({ navigation, route }: Props) {
     }, [cargar])
   );
 
+  const error = errores[segmento];
   const vacio =
     segmento === 'services'
       ? "You haven't published any service yet. Tap + to ask for help."
@@ -90,7 +88,11 @@ export default function ActivityScreen({ navigation, route }: Props) {
         ))}
       </View>
 
-      {error && <Text style={styles.error}>Couldn't load your activity. Pull down to retry.</Text>}
+      {error && (
+        <Text style={styles.error}>
+          {segmento === 'services' ? "Couldn't load your services." : "Couldn't load your offers."} Pull down to retry.
+        </Text>
+      )}
 
       {segmento === 'services' ? (
         <FlatList

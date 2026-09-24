@@ -7,6 +7,9 @@ import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii } from '../theme';
 import { BackIcon } from '../icons';
 import Chip from '../components/Chip';
+import Avatar from '../components/Avatar';
+import { useUbicacion } from '../geo/useUbicacion';
+import { distanciaKm, formatearDistancia } from '../geo/distancia';
 import PillButton from '../components/PillButton';
 import { mockServices, type ServiceRequest } from '../data/mock';
 import { api, type Application } from '../firebase/data';
@@ -25,7 +28,7 @@ const categoryLabel: Record<string, string> = {
 type Accion = {
   label: string;
   /** Pantalla a la que lleva el botón; sin destino el botón va desactivado. */
-  destino?: 'Apply' | 'ServiceOffers' | 'Chat';
+  destino?: 'Apply' | 'ServiceOffers' | 'Chat' | 'CreateService';
   nota?: string;
 };
 
@@ -35,13 +38,35 @@ type Accion = {
  * el chat.
  */
 export function accionPrincipal(service: ServiceRequest, uid: string | null, miOferta: Application | null): Accion {
-  if (uid && service.requesterId === uid) return { label: 'View offers', destino: 'ServiceOffers' };
+  if (uid && service.requesterId === uid) {
+    // Pendiente de revisión aún no puede recibir ofertas: lo útil es editarlo.
+    if (service.status === 'pending') {
+      return { label: 'Edit service', destino: 'CreateService', nota: 'Offers open once an admin approves it.' };
+    }
+    return { label: 'View offers', destino: 'ServiceOffers' };
+  }
   if (uid && service.helperId === uid) return { label: 'Open chat', destino: 'Chat' };
   if (miOferta?.status === 'pending') return { label: 'Offer sent', nota: 'Waiting for the owner to choose.' };
   if (miOferta?.status === 'rejected') return { label: 'Offer not selected', nota: 'The owner chose another neighbor.' };
   if (service.status === 'approved') return { label: 'Apply to help', destino: 'Apply' };
   if (service.status === 'pending') return { label: 'Waiting for review', nota: 'Offers open once an admin approves it.' };
   return { label: 'No longer taking offers' };
+}
+
+const statusColor: Record<string, { fondo: string; color: string }> = {
+  pending: { fondo: colors.amberTint, color: colors.amber },
+  approved: { fondo: colors.greenTint, color: colors.green },
+  accepted: { fondo: colors.blueTint, color: colors.blue },
+  in_progress: { fondo: colors.blueTint, color: colors.blue },
+  completed: { fondo: colors.greenTint, color: colors.green },
+  rated: { fondo: colors.greenTint, color: colors.green },
+};
+
+/** "★ 4.8 (12) · replies in ~2h", sin valores vacíos. */
+export function resumenAutor(r: ServiceRequest['requester']): string {
+  const partes = [r.rating > 0 ? `★ ${r.rating}${r.ratingCount > 0 ? ` (${r.ratingCount})` : ''}` : 'No ratings yet'];
+  if (r.responseLabel && r.responseLabel !== '—') partes.push(`replies in ${r.responseLabel}`);
+  return partes.join(' · ');
 }
 
 const statusLabel: Record<string, string> = {
@@ -78,6 +103,13 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
   );
 
   const accion = accionPrincipal(service, user?.uid ?? null, miOferta);
+  const ubicacion = useUbicacion();
+  const distancia =
+    service.coords && ubicacion
+      ? `${formatearDistancia(distanciaKm(ubicacion, service.coords))} away`
+      : service.distanceKm > 0
+        ? `${service.distanceKm} km away`
+        : null;
 
   return (
     <SafeAreaView style={styles.screen} edges={['bottom']}>
@@ -121,38 +153,44 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
       <ScrollView contentContainerStyle={styles.body}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Chip label={categoryLabel[service.category]} background={colors.accentTint} color={colors.accentDark} />
-          <Chip label={statusLabel[service.status]} background={colors.greenTint} color={colors.green} />
+          <Chip
+            label={statusLabel[service.status]}
+            background={(statusColor[service.status] ?? statusColor.pending).fondo}
+            color={(statusColor[service.status] ?? statusColor.pending).color}
+          />
         </View>
 
         <Text style={styles.title}>{service.title}</Text>
 
         <View style={styles.requesterCard}>
-          <View style={[styles.avatar, { backgroundColor: service.requester.avatarColor }]} />
+          <Avatar name={service.requester.name} photoURL={service.requester.photoURL} size={44} color={service.requester.avatarColor} />
           <View style={{ flex: 1 }}>
             <Text style={styles.requesterName}>{service.requester.name}</Text>
-            <Text style={styles.requesterMeta}>
-              ★ {service.requester.rating} ({service.requester.ratingCount}) · replies in {service.requester.responseLabel}
-            </Text>
+            <Text style={styles.requesterMeta}>{resumenAutor(service.requester)}</Text>
           </View>
         </View>
 
         <Text style={styles.description}>{service.description}</Text>
 
         <View style={styles.infoList}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Duration</Text>
-            <Text style={styles.infoValue}>{service.durationLabel}</Text>
-          </View>
+          {service.durationLabel && service.durationLabel !== '—' ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Duration</Text>
+              <Text style={styles.infoValue}>{service.durationLabel}</Text>
+            </View>
+          ) : null}
           {service.credits > 0 && (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Credits requested</Text>
               <Text style={[styles.infoValue, { color: colors.accentDark }]}>{service.credits} cr</Text>
             </View>
           )}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Location</Text>
-            <Text style={styles.infoValue}>{service.distanceKm} km away</Text>
-          </View>
+          {distancia ? (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Location</Text>
+              <Text style={styles.infoValue}>{distancia}</Text>
+            </View>
+          ) : null}
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Available</Text>
             <Text style={styles.infoValue}>{service.availableLabel}</Text>
@@ -201,7 +239,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: radii.md,
   },
-  avatar: { width: 36, height: 36, borderRadius: 18 },
   requesterName: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink },
   requesterMeta: { marginTop: 2, fontFamily: fonts.body, fontSize: 11.5, color: colors.muted },
   description: { fontFamily: fonts.body, fontSize: 14, lineHeight: 22, color: colors.muted },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import ServiceDetailScreen, { accionPrincipal } from '../ServiceDetailScreen';
+import ServiceDetailScreen, { accionPrincipal, resumenAutor } from '../ServiceDetailScreen';
 import { api, type Application } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue } from '../../test-utils/renderWithAuth';
@@ -55,8 +55,15 @@ describe('qué se puede hacer con un servicio', () => {
     expect(accion.destino).toBeUndefined();
   });
 
-  it('quien lo publicó ve sus ofertas, aunque siga pendiente', () => {
-    expect(accionPrincipal(servicio({ status: 'pending' }), 'ana', null)).toEqual({ label: 'View offers', destino: 'ServiceOffers' });
+  it('quien lo publicó, mientras está pendiente, lo edita: aún no puede recibir ofertas', () => {
+    expect(accionPrincipal(servicio({ status: 'pending' }), 'ana', null)).toMatchObject({
+      label: 'Edit service',
+      destino: 'CreateService',
+    });
+  });
+
+  it('quien lo publicó ve sus ofertas cuando ya está aprobado', () => {
+    expect(accionPrincipal(servicio({ status: 'approved' }), 'ana', null)).toEqual({ label: 'View offers', destino: 'ServiceOffers' });
   });
 
   it('quien fue elegido abre el chat', () => {
@@ -77,7 +84,46 @@ describe('qué se puede hacer con un servicio', () => {
   });
 });
 
+describe('resumen de quien publica', () => {
+  const autor = servicio().requester;
+
+  it('con valoraciones', () => {
+    expect(resumenAutor({ ...autor, rating: 4.8, ratingCount: 12, responseLabel: '~2h' })).toBe('★ 4.8 (12) · replies in ~2h');
+  });
+
+  it('sin valoraciones ni tiempo de respuesta no enseña ceros ni guiones', () => {
+    expect(resumenAutor({ ...autor, rating: 0, ratingCount: 0, responseLabel: '—' })).toBe('No ratings yet');
+  });
+});
+
 describe('ServiceDetailScreen', () => {
+  it('enseña la foto de quien publica', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ requester: { ...servicio().requester, photoURL: 'https://ej/ana.jpg' } }));
+    await renderDetalle();
+
+    expect((await screen.findByLabelText('Foto de Ana')).props.source).toEqual({ uri: 'https://ej/ana.jpg' });
+  });
+
+  it('sin duración ni distancia conocidas no enseña esas filas', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ durationLabel: '—', distanceKm: 0, coords: null }));
+    await renderDetalle();
+
+    await screen.findByText('Pintar una pared');
+    expect(screen.queryByText('Duration')).toBeNull();
+    expect(screen.queryByText('Location')).toBeNull();
+    expect(screen.queryByText(/0 km away/)).toBeNull();
+  });
+
+  it('mi servicio pendiente lleva a editarlo', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ status: 'pending', requesterId: 'ana' }));
+    const navigation = await renderDetalle('ana');
+
+    await fireEvent.press(await screen.findByText('Edit service'));
+
+    expect(navigation.navigate).toHaveBeenCalledWith('CreateService', { serviceId: 's1' });
+    expect(screen.queryByText('View offers')).toBeNull();
+  });
+
   it('carga el servicio y enseña sus datos y fotos', async () => {
     mockedApi.getService.mockResolvedValue(
       servicio({ title: 'Montar un armario', durationLabel: '3 horas', photos: ['https://ej/1.jpg', 'https://ej/2.jpg'] })

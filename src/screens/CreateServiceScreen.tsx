@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -22,7 +22,13 @@ const categories: { label: string; value: ServiceCategory }[] = [
   { label: 'Other', value: 'other' },
 ];
 
-export default function CreateServiceScreen({ navigation }: Props) {
+/** Una foto ya subida en una edición anterior (URL) frente a una nueva del móvil. */
+const yaSubida = (uri: string) => /^https?:\/\//.test(uri);
+
+export default function CreateServiceScreen({ navigation, route }: Props) {
+  // Con serviceId se edita ese servicio; sin él, se crea uno nuevo.
+  const editandoId = route?.params?.serviceId;
+  const [originales, setOriginales] = useState<string[]>([]);
   const [category, setCategory] = useState<ServiceCategory>('moving');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -30,6 +36,49 @@ export default function CreateServiceScreen({ navigation }: Props) {
   const [radius, setRadius] = useState(55);
   const [photos, setPhotos] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!editandoId) return;
+    api
+      .getService(editandoId)
+      .then((s) => {
+        setTitle(s.title);
+        setCategory(s.category);
+        setDescription(s.description);
+        setDuration(s.durationLabel === '—' ? '' : s.durationLabel);
+        setPhotos(s.photos);
+        setOriginales(s.photos);
+      })
+      .catch((e) => Alert.alert("Couldn't load the service", dataErrorMessage(e)));
+  }, [editandoId]);
+
+  const guardarCambios = async () => {
+    setSubmitting(true);
+    let subidas: string[] = [];
+    try {
+      // Solo se suben las fotos nuevas; las que ya estaban se conservan.
+      const nuevas = photos.filter((uri) => !yaSubida(uri));
+      subidas = await Promise.all(nuevas.map((uri) => api.uploadServicePhoto(uri)));
+      let i = 0;
+      const finales = photos.map((uri) => (yaSubida(uri) ? uri : subidas[i++]));
+      await api.updateService(editandoId!, {
+        title: title.trim(),
+        category,
+        description: description.trim(),
+        durationLabel: duration.trim() || '—',
+        photos: finales,
+      });
+      // Las fotos que se quitaron ya no las usa nadie: fuera de Storage.
+      const quitadas = originales.filter((url) => !finales.includes(url));
+      await Promise.all(quitadas.map((url) => api.deleteServicePhoto(url).catch(() => undefined)));
+      navigation.goBack();
+    } catch (e) {
+      await Promise.all(subidas.map((url) => api.deleteServicePhoto(url).catch(() => undefined)));
+      Alert.alert("Couldn't save your changes", dataErrorMessage(e));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const anadirFoto = (desde: 'camara' | 'galeria') => async () => {
     const permiso =
@@ -81,6 +130,10 @@ export default function CreateServiceScreen({ navigation }: Props) {
       Alert.alert('Add a title', 'Give your service a short title first.');
       return;
     }
+    if (editandoId) {
+      await guardarCambios();
+      return;
+    }
     setSubmitting(true);
     let subidas: string[] = [];
     try {
@@ -119,7 +172,7 @@ export default function CreateServiceScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>New service</Text>
+        <Text style={styles.headerTitle}>{editandoId ? 'Edit service' : 'New service'}</Text>
         <Pressable
           style={styles.closeButton}
           onPress={() => navigation.goBack()}
@@ -219,11 +272,11 @@ export default function CreateServiceScreen({ navigation }: Props) {
 
       <View style={styles.footer}>
         <PillButton
-          label={submitting ? 'Submitting…' : 'Submit for review'}
+          label={submitting ? 'Saving…' : editandoId ? 'Save changes' : 'Submit for review'}
           onPress={handleSubmit}
           icon={submitting ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
         />
-        <Text style={styles.footerHint}>An admin will review it before it becomes visible.</Text>
+        {!editandoId && <Text style={styles.footerHint}>An admin will review it before it becomes visible.</Text>}
       </View>
     </SafeAreaView>
   );

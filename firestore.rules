@@ -51,6 +51,12 @@ service cloud.firestore {
       function isHelper() {
         return resource.data.helperId == request.auth.uid;
       }
+      /** Transiciones permitidas una vez elegida la persona que ayuda. */
+      function avanza(desde, hasta) {
+        return (desde == 'accepted' && hasta in ['in_progress', 'completed'])
+          || (desde == 'in_progress' && hasta == 'completed')
+          || (desde == 'completed' && hasta == 'rated');
+      }
 
       allow read: if signedIn() && (
         resource.data.status == 'approved' || isRequester() || isHelper()
@@ -71,16 +77,18 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/applications/$(requestId + '_' + request.resource.data.helperId))
           && changedKeys().hasOnly(['status', 'helperId', 'helperName', 'updatedAt']))
         ||
-        // Quien publica corrige el contenido, pero no el estado (aprobar es
-        // cosa del admin) ni quién pide o quién ayuda.
+        // Quien publica edita el contenido mientras no haya elegido a nadie
+        // (pendiente o aprobado), pero nunca el estado (aprobar es cosa del
+        // admin) ni quién pide o quién ayuda.
         (isRequester()
+          && resource.data.status in ['pending', 'approved']
           && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId']))
         ||
-        // Una vez aceptado, las dos partes avanzan el trabajo hacia delante.
+        // Una vez aceptado, las dos partes avanzan el trabajo hacia delante,
+        // tocando solo el estado.
         ((isRequester() || isHelper())
-          && resource.data.status in ['accepted', 'in_progress', 'completed']
-          && request.resource.data.status in ['in_progress', 'completed', 'rated']
-          && !changedKeys().hasAny(['requesterId', 'helperId']))
+          && avanza(resource.data.status, request.resource.data.status)
+          && changedKeys().hasOnly(['status', 'updatedAt']))
       );
 
       allow delete: if false;

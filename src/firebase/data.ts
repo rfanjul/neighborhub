@@ -146,6 +146,41 @@ function profileFromDoc(id: string, d: any): ApiUserProfile {
   };
 }
 
+/**
+ * Completa los servicios con el perfil actual de quien los publicó: la copia
+ * que guarda el servicio al crearse se queda vieja si cambia la foto o el
+ * nombre, y los servicios antiguos ni siquiera la tienen. Un perfil que no se
+ * pueda leer deja el servicio como estaba.
+ */
+async function conAutores(servicios: ServiceRequest[]): Promise<ServiceRequest[]> {
+  const ids = [...new Set(servicios.map((s) => s.requesterId).filter((id): id is string => !!id))];
+  const perfiles = new Map<string, any>();
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const snap = await getDoc(doc(db, 'users', id));
+        if (snap.exists()) perfiles.set(id, snap.data());
+      } catch {
+        // Sin permiso o sin red: se queda con la copia del servicio.
+      }
+    })
+  );
+  return servicios.map((s) => {
+    const p = s.requesterId ? perfiles.get(s.requesterId) : undefined;
+    if (!p) return s;
+    return {
+      ...s,
+      requester: {
+        ...s.requester,
+        name: p.name ?? s.requester.name,
+        rating: p.rating ?? s.requester.rating,
+        responseLabel: p.responseLabel ?? s.requester.responseLabel,
+        photoURL: p.photoURL ?? s.requester.photoURL,
+      },
+    };
+  });
+}
+
 /** createdAt es un Timestamp de Firestore (o null si aún no ha llegado al servidor). */
 function milisegundos(valor: any): number {
   if (typeof valor?.toMillis === 'function') return valor.toMillis();
@@ -175,6 +210,7 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
       ratingCount: 0,
       responseLabel: d.requesterResponseLabel ?? '—',
       avatarColor: '#E7C9A9',
+      photoURL: d.requesterPhotoURL ?? null,
     },
   };
 }
@@ -252,15 +288,18 @@ export const api = {
     for (const d of [...aprobados.docs, ...mios.docs]) {
       porId.set(d.id, d.data());
     }
-    return [...porId.entries()]
-      .sort(([, a], [, b]) => milisegundos(b.createdAt) - milisegundos(a.createdAt))
-      .map(([id, data]) => serviceFromDoc(id, data));
+    return conAutores(
+      [...porId.entries()]
+        .sort(([, a], [, b]) => milisegundos(b.createdAt) - milisegundos(a.createdAt))
+        .map(([id, data]) => serviceFromDoc(id, data))
+    );
   },
 
   async getService(id: string): Promise<ServiceRequest> {
     const snap = await getDoc(doc(db, 'helpRequests', id));
     if (!snap.exists()) throw new Error('Service not found');
-    return serviceFromDoc(snap.id, snap.data());
+    const [servicio] = await conAutores([serviceFromDoc(snap.id, snap.data())]);
+    return servicio;
   },
 
   async createService(input: {
@@ -283,6 +322,7 @@ export const api = {
       requesterName: me.name,
       requesterRating: me.rating,
       requesterResponseLabel: me.responseLabel,
+      requesterPhotoURL: me.photoURL,
       helperId: null,
       helperName: null,
       helperRating: null,
@@ -293,6 +333,26 @@ export const api = {
     return api.getService(created.id);
   },
 
+
+  /**
+   * Edita un servicio propio. Las reglas solo lo permiten mientras está
+   * pendiente o aprobado, es decir, antes de elegir a nadie.
+   */
+  async updateService(
+    id: string,
+    cambios: Partial<{
+      title: string;
+      category: ServiceCategory;
+      description: string;
+      durationLabel: string;
+      travelRadiusKm: number;
+      photos: string[];
+    }>
+  ): Promise<ServiceRequest> {
+    const limpios = Object.fromEntries(Object.entries(cambios).filter(([, v]) => v !== undefined));
+    await updateDoc(doc(db, 'helpRequests', id), { ...limpios, updatedAt: serverTimestamp() });
+    return api.getService(id);
+  },
 
   /** Servicios que he publicado, en cualquier estado. */
   async listMyServices(): Promise<ServiceRequest[]> {

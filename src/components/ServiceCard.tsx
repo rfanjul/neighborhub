@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { colors, fonts, radii, shadow } from '../theme';
 import CategoryIcon from './CategoryIcon';
+import Avatar from './Avatar';
 import type { ServiceRequest } from '../data/mock';
 import { distanciaKm, formatearDistancia, type Coordenadas } from '../geo/distancia';
 
@@ -46,7 +47,7 @@ export default function ServiceCard({
       </View>
       <View style={styles.footer}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <View style={[styles.avatar, { backgroundColor: service.requester.avatarColor }]} />
+          <Avatar name={service.requester.name} photoURL={service.requester.photoURL} size={22} color={service.requester.avatarColor} />
           <Text style={styles.requester}>{service.requester.name}</Text>
         </View>
         {service.status === 'pending' && (
@@ -71,7 +72,6 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.bodySemiBold, fontSize: 14.5, lineHeight: 19, color: colors.ink },
   meta: { marginTop: 6, fontFamily: fonts.body, fontSize: 12, color: colors.muted },
   footer: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  avatar: { width: 20, height: 20, borderRadius: 10 },
   requester: { fontFamily: fonts.body, fontSize: 12, color: colors.muted },
   pendingChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.amberTint },
   pendingLabel: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.amber },

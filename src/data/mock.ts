@@ -28,6 +28,8 @@ export type ServiceRequest = {
     ratingCount: number;
     responseLabel: string;
     avatarColor: string;
+    /** Foto de perfil de quien lo publicó, si tiene. */
+    photoURL: string | null;
   };
 };
 
@@ -59,7 +61,7 @@ export const mockServices: ServiceRequest[] = [
     requesterId: null,
     helperId: null,
     helperName: null,
-    requester: { name: 'Peter M.', rating: 4.6, ratingCount: 18, responseLabel: '~2h', avatarColor: '#E7C9A9' },
+    requester: { name: 'Peter M.', rating: 4.6, ratingCount: 18, responseLabel: '~2h', avatarColor: '#E7C9A9', photoURL: null },
   },
   {
     id: 's2',
@@ -78,7 +80,7 @@ export const mockServices: ServiceRequest[] = [
     requesterId: null,
     helperId: null,
     helperName: null,
-    requester: { name: 'Lena K.', rating: 4.8, ratingCount: 32, responseLabel: '~1h', avatarColor: '#C9E0D2' },
+    requester: { name: 'Lena K.', rating: 4.8, ratingCount: 32, responseLabel: '~1h', avatarColor: '#C9E0D2', photoURL: null },
   },
   {
     id: 's3',
@@ -96,6 +98,6 @@ export const mockServices: ServiceRequest[] = [
     requesterId: null,
     helperId: null,
     helperName: null,
-    requester: { name: 'Tom S.', rating: 4.9, ratingCount: 41, responseLabel: '~30 min', avatarColor: '#C9D6F2' },
+    requester: { name: 'Tom S.', rating: 4.9, ratingCount: 41, responseLabel: '~30 min', avatarColor: '#C9D6F2', photoURL: null },
   },
 ];

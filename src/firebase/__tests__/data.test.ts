@@ -211,6 +211,47 @@ describe('servicios', () => {
     });
   });
 
+  it('guarda la foto de perfil de quien lo publica', async () => {
+    mockStore.set('users/uid-1', { ...mockStore.get('users/uid-1'), photoURL: 'https://storage/ana.jpg' });
+
+    await api.createService(servicioBase);
+
+    const guardado = [...mockStore.entries()].find(([k]) => k.startsWith('helpRequests/'))![1];
+    expect(guardado.requesterPhotoURL).toBe('https://storage/ana.jpg');
+  });
+
+  it('al leerlo usa el perfil actual del autor: foto y nombre nuevos, servicios viejos incluidos', async () => {
+    mockStore.set('helpRequests/viejo', { ...servicioBase, status: 'approved', requesterId: 'luis', requesterName: 'Luis', createdAt: 1 });
+    mockStore.set('users/luis', { name: 'Luis García', photoURL: 'https://storage/luis.jpg', rating: 4.5, responseLabel: '~1h' });
+
+    const [servicio] = await api.listServices();
+
+    expect(servicio.requester).toMatchObject({ name: 'Luis García', photoURL: 'https://storage/luis.jpg', rating: 4.5, responseLabel: '~1h' });
+  });
+
+  it('si el perfil del autor no existe se queda con la copia del servicio', async () => {
+    mockStore.set('helpRequests/huerfano', {
+      ...servicioBase,
+      status: 'approved',
+      requesterId: 'borrado',
+      requesterName: 'Alguien',
+      requesterPhotoURL: 'https://storage/copia.jpg',
+      createdAt: 1,
+    });
+
+    const servicio = await api.getService('huerfano');
+
+    expect(servicio.requester).toMatchObject({ name: 'Alguien', photoURL: 'https://storage/copia.jpg' });
+  });
+
+  it('edita el servicio sin mandar campos vacíos', async () => {
+    const creado = await api.createService(servicioBase);
+
+    const editado = await api.updateService(creado.id, { title: 'Pintar dos paredes', description: undefined, photos: ['https://x/1.jpg'] });
+
+    expect(editado).toMatchObject({ title: 'Pintar dos paredes', description: 'Salón', photos: ['https://x/1.jpg'], status: 'pending' });
+  });
+
   it('sin fotos ni coordenadas devuelve valores vacíos, no undefined', async () => {
     const creado = await api.createService(servicioBase);
 

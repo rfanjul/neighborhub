@@ -190,6 +190,36 @@ describe('helpRequests', () => {
     await assertSucceeds(updateDoc(doc(como('ana'), 'helpRequests/s1'), { title: 'Pintar dos paredes' }));
   });
 
+  it('quien publica edita también uno aprobado, mientras no haya elegido a nadie', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+    await assertSucceeds(updateDoc(doc(como('ana'), 'helpRequests/s1'), { description: 'Ahora son dos paredes', photos: [] }));
+  });
+
+  it('con una oferta ya elegida el servicio no se edita', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { title: 'Otra cosa' }));
+  });
+
+  it('marcar como completado no permite colar otros cambios', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+
+    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed', title: 'Otra cosa' }));
+  });
+
+  it('completado no vuelve atrás', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'completed', helperId: 'luis' }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted' }));
+  });
+
+  it('completado tampoco se edita', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'completed', helperId: 'luis' }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { title: 'Otra cosa' }));
+  });
+
   it('quien publica no se cambia por otro', async () => {
     await sembrar('helpRequests/s1', servicio());
 

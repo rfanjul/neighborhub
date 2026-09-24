@@ -20,11 +20,10 @@ jest.mock('expo-location', () => ({
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
-function renderScreen() {
+function renderScreen(serviceId?: string) {
   const navigation = { goBack: jest.fn(), navigate: jest.fn() };
-  return render(<CreateServiceScreen navigation={navigation as never} route={{ key: 'k', name: 'CreateService' } as never} />).then(
-    () => navigation
-  );
+  const route = { key: 'k', name: 'CreateService', params: serviceId ? { serviceId } : undefined };
+  return render(<CreateServiceScreen navigation={navigation as never} route={route as never} />).then(() => navigation);
 }
 
 /**
@@ -193,5 +192,93 @@ describe('CreateServiceScreen', () => {
     await waitFor(() => expect(mockedApi.deleteServicePhoto).toHaveBeenCalledWith('https://storage/foto-1.jpg'));
     expect(alerta2).toHaveBeenCalledWith("Couldn't submit your service", 'No tienes permiso para hacer esto.');
     alerta2.mockRestore();
+  });
+});
+
+describe('editar un servicio', () => {
+  const existente = {
+    id: 's1',
+    title: 'Pintar pared',
+    category: 'painting',
+    description: 'Del salón',
+    durationLabel: '—',
+    photos: ['https://storage/vieja-1.jpg', 'https://storage/vieja-2.jpg'],
+  };
+
+  beforeEach(() => {
+    mockedApi.getService.mockResolvedValue(existente as never);
+    mockedApi.updateService.mockResolvedValue(existente as never);
+  });
+
+  it('carga los datos actuales y cambia los textos de la pantalla', async () => {
+    await renderScreen('s1');
+
+    expect(await screen.findByDisplayValue('Pintar pared')).toBeTruthy();
+    expect(screen.getByDisplayValue('Del salón')).toBeTruthy();
+    expect(screen.getByText('Edit service')).toBeTruthy();
+    expect(screen.getByText('Save changes')).toBeTruthy();
+    expect(screen.queryByText(/An admin will review/)).toBeNull();
+    expect(screen.getAllByLabelText('Photo, long press to remove')).toHaveLength(2);
+  });
+
+  it('guarda los cambios sin volver a subir las fotos que ya estaban', async () => {
+    const navigation = await renderScreen('s1');
+    await screen.findByDisplayValue('Pintar pared');
+
+    await fireEvent.changeText(screen.getByDisplayValue('Pintar pared'), 'Pintar dos paredes');
+    await fireEvent.press(screen.getByText('Save changes'));
+
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
+    expect(mockedApi.uploadServicePhoto).not.toHaveBeenCalled();
+    expect(mockedApi.createService).not.toHaveBeenCalled();
+    expect(mockedApi.updateService).toHaveBeenCalledWith('s1', {
+      title: 'Pintar dos paredes',
+      category: 'painting',
+      description: 'Del salón',
+      durationLabel: '—',
+      photos: ['https://storage/vieja-1.jpg', 'https://storage/vieja-2.jpg'],
+    });
+  });
+
+  it('sube solo las fotos nuevas y borra de Storage las que se quitaron', async () => {
+    (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'nueva.jpg' }] });
+    await renderScreen('s1');
+    await screen.findByDisplayValue('Pintar pared');
+
+    await fireEvent(screen.getAllByLabelText('Photo, long press to remove')[0], 'longPress');
+    await anadirFoto('Take photo');
+    await fireEvent.press(screen.getByText('Save changes'));
+
+    await waitFor(() => expect(mockedApi.updateService).toHaveBeenCalled());
+    expect(mockedApi.uploadServicePhoto).toHaveBeenCalledWith('nueva.jpg');
+    expect(mockedApi.updateService.mock.calls[0][1].photos).toEqual(['https://storage/vieja-2.jpg', 'https://storage/nueva.jpg']);
+    expect(mockedApi.deleteServicePhoto).toHaveBeenCalledWith('https://storage/vieja-1.jpg');
+  });
+
+  it('si no se puede guardar, avisa y borra las fotos nuevas que llegó a subir', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.updateService.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'permission-denied' }));
+    (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'nueva.jpg' }] });
+    await renderScreen('s1');
+    await screen.findByDisplayValue('Pintar pared');
+    await anadirFoto('Take photo');
+    const alerta2 = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+
+    await fireEvent.press(screen.getByText('Save changes'));
+
+    await waitFor(() => expect(alerta2).toHaveBeenCalledWith("Couldn't save your changes", 'No tienes permiso para hacer esto.'));
+    expect(mockedApi.deleteServicePhoto).toHaveBeenCalledWith('https://storage/nueva.jpg');
+    expect(mockedApi.deleteServicePhoto).not.toHaveBeenCalledWith('https://storage/vieja-1.jpg');
+    alerta.mockRestore();
+    alerta2.mockRestore();
+  });
+
+  it('avisa si no puede cargar el servicio', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.getService.mockRejectedValueOnce(new Error('offline'));
+    await renderScreen('s1');
+
+    await waitFor(() => expect(alerta).toHaveBeenCalledWith("Couldn't load the service", expect.any(String)));
+    alerta.mockRestore();
   });
 });

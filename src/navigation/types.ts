@@ -27,7 +27,8 @@ export type RootStackParamList = {
   /** Ofertas recibidas en un servicio propio: elegir, chatear, completar. */
   ServiceOffers: { serviceId: string };
   Chat: { serviceId: string };
-  CreateService: undefined;
+  /** Sin serviceId crea uno nuevo; con él, edita ese servicio. */
+  CreateService: { serviceId?: string } | undefined;
 };
 
 declare global {

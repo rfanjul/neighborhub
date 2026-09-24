@@ -20,6 +20,7 @@ jest.mock('./src/firebase/data', () => ({
     getService: jest.fn(async () => null),
     createService: jest.fn(async () => null),
     listMyServices: jest.fn(async () => []),
+    updateService: jest.fn(async () => null),
     countCompletedHelps: jest.fn(async () => 0),
     completeService: jest.fn(async () => undefined),
     applyToService: jest.fn(async () => null),

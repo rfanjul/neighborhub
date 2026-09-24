@@ -106,9 +106,20 @@ describe('My offers', () => {
   });
 });
 
-it('avisa si no se pudo cargar', async () => {
+it('si fallan las ofertas, los servicios se ven igual', async () => {
+  mockedApi.listMyApplications.mockRejectedValue(Object.assign(new Error('denied'), { code: 'permission-denied' }));
+  await renderActividad();
+
+  expect(await screen.findByText('Pintar pared')).toBeTruthy();
+  expect(screen.queryByText(/Couldn't load/)).toBeNull();
+
+  await fireEvent.press(screen.getByText('My offers'));
+  expect(screen.getByText(/Couldn't load your offers/)).toBeTruthy();
+});
+
+it('si fallan los servicios lo dice en su pestaña', async () => {
   mockedApi.listMyServices.mockRejectedValue(new Error('offline'));
   await renderActividad();
 
-  expect(await screen.findByText(/Couldn't load your activity/)).toBeTruthy();
+  expect(await screen.findByText(/Couldn't load your services/)).toBeTruthy();
 });

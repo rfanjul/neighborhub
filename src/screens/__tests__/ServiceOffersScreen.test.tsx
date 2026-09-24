@@ -125,6 +125,23 @@ describe('ServiceOffersScreen', () => {
     alerta.mockRestore();
   });
 
+  it.each(['pending', 'approved'] as const)('%s se puede editar', async (status) => {
+    mockedApi.getService.mockResolvedValue(servicio({ status }));
+    const navigation = await renderOfertas();
+
+    await fireEvent.press(await screen.findByText('Edit'));
+
+    expect(navigation.navigate).toHaveBeenCalledWith('CreateService', { serviceId: 's1' });
+  });
+
+  it.each(['accepted', 'completed'] as const)('%s ya no se puede editar', async (status) => {
+    mockedApi.getService.mockResolvedValue(servicio({ status, helperId: 'luis', helperName: 'Luis' }));
+    await renderOfertas();
+
+    await screen.findByText('Open chat');
+    expect(screen.queryByText('Edit')).toBeNull();
+  });
+
   it('vuelve atrás', async () => {
     const navigation = await renderOfertas();
 

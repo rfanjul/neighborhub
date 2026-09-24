@@ -102,6 +102,16 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
             {ofertas.length === 1 ? '1 offer' : `${ofertas.length} offers`}
           </Text>
         </View>
+        {/* Se puede editar mientras no se haya elegido a nadie. */}
+        {(servicio?.status === 'pending' || servicio?.status === 'approved') && (
+          <Pressable
+            style={styles.editar}
+            onPress={() => navigation.navigate('CreateService', { serviceId })}
+            accessibilityRole="button"
+          >
+            <Text style={styles.editarTexto}>Edit</Text>
+          </Pressable>
+        )}
       </View>
 
       {servicio?.status === 'pending' && (
@@ -157,6 +167,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 8 },
   back: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
   titulo: { fontFamily: fonts.display, fontSize: 20, color: colors.ink },
+  editar: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, backgroundColor: colors.card },
+  editarTexto: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accentDark },
   subtitulo: { fontFamily: fonts.body, fontSize: 12, color: colors.muted },
   aviso: {
     margin: 20,
