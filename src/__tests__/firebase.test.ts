@@ -18,6 +18,7 @@ type Mocks = {
   initializeAuth: jest.Mock;
   getAuth: jest.Mock;
   getReactNativePersistence: jest.Mock;
+  initializeFirestore: jest.Mock;
 };
 
 /** Carga src/firebase con mocks frescos y devuelve el módulo y sus espías. */
@@ -32,6 +33,7 @@ function loadFirebase(options: { existingApps?: unknown[]; initializeAuthThrows?
     }),
     getAuth: jest.fn(() => ({ id: 'auth-existente' })),
     getReactNativePersistence: jest.fn((storage: unknown) => ({ persistencia: storage })),
+    initializeFirestore: jest.fn(() => ({ id: 'firestore' })),
   };
 
   jest.resetModules();
@@ -43,6 +45,10 @@ function loadFirebase(options: { existingApps?: unknown[]; initializeAuthThrows?
   jest.doMock('firebase/auth', () => ({
     initializeAuth: mocks.initializeAuth,
     getAuth: mocks.getAuth,
+  }));
+  jest.doMock('@firebase/firestore', () => ({
+    initializeFirestore: mocks.initializeFirestore,
+    getFirestore: jest.fn(() => ({ id: 'firestore-existente' })),
   }));
   jest.doMock('@firebase/auth', () => ({ getReactNativePersistence: mocks.getReactNativePersistence }));
   jest.doMock('@react-native-async-storage/async-storage', () => ({ __esModule: true, default: { almacen: true } }));
@@ -91,6 +97,15 @@ describe('inicialización de Firebase', () => {
       persistence: { persistencia: { almacen: true } },
     });
     expect(firebase.auth).toEqual({ id: 'auth-nuevo' });
+  });
+
+  it('fuerza long polling en Firestore, que en React Native falla sin él', () => {
+    const { firebase, mocks } = loadFirebase();
+
+    expect(mocks.initializeFirestore).toHaveBeenCalledWith(expect.anything(), {
+      experimentalForceLongPolling: true,
+    });
+    expect(firebase.db).toEqual({ id: 'firestore' });
   });
 
   it('recupera la instancia existente cuando Fast Refresh reejecuta el módulo', () => {

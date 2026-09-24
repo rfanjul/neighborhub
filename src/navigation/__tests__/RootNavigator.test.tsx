@@ -28,6 +28,9 @@ const signedInUser = {
   providerData: [{ providerId: 'password' }],
 };
 
+/** Perfil de Firestore con el wizard ya completado. */
+const perfilCompleto = { id: 'uid-1', name: 'Ana', onboardingCompleted: true, credits: 12 };
+
 async function renderNavigator(overrides = {}) {
   mockedUseAuth.mockReturnValue(authValue(overrides));
   return render(<RootNavigator />);
@@ -50,21 +53,46 @@ describe('RootNavigator', () => {
     expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy();
   });
 
-  it('con sesión entra directo a Home, sin pasar por el login', async () => {
-    await renderNavigator({ initializing: false, user: signedInUser as never });
+  it('con sesión y perfil completo entra directo a la app', async () => {
+    await renderNavigator({
+      initializing: false,
+      user: signedInUser as never,
+      profile: perfilCompleto as never,
+    });
 
-    await waitFor(() => expect(screen.getByText('Hola, Ana')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
     expect(screen.queryByRole('button', { name: 'Entrar con email' })).toBeNull();
   });
 
-  it('al cerrar sesión vuelve a la pantalla de acceso', async () => {
-    const view = await renderNavigator({ initializing: false, user: signedInUser as never });
-    await waitFor(() => expect(screen.getByText('Hola, Ana')).toBeTruthy());
+  it('entra al muro aunque el perfil esté a medias: editarlo ya no es obligatorio', async () => {
+    await renderNavigator({
+      initializing: false,
+      user: signedInUser as never,
+      profile: { ...perfilCompleto, onboardingCompleted: false } as never,
+    });
 
-    mockedUseAuth.mockReturnValue(authValue({ initializing: false, user: null }));
+    await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
+    expect(screen.queryByText('Your details')).toBeNull();
+  });
+
+  it('entra al muro incluso sin documento de perfil en Firestore', async () => {
+    await renderNavigator({ initializing: false, user: signedInUser as never, profile: null });
+
+    await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
+  });
+
+  it('al cerrar sesión vuelve a la pantalla de acceso', async () => {
+    const view = await renderNavigator({
+      initializing: false,
+      user: signedInUser as never,
+      profile: perfilCompleto as never,
+    });
+    await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
+
+    mockedUseAuth.mockReturnValue(authValue({ initializing: false, user: null, profile: null }));
     await view.rerender(<RootNavigator />);
 
     await waitFor(() => expect(screen.getByText('Neighborhub')).toBeTruthy());
-    expect(screen.queryByText('Hola, Ana')).toBeNull();
+    expect(screen.queryByText('Home')).toBeNull();
   });
 });

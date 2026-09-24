@@ -1,3 +1,6 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
+
+/** Pantallas antes de tener sesión. */
 export type AuthStackParamList = {
   Welcome: undefined;
   Login: undefined;
@@ -5,6 +8,31 @@ export type AuthStackParamList = {
   ForgotPassword: { email?: string } | undefined;
 };
 
-export type AppStackParamList = {
-  Home: undefined;
+/** Pestañas de la app una vez dentro. */
+export type MainTabParamList = {
+  HomeTab: undefined;
+  MapTab: undefined;
+  CreateTab: undefined;
+  ActivityTab: { segmento?: 'services' | 'offers' } | undefined;
+  ProfileTab: undefined;
 };
+
+/** Pantallas con sesión iniciada: wizard de perfil, pestañas y modales. */
+export type RootStackParamList = {
+  ProfileDetails: undefined;
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
+  ServiceDetail: { serviceId: string };
+  /** Hacer una oferta sobre un servicio, con comentario. */
+  Apply: { serviceId: string };
+  /** Ofertas recibidas en un servicio propio: elegir, chatear, completar. */
+  ServiceOffers: { serviceId: string };
+  Chat: { serviceId: string };
+  /** Sin serviceId crea uno nuevo; con él, edita ese servicio. */
+  CreateService: { serviceId?: string } | undefined;
+};
+
+declare global {
+  namespace ReactNavigation {
+    interface RootParamList extends RootStackParamList {}
+  }
+}

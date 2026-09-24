@@ -120,6 +120,57 @@ Una vez instalada la app, se conecta a Metro como cualquier development build:
 npx expo start --dev-client
 ```
 
+Si el iPhone no está en la misma red que el Mac, con túnel
+(`npx expo start --dev-client --tunnel`). En ese caso la URL que se abre en
+la app tiene que ser **https**:
+
+```
+exp+login-demo://expo-development-client/?url=https%3A%2F%2F<subdominio>.exp.direct
+```
+
+Con `http://` la app descarga el manifiesto pero no el bundle y sale
+"Could not connect to development server": iOS (App Transport Security)
+solo permite HTTP sin cifrar en la red local, no hacia un dominio de
+internet como `exp.direct`. Safari sí lo abre, porque no está sujeto a esa
+restricción, y eso despista.
+
+## Mapa
+
+El mapa pinta los servicios que tienen coordenadas (se guardan al
+publicarlos) y los filtra por distancia a tu ubicación.
+
+Usa **Google Maps** si `GOOGLE_MAPS_IOS_API_KEY` está definida al compilar;
+si no, el mapa nativo de Apple. Para activarlo:
+
+1. Google Cloud Console del proyecto -> *APIs & Services* -> *Library* ->
+   **Maps SDK for iOS** -> Enable (requiere facturación activada).
+2. *Credentials* -> *Create credentials* -> *API key*. Restríngela a
+   *iOS apps* con el bundle `com.app.neighborhub` y a la API *Maps SDK for iOS*.
+3. Ponla en `.env` como `GOOGLE_MAPS_IOS_API_KEY` y en EAS
+   (`npx eas-cli env:create --name GOOGLE_MAPS_IOS_API_KEY ...`).
+4. Build nuevo: el SDK de Google Maps va dentro del binario.
+
+## Reglas de seguridad
+
+`firestore.rules` y `storage.rules` son las que hay que publicar en la
+consola (Firestore -> Rules y Storage -> Rules). Sin la de
+`service-photos/` la subida de fotos de un servicio falla con
+`storage/unauthorized`.
+
+Están probadas contra los emuladores de Firebase, sin tocar el proyecto
+real ni necesitar que Firestore esté activado en la nube:
+
+```bash
+npm run test:rules   # arranca Firestore y Storage locales, prueba y los apaga
+```
+
+Hace falta Java (17 o superior). `firebase-tools` está fijado a la v13
+porque la 14 en adelante exige Java 21; en CI se usa Java 21 igualmente.
+
+Cubren, entre otras cosas, que nadie pueda darse créditos, valoración o
+verificación a sí mismo, aprobarse sus propios servicios o escribir en
+conversaciones ajenas.
+
 ## Tests
 
 ```bash

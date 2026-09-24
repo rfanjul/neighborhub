@@ -3,15 +3,22 @@ import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../auth/AuthContext';
-import type { AppStackParamList, AuthStackParamList } from './types';
+import { colors } from '../theme';
+import type { AuthStackParamList, RootStackParamList } from './types';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
-import HomeScreen from '../screens/HomeScreen';
+import ProfileDetailsScreen from '../screens/ProfileDetailsScreen';
+import ServiceDetailScreen from '../screens/ServiceDetailScreen';
+import CreateServiceScreen from '../screens/CreateServiceScreen';
+import ApplyScreen from '../screens/ApplyScreen';
+import ServiceOffersScreen from '../screens/ServiceOffersScreen';
+import ChatScreen from '../screens/ChatScreen';
+import MainTabs from './MainTabs';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
-const AppStack = createNativeStackNavigator<AppStackParamList>();
+const AppStack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   const { user, initializing } = useAuth();
@@ -19,25 +26,45 @@ export default function RootNavigator() {
   if (initializing) {
     // Splash mientras Firebase restaura la sesión de AsyncStorage.
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" accessibilityRole="progressbar" accessibilityLabel="Cargando" />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.accent} accessibilityRole="progressbar" accessibilityLabel="Cargando" />
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      {user ? (
-        <AppStack.Navigator screenOptions={{ headerShown: false }}>
-          <AppStack.Screen name="Home" component={HomeScreen} />
-        </AppStack.Navigator>
-      ) : (
+      {!user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Welcome" component={WelcomeScreen} />
           <AuthStack.Screen name="Login" component={LoginScreen} options={{ headerShown: true, title: '' }} />
           <AuthStack.Screen name="Register" component={RegisterScreen} options={{ headerShown: true, title: '' }} />
-          <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ headerShown: true, title: '' }} />
+          <AuthStack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+            options={{ headerShown: true, title: '' }}
+          />
         </AuthStack.Navigator>
+      ) : (
+        <AppStack.Navigator screenOptions={{ headerShown: false }}>
+          <AppStack.Screen name="Main" component={MainTabs} />
+          <AppStack.Screen name="ServiceDetail" component={ServiceDetailScreen} />
+          <AppStack.Screen name="Apply" component={ApplyScreen} options={{ presentation: 'modal' }} />
+          <AppStack.Screen name="ServiceOffers" component={ServiceOffersScreen} />
+          <AppStack.Screen name="Chat" component={ChatScreen} />
+          <AppStack.Screen
+            name="CreateService"
+            component={CreateServiceScreen}
+            options={{ presentation: 'modal' }}
+          />
+          {/* Los datos del perfil se editan desde Profile, ya no son un paso
+              obligatorio antes de ver el muro. */}
+          <AppStack.Screen
+            name="ProfileDetails"
+            component={ProfileDetailsScreen}
+            options={{ presentation: 'modal' }}
+          />
+        </AppStack.Navigator>
       )}
     </NavigationContainer>
   );

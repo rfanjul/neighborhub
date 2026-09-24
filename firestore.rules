@@ -1,0 +1,143 @@
+rules_version = '2';
+
+// Pegar en Firebase Console -> Firestore Database -> Rules -> Publish.
+// Están cubiertas por rules/__tests__/firestore.rules.test.ts, que se ejecuta
+// contra el emulador con `npm run test:rules`.
+//
+// Siguen sin un rol de admin: la moderación (aprobar servicios, ajustar
+// créditos o valoraciones) se hace desde la consola o con el Admin SDK, que
+// se saltan estas reglas.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    /** Campos que cambia esta escritura respecto al documento guardado. */
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+
+      // El perfil nace a cero: nadie empieza con créditos, valoración,
+      // nivel o verificación que no se haya ganado.
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.credits == 0
+        && request.resource.data.rating == 0
+        && request.resource.data.level == 1
+        && request.resource.data.servicesCompleted == 0
+        && request.resource.data.identityVerified == false;
+
+      // Cada uno edita solo sus datos personales. Créditos, valoración,
+      // nivel, estadísticas y verificación los mueve el servidor.
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && changedKeys().hasOnly([
+          'name', 'bio', 'dateOfBirth', 'city', 'postalCode', 'country',
+          'languages', 'onboardingCompleted', 'photoURL'
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /helpRequests/{requestId} {
+      function isRequester() {
+        return resource.data.requesterId == request.auth.uid;
+      }
+      function isHelper() {
+        return resource.data.helperId == request.auth.uid;
+      }
+      /** Transiciones permitidas una vez elegida la persona que ayuda. */
+      function avanza(desde, hasta) {
+        return (desde == 'accepted' && hasta in ['in_progress', 'completed'])
+          || (desde == 'in_progress' && hasta == 'completed')
+          || (desde == 'completed' && hasta == 'rated');
+      }
+
+      allow read: if signedIn() && (
+        resource.data.status == 'approved' || isRequester() || isHelper()
+      );
+
+      // Se publica siempre pendiente de revisión y a nombre propio.
+      allow create: if signedIn()
+        && request.resource.data.requesterId == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      allow update: if signedIn() && (
+        // Quien publica elige a una de las personas que han ofertado. Solo
+        // mientras está aprobado (así solo se elige una vez) y solo a alguien
+        // con una oferta registrada.
+        (isRequester()
+          && resource.data.status == 'approved'
+          && request.resource.data.status == 'accepted'
+          && exists(/databases/$(database)/documents/applications/$(requestId + '_' + request.resource.data.helperId))
+          && changedKeys().hasOnly(['status', 'helperId', 'helperName', 'updatedAt']))
+        ||
+        // Quien publica edita el contenido mientras no haya elegido a nadie
+        // (pendiente o aprobado), pero nunca el estado (aprobar es cosa del
+        // admin) ni quién pide o quién ayuda.
+        (isRequester()
+          && resource.data.status in ['pending', 'approved']
+          && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId']))
+        ||
+        // Una vez aceptado, las dos partes avanzan el trabajo hacia delante,
+        // tocando solo el estado.
+        ((isRequester() || isHelper())
+          && avanza(resource.data.status, request.resource.data.status)
+          && changedKeys().hasOnly(['status', 'updatedAt']))
+      );
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function isParticipant() {
+          let pedido = get(/databases/$(database)/documents/helpRequests/$(requestId)).data;
+          return pedido.requesterId == request.auth.uid || pedido.helperId == request.auth.uid;
+        }
+
+        // Solo las dos partes del servicio leen y escriben la conversación,
+        // y cada mensaje va firmado por quien lo manda.
+        allow read: if signedIn() && isParticipant();
+        allow create: if signedIn()
+          && isParticipant()
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // Ofertas: una por persona y servicio (id = <servicio>_<uid>).
+    match /applications/{applicationId} {
+      function servicio(id) {
+        return get(/databases/$(database)/documents/helpRequests/$(id)).data;
+      }
+
+      // La ve quien la hace y quien publicó el servicio.
+      allow read: if signedIn() && (
+        resource.data.applicantId == request.auth.uid ||
+        resource.data.requesterId == request.auth.uid
+      );
+
+      // Se oferta a nombre propio, sobre un servicio aprobado y ajeno, y la
+      // oferta nace pendiente.
+      allow create: if signedIn()
+        && request.resource.data.applicantId == request.auth.uid
+        && applicationId == request.resource.data.serviceId + '_' + request.auth.uid
+        && request.resource.data.status == 'pending'
+        && servicio(request.resource.data.serviceId).status == 'approved'
+        && servicio(request.resource.data.serviceId).requesterId != request.auth.uid
+        && request.resource.data.requesterId == servicio(request.resource.data.serviceId).requesterId;
+
+      // Solo quien publicó el servicio la selecciona o la rechaza.
+      allow update: if signedIn()
+        && resource.data.requesterId == request.auth.uid
+        && request.resource.data.status in ['selected', 'rejected']
+        && changedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if false;
+    }
+  }
+}

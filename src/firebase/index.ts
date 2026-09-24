@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getFirestore, initializeFirestore, type Firestore } from '@firebase/firestore';
 import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -28,4 +29,16 @@ try {
   auth = getAuth(app);
 }
 
-export { auth };
+// El transporte por WebChannel de Firestore no funciona de forma fiable en
+// React Native: unas redes lo bloquean y la autodetección no siempre acierta
+// (el síntoma es "client is offline" o una promesa que nunca resuelve). Con
+// long polling forzado va siempre, a cambio de algo más de tráfico.
+let db: Firestore;
+try {
+  db = initializeFirestore(app, { experimentalForceLongPolling: true });
+} catch {
+  // Fast Refresh: ya estaba inicializado.
+  db = getFirestore(app);
+}
+
+export { auth, db };

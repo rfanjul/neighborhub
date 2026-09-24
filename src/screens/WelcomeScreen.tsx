@@ -1,14 +1,38 @@
 import React, { useState } from 'react';
-import { Image, Platform, Text, View } from 'react-native';
+import { Image, Platform, ScrollView, Text, View } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/types';
 import { useAuth } from '../auth/AuthContext';
 import { isExpoGo } from '../auth/environment';
 import { authErrorMessage } from '../auth/errors';
-import { Button, ErrorText, Screen, styles } from '../components/ui';
+import { Button, ErrorText, Screen, colors, styles } from '../components/ui';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Welcome'>;
+
+const pasos = [
+  { titulo: 'Ofrece ayuda', detalle: 'Pintar una pared, pasear un perro, hacer la compra…' },
+  { titulo: 'Gana créditos', detalle: 'Cada servicio que prestas suma saldo a tu cuenta.' },
+  { titulo: 'Recibe ayuda', detalle: 'Gasta esos créditos cuando quien necesite ayuda seas tú.' },
+];
+
+function ComoFunciona() {
+  return (
+    <View style={styles.steps}>
+      {pasos.map((paso, i) => (
+        <View key={paso.titulo} style={styles.step}>
+          <View style={styles.stepNumber}>
+            <Text style={styles.stepNumberText}>{i + 1}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.stepTitle}>{paso.titulo}</Text>
+            <Text style={styles.stepDetail}>{paso.detalle}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 export default function WelcomeScreen({ navigation }: Props) {
   const { loginWithApple, loginWithGoogle } = useAuth();
@@ -29,14 +53,21 @@ export default function WelcomeScreen({ navigation }: Props) {
 
   return (
     <Screen>
-      <Image
-        source={require('../../assets/splash-icon.png')}
-        style={{ width: 72, height: 72, marginBottom: 12 }}
-        resizeMode="contain"
-        accessibilityIgnoresInvertColors
-      />
-      <Text style={styles.title}>Neighborhub</Text>
-      <Text style={styles.subtitle}>Entra con Apple, Google o tu email.</Text>
+      <ScrollView contentContainerStyle={{ gap: 12, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+      <View style={styles.hero}>
+        <Image
+          source={require('../../assets/splash-icon.png')}
+          style={styles.heroMark}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+        <Text style={[styles.title, styles.centered]}>Neighborhub</Text>
+        <Text style={[styles.subtitle, styles.centered, { marginBottom: 4 }]}>
+          La plataforma donde los vecinos se ayudan entre sí y, en lugar de pagarse en dinero, acumulan créditos.
+        </Text>
+      </View>
+
+      <ComoFunciona />
 
       {isExpoGo && (
         <Text style={styles.subtitle}>
@@ -74,6 +105,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       <Button title="Crear una cuenta" variant="link" onPress={() => navigation.navigate('Register')} />
 
       <ErrorText message={error} />
+      </ScrollView>
     </Screen>
   );
 }
