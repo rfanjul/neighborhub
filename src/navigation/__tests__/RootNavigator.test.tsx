@@ -49,7 +49,7 @@ describe('RootNavigator', () => {
   it('sin sesión arranca en la pantalla de acceso', async () => {
     await renderNavigator({ initializing: false, user: null });
 
-    await waitFor(() => expect(screen.getByText('Neighborhub')).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy());
     expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy();
   });
 
@@ -92,7 +92,7 @@ describe('RootNavigator', () => {
     mockedUseAuth.mockReturnValue(authValue({ initializing: false, user: null, profile: null }));
     await view.rerender(<RootNavigator />);
 
-    await waitFor(() => expect(screen.getByText('Neighborhub')).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy());
     expect(screen.queryByText('Home')).toBeNull();
   });
 });

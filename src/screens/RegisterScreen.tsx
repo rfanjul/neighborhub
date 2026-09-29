@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Text } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/types';
 import { useAuth } from '../auth/AuthContext';
 import { authErrorMessage } from '../auth/errors';
-import { Button, ErrorText, Input, Screen, styles } from '../components/ui';
+import { Button, ErrorText, Input } from '../components/ui';
+import PantallaConFoto from '../components/PantallaConFoto';
+import { fotosBienvenida } from '../data/fotosBienvenida';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -38,8 +39,12 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen>
-      <Text style={styles.title}>Crear cuenta</Text>
+    <PantallaConFoto
+      foto={fotosBienvenida.registro}
+      titulo="Únete a tu barrio"
+      subtitulo="Pide ayuda, ofrece la tuya y conoce a quien vive al lado."
+      onBack={() => navigation.goBack()}
+    >
       <Input placeholder="Nombre" autoCapitalize="words" textContentType="name" value={name} onChangeText={setName} />
       <Input placeholder="Email" keyboardType="email-address" textContentType="emailAddress" value={email} onChangeText={setEmail} />
       <Input placeholder="Contraseña (mínimo 6 caracteres)" secureTextEntry textContentType="newPassword" value={password} onChangeText={setPassword} />
@@ -47,6 +52,6 @@ export default function RegisterScreen({ navigation }: Props) {
       <ErrorText message={error} />
       <Button title="Crear cuenta" onPress={submit} loading={loading} />
       <Button title="Ya tengo cuenta" variant="link" onPress={() => navigation.replace('Login')} />
-    </Screen>
+    </PantallaConFoto>
   );
 }
