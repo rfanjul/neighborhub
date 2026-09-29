@@ -9,7 +9,7 @@ Categorías: LIFESTYLE, SOCIAL_NETWORKING · Copyright: 2026 Ruben Fanjul Estrad
 
 | Campo | Texto | Límite |
 |---|---|---|
-| Nombre | Neighborhub | 11/30 |
+| Nombre | neighborhubwork | 15/30 |
 | Subtítulo | Neighbors helping neighbors | 27/30 |
 | Palabras clave | `community,volunteer,neighborhood,local,favors,moving,dog walker,groceries,chores,elderly,zurich` | 95/100 |
 | Soporte | https://neighborhood-c4dc9.web.app/en/support | |
@@ -57,7 +57,7 @@ Questions or feedback? https://neighborhood-c4dc9.web.app/en/support
 
 | Campo | Texto | Límite |
 |---|---|---|
-| Nombre | Neighborhub | 11/30 |
+| Nombre | neighborhubwork | 15/30 |
 | Subtítulo | Nachbarn helfen Nachbarn | 24/30 |
 | Palabras clave | `Nachbarschaftshilfe,Quartier,Hilfe,Umzug,Gassi,Einkaufen,Freiwillige,Gemeinschaft,Senioren,Zürich` | 97/100 |
 | Soporte | https://neighborhood-c4dc9.web.app/de/support | |
@@ -105,7 +105,7 @@ Fragen oder Feedback? https://neighborhood-c4dc9.web.app/de/support
 
 | Campo | Texto | Límite |
 |---|---|---|
-| Nombre | Neighborhub | 11/30 |
+| Nombre | neighborhubwork | 15/30 |
 | Subtítulo | Vecinos que se ayudan | 21/30 |
 | Palabras clave | `barrio,vecindario,ayuda,voluntariado,favores,mudanza,pasear perro,compras,comunidad,mayores,zúrich` | 98/100 |
 | Soporte | https://neighborhood-c4dc9.web.app/es/support | |

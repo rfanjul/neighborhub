@@ -12,6 +12,11 @@ const locales = Object.entries(config.apple.info);
 const palabras = (texto) => texto.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
 
 describe('store.config.json', () => {
+  it('la versión de la ficha es la de la app, la que llevará la build', () => {
+    const app = JSON.parse(fs.readFileSync(path.join(raiz, 'app.json'), 'utf8'));
+    expect(config.apple.version).toBe(app.expo.version);
+  });
+
   it('tiene inglés, alemán y español', () => {
     expect(Object.keys(config.apple.info).sort()).toEqual(['de-DE', 'en-US', 'es-ES']);
   });
