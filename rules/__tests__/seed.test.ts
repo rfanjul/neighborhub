@@ -9,7 +9,7 @@ import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firesto
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
-const { sembrar, limpiar } = require('../../scripts/seed');
+const { sembrar, limpiar, ofertar } = require('../../scripts/seed');
 
 // Proyecto propio: los otros tests limpian demo-neighborhub en paralelo.
 const projectId = 'demo-seed';
@@ -76,4 +76,51 @@ test('limpiar borra lo sembrado y respeta los datos reales', async () => {
   expect((await db.collection('helpRequests').get()).docs.map((d) => d.id)).toEqual(['real']);
   expect((await db.collection('users').get()).docs.map((d) => d.id)).toEqual(['ruben']);
   expect((await db.collection('applications').get()).size).toBe(0);
+});
+
+describe('ofertar', () => {
+  const mio = { title: 'Move table', status: 'pending', requesterId: 'ruben', requesterName: 'Ruben', helperId: null };
+
+  test('3 vecinos distintos ofertan en mi servicio, que queda aprobado', async () => {
+    const db = getFirestore(admin);
+    await sembrar(db, { Timestamp });
+    await db.doc('helpRequests/mesa').set(mio);
+
+    const r = await ofertar(db, 'move table', { Timestamp });
+    expect(r).toEqual({ servicioId: 'mesa', titulo: 'Move table', ofertas: 3, aprobado: true });
+
+    // Lo que ve el dueño en la app, con las reglas activas.
+    const recibidas = await getDocs(
+      query(collection(vecino(), 'applications'), where('serviceId', '==', 'mesa'), where('requesterId', '==', 'ruben')),
+    );
+    expect(recibidas.size).toBe(3);
+    const autores = recibidas.docs.map((d) => d.data().applicantId);
+    expect(new Set(autores).size).toBe(3);
+    recibidas.forEach((d) => {
+      expect(d.id).toBe(`mesa_${d.data().applicantId}`);
+      expect(d.data()).toMatchObject({ status: 'pending', serviceTitle: 'Move table' });
+      expect(d.data().comment.length).toBeGreaterThan(20);
+    });
+    expect((await getDoc(doc(vecino(), 'helpRequests', 'mesa'))).data()?.status).toBe('approved');
+  });
+
+  test('limpiar quita las ofertas de prueba pero deja mi servicio', async () => {
+    const db = getFirestore(admin);
+    await sembrar(db, { Timestamp });
+    await db.doc('helpRequests/mesa').set(mio);
+    await ofertar(db, 'mesa', { Timestamp });
+
+    expect(await limpiar(db)).toBe(43);
+    expect((await db.collection('applications').get()).size).toBe(0);
+    expect((await db.doc('helpRequests/mesa').get()).exists).toBe(true);
+  });
+
+  test('avisa si no hay vecinos de prueba, si no existe o si ya está cerrado', async () => {
+    const db = getFirestore(admin);
+    await db.doc('helpRequests/mesa').set(mio);
+    await expect(ofertar(db, 'mesa', { Timestamp })).rejects.toThrow('npm run seed');
+    await expect(ofertar(db, 'Sofa', { Timestamp })).rejects.toThrow('No encuentro');
+    await db.doc('helpRequests/mesa').update({ status: 'accepted' });
+    await expect(ofertar(db, 'mesa', { Timestamp })).rejects.toThrow('accepted');
+  });
 });

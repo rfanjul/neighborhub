@@ -181,7 +181,11 @@ servicio → **Generar nueva clave privada**, guárdala como
 ```bash
 npm run seed         # crea o actualiza (idempotente)
 npm run seed:clean   # borra solo lo sembrado, más sus ofertas y mensajes
+npm run seed -- --ofertas "Move table"   # 3 vecinos de prueba ofertan en tu servicio
 ```
+
+`--ofertas` acepta el título exacto o el id del servicio; si estaba pendiente
+lo aprueba, porque solo los aprobados admiten ofertas.
 
 También vale `GOOGLE_APPLICATION_CREDENTIALS=/ruta/clave.json` o, contra el
 emulador, `FIRESTORE_EMULATOR_HOST=localhost:8180`. Los vecinos de prueba

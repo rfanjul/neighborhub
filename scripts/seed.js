@@ -6,6 +6,8 @@
  *
  *   npm run seed          → crea/actualiza 10 vecinos y 30 servicios
  *   npm run seed:clean    → borra todo lo que lleve `seed: true`
+ *   npm run seed -- --ofertas "Move table"
+ *                         → 3 vecinos de prueba ofertan en ese servicio
  *
  * Credenciales, por orden:
  *   1. FIRESTORE_EMULATOR_HOST  → contra el emulador, sin credenciales.
@@ -28,9 +30,66 @@ async function sembrar(db, { Timestamp } = {}) {
   return { usuarios: usuarios.length, servicios: servicios.length };
 }
 
+// Quién oferta y qué dice: vecinos con mano para mover y montar cosas.
+const ofertantes = [
+  { id: 'seed-user-02', comentario: "Hi! I live nearby and I'm free this weekend. I've helped a few neighbors with this kind of thing and can bring straps and my own tools. Just tell me the time." },
+  { id: 'seed-user-08', comentario: "Hello, carpenter here, so I'm used to heavy furniture and tricky stairs. I can come any evening after 18:00 or on Saturday morning." },
+  { id: 'seed-user-04', comentario: "Hey! Student around the corner with flexible hours. Happy to lend a hand, and I can bring a friend if it's heavy." },
+];
+
+/**
+ * Tres vecinos de prueba ofertan en un servicio real (id o título exacto).
+ * Solo los servicios aprobados admiten ofertas, así que si estaba
+ * pendiente lo aprueba, como haría un admin desde la consola.
+ */
+async function ofertar(db, servicio, { Timestamp } = {}) {
+  const ahora = Timestamp ? () => Timestamp.now() : () => new Date();
+  let ref = db.collection('helpRequests').doc(servicio);
+  let snap = await ref.get();
+  if (!snap.exists) {
+    const buscados = (await db.collection('helpRequests').get()).docs.filter(
+      (d) => !d.data().seed && String(d.data().title).trim().toLowerCase() === servicio.trim().toLowerCase(),
+    );
+    if (buscados.length !== 1) {
+      throw new Error(buscados.length ? `Hay ${buscados.length} servicios "${servicio}"; usa el id` : `No encuentro el servicio "${servicio}"`);
+    }
+    snap = buscados[0];
+    ref = snap.ref;
+  }
+  const s = snap.data();
+  if (!['pending', 'approved'].includes(s.status)) throw new Error(`El servicio está ${s.status}; ya no admite ofertas`);
+
+  const aprobado = s.status === 'pending';
+  const batch = db.batch();
+  if (aprobado) batch.update(ref, { status: 'approved', updatedAt: ahora() });
+  for (const o of ofertantes) {
+    const perfil = await db.collection('users').doc(o.id).get();
+    if (!perfil.exists) throw new Error('Faltan los vecinos de prueba: ejecuta antes npm run seed');
+    batch.set(db.collection('applications').doc(`${ref.id}_${o.id}`), {
+      serviceId: ref.id,
+      serviceTitle: s.title,
+      applicantId: o.id,
+      applicantName: perfil.data().name,
+      requesterId: s.requesterId,
+      comment: o.comentario,
+      status: 'pending',
+      seed: true,
+      createdAt: ahora(),
+    });
+  }
+  await batch.commit();
+  return { servicioId: ref.id, titulo: s.title, ofertas: ofertantes.length, aprobado };
+}
+
 /** Borra solo lo sembrado (seed == true), nunca datos reales. */
 async function limpiar(db) {
   let borrados = 0;
+  // Ofertas de prueba hechas sobre servicios reales.
+  const ofertas = await db.collection('applications').where('seed', '==', true).get();
+  for (const o of ofertas.docs) {
+    await o.ref.delete();
+    borrados++;
+  }
   for (const coleccion of ['helpRequests', 'users']) {
     const snap = await db.collection(coleccion).where('seed', '==', true).get();
     for (const d of snap.docs) {
@@ -72,7 +131,13 @@ async function main() {
   const db = getFirestore(initializeApp({ projectId, ...(credential && { credential }) }));
 
   const destino = process.env.FIRESTORE_EMULATOR_HOST ? `emulador ${process.env.FIRESTORE_EMULATOR_HOST}` : projectId;
-  if (process.argv.includes('--clean')) {
+  const iOfertas = process.argv.indexOf('--ofertas');
+  if (iOfertas !== -1) {
+    const servicio = process.argv[iOfertas + 1];
+    if (!servicio) throw new Error('Uso: npm run seed -- --ofertas "<título o id del servicio>"');
+    const r = await ofertar(db, servicio, { Timestamp });
+    console.log(`🙋 ${destino}: ${r.ofertas} ofertas en "${r.titulo}" (${r.servicioId})${r.aprobado ? ', y aprobado (estaba pendiente)' : ''}`);
+  } else if (process.argv.includes('--clean')) {
     const n = await limpiar(db);
     console.log(`🧹 ${destino}: borrados ${n} documentos de prueba`);
   } else {
@@ -88,4 +153,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { sembrar, limpiar };
+module.exports = { sembrar, limpiar, ofertar };
