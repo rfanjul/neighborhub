@@ -54,7 +54,8 @@
     "typecheck": "tsc --noEmit",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-neighborhub 'jest -c jest.rules.config.js'",
     "seed": "node scripts/seed.js",
-    "seed:clean": "node scripts/seed.js --clean"
+    "seed:clean": "node scripts/seed.js --clean",
+    "rules:deploy": "node scripts/deploy-rules.js"
   },
   "private": true
 }

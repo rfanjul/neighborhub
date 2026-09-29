@@ -193,10 +193,18 @@ son solo perfiles de Firestore, no cuentas con las que se pueda iniciar sesión.
 
 ## Reglas de seguridad
 
-`firestore.rules` y `storage.rules` son las que hay que publicar en la
-consola (Firestore -> Rules y Storage -> Rules). Sin la de
-`service-photos/` la subida de fotos de un servicio falla con
-`storage/unauthorized`.
+`firestore.rules` y `storage.rules` son las que tienen que estar publicadas
+en Firebase. Si en producción van por detrás, la app falla con "No tienes
+permiso" (p. ej. al ofertar o al ver ofertas) o con `storage/unauthorized`
+al subir fotos. Con `service-account.json` en la raíz (ver Datos de prueba):
+
+```bash
+npm run rules:deploy -- --check   # compara con lo publicado, sin tocar nada
+npm run rules:deploy              # publica solo lo que haya cambiado
+```
+
+También se pueden pegar a mano en la consola (Firestore → Rules y
+Storage → Rules). Firebase guarda el historial para volver atrás.
 
 Están probadas contra los emuladores de Firebase, sin tocar el proyecto
 real ni necesitar que Firestore esté activado en la nube:
