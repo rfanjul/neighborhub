@@ -1,14 +1,14 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { colors, radii } from '../theme';
-import { PaintIcon, PawIcon, BagIcon, HeartHandsIcon } from '../icons';
+import { PaintIcon, PawIcon, BagIcon, HeartHandsIcon, BoxIcon } from '../icons';
 import type { ServiceCategory } from '../data/mock';
 
 const map: Record<ServiceCategory, { icon: React.ReactNode; bg: string }> = {
   painting: { icon: <PaintIcon size={18} />, bg: colors.accentTint },
   dog: { icon: <PawIcon size={18} />, bg: colors.greenTint },
   groceries: { icon: <BagIcon size={18} />, bg: colors.amberTint },
-  moving: { icon: <PaintIcon size={18} />, bg: colors.accentTint },
+  moving: { icon: <BoxIcon size={18} />, bg: colors.accentTint },
   other: { icon: <HeartHandsIcon size={18} />, bg: colors.blueTint },
 };
 

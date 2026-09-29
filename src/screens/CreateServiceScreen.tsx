@@ -285,12 +285,12 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.backgroundAlt },
   photo: { width: 96, height: 96, borderRadius: radii.sm },
-  photoHint: { fontFamily: fonts.body, fontSize: 11, color: colors.mutedLight },
+  photoHint: { fontFamily: fonts.body, fontSize: 13, color: colors.mutedLight },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.ink },
+  headerTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.ink },
   closeButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   form: { paddingHorizontal: 20, paddingBottom: 20, gap: 16 },
-  label: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.muted },
+  label: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.muted },
   input: {
     height: 46,
     borderRadius: radii.sm,
@@ -299,13 +299,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     paddingHorizontal: 14,
     fontFamily: fonts.body,
-    fontSize: 14,
+    fontSize: 16,
     color: colors.ink,
   },
   textarea: { height: 72, paddingTop: 12, textAlignVertical: 'top' },
   categoryChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   categoryChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  categoryLabel: { fontFamily: fonts.body, fontSize: 12.5, color: colors.muted },
+  categoryLabel: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
   categoryLabelActive: { fontFamily: fonts.bodySemiBold, color: colors.white },
   addPhoto: {
     width: 64,
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radiusValue: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.accentDark },
+  radiusValue: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.accentDark },
   sliderTrack: { height: 5, borderRadius: 3, backgroundColor: colors.border, justifyContent: 'center' },
   sliderFill: { height: 5, borderRadius: 3, backgroundColor: colors.accent, position: 'absolute', left: 0 },
   sliderThumb: {
@@ -331,5 +331,5 @@ const styles = StyleSheet.create({
     marginLeft: -8,
   },
   footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
-  footerHint: { marginTop: 10, fontFamily: fonts.body, fontSize: 11.5, textAlign: 'center', color: colors.mutedLight },
+  footerHint: { marginTop: 10, fontFamily: fonts.body, fontSize: 13, textAlign: 'center', color: colors.mutedLight },
 });

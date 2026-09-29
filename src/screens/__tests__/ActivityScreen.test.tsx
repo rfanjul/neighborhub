@@ -43,6 +43,17 @@ beforeEach(() => {
 });
 
 describe('My services', () => {
+  it('cada servicio lleva su foto, o el icono de su categoría si no tiene', async () => {
+    mockedApi.listMyServices.mockResolvedValue([
+      servicio({ id: 'f', title: 'Con foto', photos: ['https://example.com/f.jpg'] }),
+      servicio({ id: 's', title: 'Sin foto', photos: [] }),
+    ]);
+    await renderActividad();
+
+    expect(await screen.findByLabelText('Foto de Con foto')).toBeTruthy();
+    expect(screen.queryByLabelText('Foto de Sin foto')).toBeNull();
+  });
+
   it('lista mis servicios con su estado y quién ayuda', async () => {
     await renderActividad();
 

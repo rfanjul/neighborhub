@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     alignSelf: 'flex-start',
   },
-  avisoTexto: { fontFamily: fonts.body, fontSize: 12, color: colors.muted },
+  avisoTexto: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
   previewCard: {
     position: 'absolute',
     bottom: 16,
@@ -144,6 +144,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   previewFoto: { width: 64, height: 64, borderRadius: radii.sm, backgroundColor: colors.accentTint },
-  previewTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.ink },
-  previewMeta: { marginTop: 4, fontFamily: fonts.body, fontSize: 12, color: colors.muted },
+  previewTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.ink },
+  previewMeta: { marginTop: 4, fontFamily: fonts.body, fontSize: 14, color: colors.muted },
 });

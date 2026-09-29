@@ -26,6 +26,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.bodySemiBold,
-    fontSize: 12,
+    fontSize: 14,
   },
 });

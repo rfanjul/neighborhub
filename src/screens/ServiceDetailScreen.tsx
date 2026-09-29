@@ -54,7 +54,7 @@ export function accionPrincipal(service: ServiceRequest, uid: string | null, miO
 }
 
 const statusColor: Record<string, { fondo: string; color: string }> = {
-  pending: { fondo: colors.amberTint, color: colors.amber },
+  pending: { fondo: colors.amberTint, color: colors.amberDark },
   approved: { fondo: colors.greenTint, color: colors.green },
   accepted: { fondo: colors.blueTint, color: colors.blue },
   in_progress: { fondo: colors.blueTint, color: colors.blue },
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
   dotActive: { width: 16, backgroundColor: colors.white },
   body: { padding: 20, gap: 16 },
-  title: { fontFamily: fonts.display, fontSize: 21, lineHeight: 27, color: colors.ink },
+  title: { fontFamily: fonts.display, fontSize: 24, lineHeight: 31, color: colors.ink },
   requesterCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,14 +248,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: radii.md,
   },
-  requesterName: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink },
-  chevron: { fontFamily: fonts.bodySemiBold, fontSize: 24, color: colors.mutedLight },
-  requesterMeta: { marginTop: 2, fontFamily: fonts.body, fontSize: 11.5, color: colors.muted },
-  description: { fontFamily: fonts.body, fontSize: 14, lineHeight: 22, color: colors.muted },
+  requesterName: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.ink },
+  chevron: { fontFamily: fonts.bodySemiBold, fontSize: 28, color: colors.mutedLight },
+  requesterMeta: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
+  description: { fontFamily: fonts.body, fontSize: 16, lineHeight: 25, color: colors.muted },
   infoList: { gap: 10 },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  infoLabel: { fontFamily: fonts.body, fontSize: 13.5, color: colors.muted },
-  infoValue: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink },
+  infoLabel: { fontFamily: fonts.body, fontSize: 16, color: colors.muted },
+  infoValue: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.ink },
   footer: { padding: 20, paddingTop: 8 },
-  nota: { marginTop: 8, textAlign: 'center', fontFamily: fonts.body, fontSize: 12, color: colors.muted },
+  nota: { marginTop: 8, textAlign: 'center', fontFamily: fonts.body, fontSize: 14, color: colors.muted },
 });

@@ -69,6 +69,28 @@ describe('insignias', () => {
 });
 
 describe('MyProfileScreen', () => {
+  it('ayudas y valoración llevan a mi lista de ayudas con sus reseñas', async () => {
+    auth = authValue({ user: { uid: 'uid-1' } as never });
+    (useAuth as jest.Mock).mockReturnValue(auth);
+    await render(<MyProfileScreen />);
+    await screen.findByText('Ruben');
+
+    await fireEvent.press(screen.getByLabelText('See my helps'));
+    expect(mockNavigate).toHaveBeenLastCalledWith('NeighborList', { userId: 'uid-1', lista: 'helps', nombre: 'Ruben' });
+
+    await fireEvent.press(screen.getByLabelText('See my reviews'));
+    expect(mockNavigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('sin sesión los enlaces no hacen nada', async () => {
+    auth = authValue({ user: null });
+    (useAuth as jest.Mock).mockReturnValue(auth);
+    await render(<MyProfileScreen />);
+
+    await fireEvent.press(screen.getByLabelText('See my helps'));
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   it('la cifra de servicios y las insignias salen de las ayudas reales', async () => {
     mockedApi.countCompletedHelps.mockResolvedValue(12);
     await render(<MyProfileScreen />);

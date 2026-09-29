@@ -27,7 +27,7 @@ export default function MainTabs({ navigation }: Props) {
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.mutedLight,
         tabBarStyle: { height: 78, paddingBottom: 14, paddingTop: 10, backgroundColor: colors.card, borderTopColor: colors.border },
-        tabBarLabelStyle: { fontSize: 10 },
+        tabBarLabelStyle: { fontSize: 12 },
       }}
     >
       <Tab.Screen

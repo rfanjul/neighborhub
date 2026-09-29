@@ -8,6 +8,8 @@
  *   npm run seed:clean    → borra todo lo que lleve `seed: true`
  *   npm run seed -- --ofertas "Move table"
  *                         → 3 vecinos de prueba ofertan en ese servicio
+ *   npm run demo:seed     → todo lo anterior más una cuenta demo con
+ *                           servicios y ofertas en cada estado (solo emulador)
  *
  * Credenciales, por orden:
  *   1. FIRESTORE_EMULATOR_HOST  → contra el emulador, sin credenciales.
@@ -17,7 +19,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { construir } = require('./seed-data');
+const { construir, cuentaDemo, avatar, foto } = require('./seed-data');
 
 /** Crea o sobrescribe los documentos de prueba. Idempotente. */
 async function sembrar(db, { Timestamp } = {}) {
@@ -108,6 +110,97 @@ async function limpiar(db) {
   return borrados;
 }
 
+/**
+ * Modo demo: siembra y añade una cuenta con la que entrar en la app y ver
+ * cada pantalla con datos: un servicio abierto con ofertas, otro en curso
+ * con chat, otro pendiente de revisión, una oferta enviada y otra elegida.
+ * Solo contra los emuladores: nunca crea cuentas en el proyecto real.
+ */
+async function demo(db, auth, { Timestamp } = {}) {
+  if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    throw new Error('El modo demo solo va contra los emuladores (npm run demo:seed)');
+  }
+  const fecha = Timestamp ? (d) => Timestamp.fromDate(d) : (d) => d;
+  const hace = (horas) => fecha(new Date(Date.now() - horas * 3600000));
+  await sembrar(db, { Timestamp });
+
+  const { uid, email, password, nombre } = cuentaDemo;
+  await auth.deleteUser(uid).catch(() => {});
+  await auth.createUser({ uid, email, password, displayName: nombre });
+
+  const photoURL = avatar(nombre);
+  const b = db.batch();
+  const yo = { requesterId: uid, requesterName: nombre, requesterRating: 4.5, requesterResponseLabel: '< 1h', requesterPhotoURL: photoURL };
+  b.set(db.doc(`users/${uid}`), {
+    name: nombre, email, bio: 'Designer, new in Langstrasse. Happy to help with anything creative or techy.',
+    dateOfBirth: null, city: 'Zürich', postalCode: '8004', country: 'Switzerland', languages: 'English, German, Spanish',
+    credits: 20, level: 2, levelLabel: 'Helpful neighbor', servicesCompleted: 2, rating: 4.5, ratingSum: 9, ratingCount: 2,
+    responseLabel: '< 1h', identityVerified: true, onboardingCompleted: true, photoURL, seed: true, createdAt: hace(24 * 40),
+  });
+  // Dos ayudas ya valoradas: el servicio cerrado y su reseña, para que su
+  // perfil tenga ayudas y reseñas que cuadren.
+  [['seed-user-01', 'Anna Weber', 5, 'Set up my new printer in minutes. Lovely!'], ['seed-user-05', 'Mia Schneider', 4, 'Great help with the kids\u2019 bikes.']]
+    .forEach(([autor, autorNombre, rating, comment], i) => {
+      const id = `demo-review-${i + 1}`;
+      const serviceTitle = i ? 'Pumped and oiled two bikes' : 'Set up a printer';
+      b.set(db.doc(`helpRequests/${id}`), {
+        title: serviceTitle, category: 'other', description: serviceTitle, credits: 0, photos: [], coords: null,
+        durationLabel: '1 hour', availableLabel: '', locationLabel: '', travelRadiusKm: 5, status: 'rated',
+        requesterId: autor, requesterName: autorNombre, requesterPhotoURL: avatar(autorNombre),
+        helperId: uid, helperName: nombre, seed: true, createdAt: hace(24 * (11 + i * 12)), updatedAt: hace(24 * (10 + i * 12)),
+      });
+      b.set(db.doc(`reviews/${id}`), {
+        serviceId: id, serviceTitle, reviewerId: autor, reviewerName: autorNombre, reviewerPhotoURL: avatar(autorNombre),
+        revieweeId: uid, rating, comment, seed: true, createdAt: hace(24 * (10 + i * 12)),
+      });
+    });
+
+  const servicio = (id, datos) =>
+    b.set(db.doc(`helpRequests/${id}`), {
+      category: 'moving', credits: 0, locationLabel: '', travelRadiusKm: 5, durationLabel: '1 hour', availableLabel: 'This week',
+      coords: { latitude: 47.3785, longitude: 8.5262 }, helperId: null, helperName: null, seed: true,
+      createdAt: hace(3), updatedAt: hace(3), ...yo, ...datos,
+    });
+  servicio('demo-move-table', {
+    title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)],
+    description: 'Solid oak table, about 40 kg. It needs to go from the living room to the balcony, through one door. Two people will do.',
+  });
+  servicio('demo-mirror', {
+    title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)],
+    helperId: 'seed-user-08', helperName: 'Elias Huber', createdAt: hace(30),
+    description: 'Heavy mirror (120 x 80 cm) that needs proper anchors in a concrete wall. I have the drill.',
+  });
+  servicio('demo-sofa', {
+    title: 'Help me choose a second-hand sofa', status: 'pending', category: 'other', photos: [],
+    description: 'Two options on Ricardo, both in Oerlikon. Come and sit on them with me and help me decide?', createdAt: hace(1),
+  });
+  b.set(db.doc('applications/demo-mirror_seed-user-08'), {
+    serviceId: 'demo-mirror', serviceTitle: 'Hang a big mirror in the hallway', applicantId: 'seed-user-08', applicantName: 'Elias Huber',
+    requesterId: uid, comment: 'Carpenter here, I have the right anchors for concrete.', status: 'selected', seed: true, createdAt: hace(28),
+  });
+  [['seed-user-08', 'Hi Alex! Saturday at 10 works for me?'], [uid, 'Perfect, see you then. Second floor, left door.'], ['seed-user-08', 'Great, I will bring the anchors 👍']]
+    .forEach(([senderId, text], i) =>
+      b.set(db.doc(`helpRequests/demo-mirror/messages/m${i + 1}`), {
+        senderId, senderName: senderId === uid ? nombre : 'Elias Huber', text, createdAt: hace(27 - i),
+      })
+    );
+
+  // Mis ofertas: una esperando y otra elegida (con el servicio ya en curso).
+  b.set(db.doc(`applications/seed-service-07-1_${uid}`), {
+    serviceId: 'seed-service-07-1', serviceTitle: 'Midday walks for Frida (dachshund)', applicantId: uid, applicantName: nombre,
+    requesterId: 'seed-user-07', comment: 'I work from home on Mondays and Fridays, happy to walk Frida.', status: 'pending', seed: true, createdAt: hace(5),
+  });
+  b.set(db.doc(`applications/seed-service-03-1_${uid}`), {
+    serviceId: 'seed-service-03-1', serviceTitle: 'Pick up a box of vegetables from the farm shop', applicantId: uid, applicantName: nombre,
+    requesterId: 'seed-user-03', comment: 'I pass by the farm shop on Thursdays anyway!', status: 'selected', seed: true, createdAt: hace(20),
+  });
+  b.update(db.doc('helpRequests/seed-service-03-1'), { status: 'accepted', helperId: uid, helperName: nombre });
+  await b.commit();
+
+  await ofertar(db, 'demo-move-table', { Timestamp });
+  return { email };
+}
+
 function proyecto() {
   if (process.env.FIREBASE_PROJECT_ID) return process.env.FIREBASE_PROJECT_ID;
   const env = path.join(__dirname, '..', '.env');
@@ -132,6 +225,12 @@ async function main() {
   const db = getFirestore(initializeApp({ projectId, ...(credential && { credential }) }));
 
   const destino = process.env.FIRESTORE_EMULATOR_HOST ? `emulador ${process.env.FIRESTORE_EMULATOR_HOST}` : projectId;
+  if (process.argv.includes('--demo')) {
+    const { getAuth } = require('firebase-admin/auth');
+    const { email } = await demo(db, getAuth(), { Timestamp });
+    console.log(`🧪 ${destino}: datos demo listos. Entra en la app con ${email} (contraseña en scripts/seed-data.js)`);
+    return;
+  }
   const iOfertas = process.argv.indexOf('--ofertas');
   if (iOfertas !== -1) {
     const servicio = process.argv[iOfertas + 1];
@@ -154,4 +253,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { sembrar, limpiar, ofertar };
+module.exports = { sembrar, limpiar, ofertar, demo };

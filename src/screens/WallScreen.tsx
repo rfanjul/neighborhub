@@ -128,8 +128,8 @@ export default function WallScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  greeting: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-  headline: { marginTop: 2, fontFamily: fonts.display, fontSize: 20, color: colors.ink },
+  greeting: { fontFamily: fonts.body, fontSize: 15, color: colors.muted },
+  headline: { marginTop: 2, fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.ink },
   creditsPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  creditsLabel: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.ink },
+  creditsLabel: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
   searchRow: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12, flexDirection: 'row', gap: 10 },
   searchBar: {
     flex: 1,
@@ -151,9 +151,9 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
   },
-  searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 13, color: colors.ink, padding: 0 },
+  searchInput: { flex: 1, fontFamily: fonts.body, fontSize: 15, color: colors.ink, padding: 0 },
   filterButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
-  offlineNote: { paddingHorizontal: 20, paddingBottom: 10, fontFamily: fonts.body, fontSize: 11.5, color: colors.mutedLight },
+  offlineNote: { paddingHorizontal: 20, paddingBottom: 10, fontFamily: fonts.body, fontSize: 13, color: colors.mutedLight },
   list: { paddingHorizontal: 20, paddingBottom: 20, gap: 12, flexGrow: 1 },
-  emptyText: { marginTop: 40, textAlign: 'center', fontFamily: fonts.body, fontSize: 13.5, color: colors.mutedLight },
+  emptyText: { marginTop: 40, textAlign: 'center', fontFamily: fonts.body, fontSize: 16, color: colors.mutedLight },
 });

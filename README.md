@@ -191,6 +191,24 @@ También vale `GOOGLE_APPLICATION_CREDENTIALS=/ruta/clave.json` o, contra el
 emulador, `FIRESTORE_EMULATOR_HOST=localhost:8180`. Los vecinos de prueba
 son solo perfiles de Firestore, no cuentas con las que se pueda iniciar sesión.
 
+## Modo demo (emuladores locales)
+
+Para ver y probar todas las pantallas sin tocar Firebase ni usar tu cuenta:
+la app habla con los emuladores locales y hay una cuenta demo con servicios y
+ofertas en cada estado (abierto con ofertas, en curso con chat, pendiente de
+revisión, ofertas enviadas y elegidas, ayudas con reseñas).
+
+```bash
+npm run demo:emulators   # terminal 1: Auth, Firestore y Storage locales
+npm run demo:seed        # terminal 2: vecinos de prueba + cuenta demo
+npm run demo:app         # terminal 2: Metro en el puerto 8086
+```
+
+En el simulador, abre `exp+login-demo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8086`
+y en "Entrar con email" pulsa **Entrar con la cuenta demo** (solo aparece en
+este modo). La cuenta vive solo en el emulador: `demo:seed` se niega a crearla
+contra el proyecto real. Los datos se pierden al parar los emuladores.
+
 ## Reglas de seguridad
 
 `firestore.rules` y `storage.rules` son las que tienen que estar publicadas

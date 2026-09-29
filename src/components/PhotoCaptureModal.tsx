@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   closeButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  title: { fontFamily: fonts.displaySemiBold, fontSize: 16, color: colors.ink },
+  title: { fontFamily: fonts.displaySemiBold, fontSize: 18, lineHeight: 22, color: colors.ink },
   cameraBox: {
     margin: 24,
     flex: 1,

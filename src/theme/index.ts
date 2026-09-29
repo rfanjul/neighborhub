@@ -4,7 +4,7 @@ export const colors = {
   card: '#FFFFFF',
   ink: '#33261F',
   muted: '#6B5B52',
-  mutedLight: '#8C7C72',
+  mutedLight: '#7A6B62',
   border: '#E4DDD3',
   accent: '#DD6B3E',
   accentDark: '#B4472A',
@@ -15,6 +15,8 @@ export const colors = {
   blueTint: '#DCE4F9',
   amber: '#D9A441',
   amberTint: '#F5E7CB',
+  /** Ámbar para texto sobre amberTint: el amber a secas no se lee bien. */
+  amberDark: '#8A5E0F',
   black: '#1E1712',
   white: '#FFFFFF',
 };

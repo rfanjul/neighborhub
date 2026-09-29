@@ -53,6 +53,6 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.displaySemiBold,
-    fontSize: 16,
+    fontSize: 18,
   },
 });

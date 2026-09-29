@@ -8,6 +8,13 @@ import { Button, ErrorText, Input, Screen, styles } from '../components/ui';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
+/** Cuenta del modo demo (npm run demo:app), que solo existe en el emulador local. */
+function cuentaDemo() {
+  const email = process.env.EXPO_PUBLIC_DEMO_EMAIL;
+  const password = process.env.EXPO_PUBLIC_DEMO_PASSWORD;
+  return email && password ? { email, password } : null;
+}
+
 export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
@@ -15,21 +22,27 @@ export default function LoginScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const submit = async () => {
-    if (!email.trim() || !password) {
-      setError('Escribe tu email y tu contraseña.');
-      return;
-    }
+  const entrar = async (conEmail: string, conPassword: string) => {
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
+      await login(conEmail, conPassword);
     } catch (e) {
       setError(authErrorMessage(e));
     } finally {
       setLoading(false);
     }
   };
+
+  const submit = async () => {
+    if (!email.trim() || !password) {
+      setError('Escribe tu email y tu contraseña.');
+      return;
+    }
+    await entrar(email, password);
+  };
+
+  const demo = cuentaDemo();
 
   return (
     <Screen>
@@ -40,6 +53,7 @@ export default function LoginScreen({ navigation }: Props) {
       <Button title="Entrar" onPress={submit} loading={loading} />
       <Button title="¿Olvidaste tu contraseña?" variant="link" onPress={() => navigation.navigate('ForgotPassword', { email })} />
       <Button title="No tengo cuenta" variant="link" onPress={() => navigation.replace('Register')} />
+      {demo && <Button title="Entrar con la cuenta demo" variant="secondary" onPress={() => entrar(demo.email, demo.password)} />}
     </Screen>
   );
 }

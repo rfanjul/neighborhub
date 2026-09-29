@@ -138,11 +138,11 @@ const vecinos = [
     idiomas: 'German, English', valoracion: 4.7, respuesta: '~2h', nivel: 2, ayudas: 11, creditos: 25, verificada: true,
     bio: 'Carpenter by trade, dad of two, grows tomatoes on a tiny allotment.',
     servicios: [
-      { cat: 'moving', titulo: 'Move a piano across the street', fotos: [445],
-        texto: 'Our neighbors are giving us their upright piano. It needs to go about 50 metres and up four steps. Need three strong people and some patience.',
+      { cat: 'moving', titulo: 'Move a desk into my new home office', fotos: [445],
+        texto: 'Our neighbors are giving us their solid wood desk. It needs to go about 50 metres and up four steps. Two strong people and a bit of patience will do.',
         duracion: '1 hour', disponible: 'Sunday 11:00' },
-      { cat: 'other', titulo: 'Tomato harvest at the allotment', fotos: [785],
-        texto: 'More tomatoes than we can handle! Help pick for an hour and take a big bag home. Kids welcome, it is a nice morning out.',
+      { cat: 'other', titulo: 'Herb harvest at the allotment', fotos: [785],
+        texto: 'More rosemary, thyme and mint than we can use! Help pick for an hour and take a big bunch home. Kids welcome, it is a nice morning out.',
         duracion: '1 hour', disponible: 'Saturday morning' },
       { cat: 'painting', titulo: 'Varnish a garden bench', fotos: [307],
         texto: 'I built a bench from old planks and it needs sanding and two coats of varnish before winter. I will share my tools and some carpentry tips.',
@@ -323,4 +323,15 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
   return { usuarios, servicios, resenas };
 }
 
-module.exports = { construir, vecinos };
+/**
+ * Cuenta del modo demo (npm run demo:seed). Solo existe en el emulador de
+ * Auth: el script se niega a crearla contra el proyecto real.
+ */
+const cuentaDemo = {
+  uid: 'demo-user',
+  email: 'demo@neighborhub.test',
+  password: 'neighborhub-demo-2026',
+  nombre: 'Alex Demo',
+};
+
+module.exports = { construir, vecinos, cuentaDemo, avatar, foto };

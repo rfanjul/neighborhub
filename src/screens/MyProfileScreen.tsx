@@ -13,7 +13,7 @@ import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
 
 export default function MyProfileScreen() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [currentUser, setCurrentUser] = useState(mockCurrentUser);
   const [photoURL, setPhotoURL] = useState<string | null>(null);
@@ -29,6 +29,10 @@ export default function MyProfileScreen() {
       { text: 'Edit my details', onPress: () => navigation.navigate('ProfileDetails') },
       { text: 'Log out', style: 'destructive', onPress: () => logout() },
     ]);
+  };
+
+  const verMisAyudas = () => {
+    if (user) navigation.navigate('NeighborList', { userId: user.uid, lista: 'helps', nombre: currentUser.name });
   };
 
   const handleCaptured = async (uri: string) => {
@@ -99,15 +103,26 @@ export default function MyProfileScreen() {
           </View>
         </View>
 
+        {/* Ayudas y valoración llevan a la lista de ayudas con sus reseñas, como en el perfil de otro vecino. */}
         <View style={styles.statsCard}>
-          <View style={[styles.statItem, styles.statBorder]}>
+          <Pressable
+            style={[styles.statItem, styles.statBorder]}
+            onPress={verMisAyudas}
+            accessibilityRole="button"
+            accessibilityLabel="See my helps"
+          >
             <Text style={styles.statValue}>{ayudas}</Text>
-            <Text style={styles.statLabel}>Services</Text>
-          </View>
-          <View style={[styles.statItem, styles.statBorder]}>
+            <Text style={styles.statLink}>Helps ›</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.statItem, styles.statBorder]}
+            onPress={verMisAyudas}
+            accessibilityRole="button"
+            accessibilityLabel="See my reviews"
+          >
             <Text style={styles.statValue}>{currentUser.rating} ★</Text>
-            <Text style={styles.statLabel}>Rating</Text>
-          </View>
+            <Text style={styles.statLink}>Reviews ›</Text>
+          </Pressable>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{currentUser.responseLabel}</Text>
             <Text style={styles.statLabel}>Response</Text>
@@ -152,7 +167,7 @@ export default function MyProfileScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.backgroundAlt },
   header: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontFamily: fonts.display, fontSize: 20, color: colors.ink },
+  headerTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.ink },
   settingsButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   identity: { alignItems: 'center', paddingTop: 16 },
   avatar: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.accentTint, borderWidth: 3, borderColor: colors.card },
@@ -167,16 +182,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.backgroundAlt,
   },
-  avatarEditBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 9, color: colors.white },
-  name: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
+  avatarEditBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.white },
+  name: { fontFamily: fonts.display, fontSize: 21, lineHeight: 26, color: colors.ink },
   verifiedDot: { width: 15, height: 15, borderRadius: 8, backgroundColor: colors.blue },
   levelChip: { marginTop: 6, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 14, backgroundColor: colors.accentTint },
-  levelLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.accentDark },
+  levelLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.accentDark },
   statsCard: { marginHorizontal: 20, marginTop: 20, flexDirection: 'row', backgroundColor: colors.card, borderRadius: radii.md, paddingVertical: 14, ...shadow },
   statItem: { flex: 1, alignItems: 'center' },
   statBorder: { borderRightWidth: 1, borderRightColor: colors.border },
-  statValue: { fontFamily: fonts.display, fontSize: 16, color: colors.ink },
-  statLabel: { marginTop: 2, fontFamily: fonts.body, fontSize: 11, color: colors.muted },
+  statValue: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22, color: colors.ink },
+  statLink: { marginTop: 2, fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accentDark },
+  statLabel: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   creditsCard: {
     marginHorizontal: 20,
     marginTop: 14,
@@ -188,16 +204,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  creditsCaption: { fontFamily: fonts.body, fontSize: 12, color: 'rgba(255,255,255,0.85)' },
-  creditsValue: { fontFamily: fonts.display, fontSize: 22, color: colors.white },
+  creditsCaption: { fontFamily: fonts.body, fontSize: 14, color: 'rgba(255,255,255,0.85)' },
+  creditsValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, color: colors.white },
   addCreditsButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.18)' },
-  addCreditsLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.white },
+  addCreditsLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.white },
   section: { marginHorizontal: 20, marginTop: 20 },
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.muted },
+  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.muted },
   badgesRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   badgeItem: { width: 72, alignItems: 'center', gap: 6 },
   badgeIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  badgeRequisito: { marginTop: 2, fontFamily: fonts.body, fontSize: 10, color: colors.muted, textAlign: 'center' },
-  badgeLabel: { fontFamily: fonts.body, fontSize: 10, color: colors.muted, textAlign: 'center' },
-  bio: { marginHorizontal: 20, marginTop: 20, fontFamily: fonts.body, fontSize: 13, lineHeight: 20, color: colors.muted },
+  badgeRequisito: { marginTop: 2, fontFamily: fonts.body, fontSize: 12, color: colors.muted, textAlign: 'center' },
+  badgeLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.muted, textAlign: 'center' },
+  bio: { marginHorizontal: 20, marginTop: 20, fontFamily: fonts.body, fontSize: 15, lineHeight: 23, color: colors.muted },
 });

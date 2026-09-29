@@ -263,3 +263,13 @@ export function StarIcon({ size = 16, color = '#D9A441', filled = true }: IconPr
     </Svg>
   );
 }
+
+/** Caja de mudanza, para la categoría "moving". */
+export function BoxIcon({ size = 24, color = '#B4472A', strokeWidth = 1.8 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M3 8l9-4 9 4v9l-9 4-9-4z" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+      <Path d="M3 8l9 4 9-4M12 12v9" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+    </Svg>
+  );
+}

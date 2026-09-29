@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getFirestore, initializeFirestore, type Firestore } from '@firebase/firestore';
-import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore, initializeFirestore, type Firestore } from '@firebase/firestore';
+import { connectAuthEmulator, getAuth, initializeAuth, type Auth } from 'firebase/auth';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // `firebase/auth` resuelve al build de navegador en tsc; el build de React
@@ -39,6 +40,23 @@ try {
 } catch {
   // Fast Refresh: ya estaba inicializado.
   db = getFirestore(app);
+}
+
+/**
+ * Modo demo (npm run demo:app): con EXPO_PUBLIC_USE_EMULATORS=1 la app
+ * habla con los emuladores locales de Firebase, con datos de prueba, en vez
+ * de con el proyecto real. Los puertos son los de firebase.json.
+ */
+export const usandoEmuladores = process.env.EXPO_PUBLIC_USE_EMULATORS === '1';
+if (usandoEmuladores) {
+  const host = process.env.EXPO_PUBLIC_EMULATOR_HOST || '127.0.0.1';
+  try {
+    connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+    connectFirestoreEmulator(db, host, 8180);
+    connectStorageEmulator(getStorage(app), host, 9199);
+  } catch {
+    // Fast Refresh: ya estaban conectados.
+  }
 }
 
 export { auth, db };

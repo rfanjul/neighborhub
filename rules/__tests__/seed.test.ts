@@ -9,7 +9,7 @@ import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firesto
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
-const { sembrar, limpiar, ofertar } = require('../../scripts/seed');
+const { sembrar, limpiar, ofertar, demo } = require('../../scripts/seed');
 const { construir } = require('../../scripts/seed-data');
 
 const { resenas } = construir({ fecha: (d: Date) => d });
@@ -162,4 +162,11 @@ describe('ofertar', () => {
     await db.doc('helpRequests/mesa').update({ status: 'accepted' });
     await expect(ofertar(db, 'mesa', { Timestamp })).rejects.toThrow('accepted');
   });
+});
+
+test('el modo demo se niega a crear cuentas fuera de los emuladores', async () => {
+  // test:rules no arranca el emulador de Auth: sin él, nada de cuentas demo.
+  const auth = { createUser: jest.fn(), deleteUser: jest.fn() };
+  await expect(demo(getFirestore(admin), auth, { Timestamp })).rejects.toThrow('solo va contra los emuladores');
+  expect(auth.createUser).not.toHaveBeenCalled();
 });
