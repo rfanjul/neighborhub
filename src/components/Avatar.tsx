@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme';
+import { t } from '../i18n';
 
 type Props = {
   name: string;
@@ -13,7 +14,7 @@ type Props = {
 export default function Avatar({ name, photoURL, size = 40, color = colors.accentTint }: Props) {
   const forma = { width: size, height: size, borderRadius: size / 2 };
   if (photoURL) {
-    return <Image source={{ uri: photoURL }} style={[forma, styles.foto]} accessibilityLabel={`Foto de ${name}`} />;
+    return <Image source={{ uri: photoURL }} style={[forma, styles.foto]} accessibilityLabel={t('comun.fotoDe', { nombre: name })} />;
   }
   return (
     <View style={[forma, styles.inicial, { backgroundColor: color }]} accessibilityLabel={name}>

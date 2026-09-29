@@ -23,10 +23,12 @@ import { colors, fonts } from '../theme';
 import Degradado from '../components/Degradado';
 import LogoMark from '../components/LogoMark';
 import { fotosBienvenida } from '../data/fotosBienvenida';
+import SelectorIdioma from '../components/SelectorIdioma';
+import { t, type Clave } from '../i18n';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Welcome'>;
 
-type DiapositivaPaso = { clave: string; foto: string; paso: string; titulo: string; texto: string };
+type DiapositivaPaso = { clave: string; foto: string; paso: Clave; titulo: Clave; texto: Clave };
 type Diapositiva = { clave: 'marca' } | DiapositivaPaso;
 
 /** La marca y, detrás, cómo funciona: pedir, ofrecerse, elegir y valorar. */
@@ -35,34 +37,30 @@ export const diapositivas: Diapositiva[] = [
   {
     clave: 'pedir',
     foto: fotosBienvenida.pedir,
-    paso: '1 · Pide ayuda',
-    titulo: '¿Necesitas una mano?',
-    texto:
-      'Pulsa + y publica tu servicio: una foto, qué hay que hacer y cuándo. Guardamos la ubicación para que te encuentren los vecinos de al lado. Cuando se aprueba, sale en el muro y en el mapa.',
+    paso: 'bienvenida.pedirEtiqueta',
+    titulo: 'bienvenida.pedirTitulo',
+    texto: 'bienvenida.pedirTexto',
   },
   {
     clave: 'ofrecer',
     foto: fotosBienvenida.ofrecer,
-    paso: '2 · Ofrécete',
-    titulo: 'Ayuda a quien tienes cerca',
-    texto:
-      'Busca en el muro o en el mapa, abre un servicio y pulsa «Apply to help». Deja un comentario con cuándo puedes y qué sabes hacer. Lo seguirás en «My offers».',
+    paso: 'bienvenida.ofrecerEtiqueta',
+    titulo: 'bienvenida.ofrecerTitulo',
+    texto: 'bienvenida.ofrecerTexto',
   },
   {
     clave: 'elegir',
     foto: fotosBienvenida.elegir,
-    paso: '3 · Elige',
-    titulo: 'Elige a tu vecino',
-    texto:
-      'En tu servicio ves cada oferta con el perfil de quien la hace: valoraciones, ayudas y bio. Elige una y se abre el chat para quedar.',
+    paso: 'bienvenida.elegirEtiqueta',
+    titulo: 'bienvenida.elegirTitulo',
+    texto: 'bienvenida.elegirTexto',
   },
   {
     clave: 'valorar',
     foto: fotosBienvenida.valorar,
-    paso: '4 · Valora',
-    titulo: 'Valora y gana reputación',
-    texto:
-      'Al terminar, márcalo como hecho y valora de 1 a 5 estrellas. Cada ayuda suma y desbloquea insignias: Amateur, Veterano y Ejemplar.',
+    paso: 'bienvenida.valorarEtiqueta',
+    titulo: 'bienvenida.valorarTitulo',
+    texto: 'bienvenida.valorarTexto',
   },
 ];
 
@@ -70,9 +68,10 @@ export const diapositivas: Diapositiva[] = [
 export const AVANCE_MS = 6000;
 const PAUSA_TRAS_TOQUE_MS = 10000;
 
-function Marca({ ancho, alto }: { ancho: number; alto: number }) {
+function Marca({ ancho, alto, arriba }: { ancho: number; alto: number; arriba: number }) {
   return (
-    <View style={[s.diapositiva, s.marca, { width: ancho, height: alto }]}>
+    // Deja sitio arriba para el selector de idioma.
+    <View style={[s.diapositiva, s.marca, { width: ancho, height: alto, paddingTop: arriba + 48 }]}>
       <Degradado
         id="marca"
         diagonal
@@ -84,11 +83,9 @@ function Marca({ ancho, alto }: { ancho: number; alto: number }) {
       />
       <LogoMark size={156} late variante="blanca" />
       <Text style={s.marcaTitulo}>Neighborhub</Text>
-      <Text style={s.marcaTexto}>
-        La plataforma donde los vecinos se ayudan entre sí y, en lugar de pagarse en dinero, acumulan créditos.
-      </Text>
+      <Text style={s.marcaTexto}>{t('bienvenida.lema')}</Text>
       <View style={s.desliza}>
-        <Text style={s.deslizaTexto}>Desliza para ver cómo funciona →</Text>
+        <Text style={s.deslizaTexto}>{t('bienvenida.desliza')}</Text>
       </View>
     </View>
   );
@@ -116,9 +113,9 @@ function Paso({ d, ancho, alto, arriba }: { d: DiapositivaPaso; ancho: number; a
         <Text style={s.marcaMiniTexto}>Neighborhub</Text>
       </View>
       <View style={s.pasoTextos}>
-        <Text style={s.pasoEtiqueta}>{d.paso}</Text>
-        <Text style={s.pasoTitulo}>{d.titulo}</Text>
-        <Text style={s.pasoTexto}>{d.texto}</Text>
+        <Text style={s.pasoEtiqueta}>{t(d.paso)}</Text>
+        <Text style={s.pasoTitulo}>{t(d.titulo)}</Text>
+        <Text style={s.pasoTexto}>{t(d.texto)}</Text>
       </View>
     </ImageBackground>
   );
@@ -189,10 +186,13 @@ export default function WelcomeScreen({ navigation }: Props) {
             'foto' in item ? (
               <Paso d={item} ancho={width} alto={alto} arriba={margenes.top} />
             ) : (
-              <Marca ancho={width} alto={alto} />
+              <Marca ancho={width} alto={alto} arriba={margenes.top} />
             )
           }
         />
+        <View style={[s.idioma, { top: margenes.top + 12 }]}>
+          <SelectorIdioma sobreFoto />
+        </View>
         <View style={s.puntos}>
           {diapositivas.map((d, i) => (
             <Pressable
@@ -203,7 +203,7 @@ export default function WelcomeScreen({ navigation }: Props) {
               }}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel={`Diapositiva ${i + 1} de ${diapositivas.length}`}
+              accessibilityLabel={t('bienvenida.diapositiva', { n: i + 1, total: diapositivas.length })}
               accessibilityState={{ selected: i === actual }}
               style={[s.punto, i === actual && s.puntoActivo]}
             />
@@ -213,9 +213,7 @@ export default function WelcomeScreen({ navigation }: Props) {
 
       <View style={[s.panel, { paddingBottom: margenes.bottom + 12 }]}>
         {isExpoGo && (
-          <Text style={s.aviso}>
-            Estás en Expo Go: Apple y Google necesitan el development build. Aquí solo funciona el email.
-          </Text>
+          <Text style={s.aviso}>{t('bienvenida.expoGo')}</Text>
         )}
         {Platform.OS === 'ios' && !isExpoGo && (
           <AppleAuthentication.AppleAuthenticationButton
@@ -228,15 +226,15 @@ export default function WelcomeScreen({ navigation }: Props) {
         )}
         {!isExpoGo && (
           <Button
-            title="Continuar con Google"
+            title={t('bienvenida.google')}
             variant="secondary"
             loading={busy === 'google'}
             disabled={busy !== null}
             onPress={() => run('google', loginWithGoogle)}
           />
         )}
-        <Button title="Entrar con email" onPress={() => navigation.navigate('Login')} disabled={busy !== null} />
-        <Button title="Crear una cuenta" variant="link" onPress={() => navigation.navigate('Register')} />
+        <Button title={t('bienvenida.email')} onPress={() => navigation.navigate('Login')} disabled={busy !== null} />
+        <Button title={t('bienvenida.crearCuenta')} variant="link" onPress={() => navigation.navigate('Register')} />
         <ErrorText message={error} />
       </View>
     </View>
@@ -280,6 +278,7 @@ const s = StyleSheet.create({
   },
   pasoTitulo: { fontFamily: fonts.display, fontSize: 32, lineHeight: 40, color: colors.white },
   pasoTexto: { fontFamily: fonts.body, fontSize: 17, lineHeight: 25, color: 'rgba(255,255,255,0.94)' },
+  idioma: { position: 'absolute', right: 16 },
   puntos: { position: 'absolute', bottom: 34, alignSelf: 'center', flexDirection: 'row', gap: 8 },
   punto: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.55)' },
   puntoActivo: { width: 24, backgroundColor: colors.white },

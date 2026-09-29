@@ -62,7 +62,7 @@ describe('NeighborListScreen · ayudas', () => {
     mockedApi.listReviewsFor.mockRejectedValue(Object.assign(new Error('x'), { code: 'permission-denied' }));
     await renderLista('helps');
 
-    expect(await screen.findByText('No tienes permiso para hacer esto.')).toBeTruthy();
+    expect(await screen.findByText("You don't have permission to do this.")).toBeTruthy();
   });
 });
 

@@ -43,15 +43,15 @@ describe('NeighborProfileScreen', () => {
     expect(screen.getByText('Jul 2026')).toBeTruthy();
     expect(screen.getByText('Verified')).toBeTruthy();
     expect(screen.getByLabelText('Amateur')).toBeTruthy();
-    expect(screen.getByLabelText('Veterano')).toBeTruthy();
-    expect(screen.getByLabelText('Ejemplar, locked: Más de 50 ayudas')).toBeTruthy();
+    expect(screen.getByLabelText('Veteran')).toBeTruthy();
+    expect(screen.getByLabelText('Exemplary, locked: More than 50 helps')).toBeTruthy();
   });
 
   it('un vecino recién llegado no deja huecos: cada campo dice algo', async () => {
     mockedApi.getUserProfile.mockResolvedValue(
       perfil({
         bio: null, languages: null, city: null, postalCode: null, responseLabel: '—', memberSince: null,
-        identityVerified: false, rating: 0, ratingCount: 0, servicesCompleted: 0, levelLabel: 'New neighbor',
+        identityVerified: false, rating: 0, ratingCount: 0, servicesCompleted: 0, level: 1, levelLabel: 'New neighbor',
       })
     );
     mockedApi.listServicesBy.mockResolvedValue([]);

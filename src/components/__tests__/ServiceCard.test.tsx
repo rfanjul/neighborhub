@@ -34,14 +34,14 @@ describe('ServiceCard', () => {
   it('enseña la primera foto cuando el servicio tiene', async () => {
     await render(<ServiceCard service={servicio({ photos: ['https://ejemplo/foto1.jpg', 'https://ejemplo/foto2.jpg'] })} />);
 
-    const foto = screen.getByLabelText('Foto de Pintar una pared');
+    const foto = screen.getByLabelText('Photo of Pintar una pared');
     expect(foto.props.source).toEqual({ uri: 'https://ejemplo/foto1.jpg' });
   });
 
   it('no deja hueco de imagen si no hay fotos', async () => {
     await render(<ServiceCard service={servicio()} />);
 
-    expect(screen.queryByLabelText('Foto de Pintar una pared')).toBeNull();
+    expect(screen.queryByLabelText('Photo of Pintar una pared')).toBeNull();
   });
 
   it('no enseña "0 cr" en servicios sin créditos', async () => {

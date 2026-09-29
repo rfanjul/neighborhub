@@ -11,11 +11,9 @@ import Stars from '../components/Stars';
 import { insignias } from '../components/insignias';
 import { api, type ApiUserProfile } from '../firebase/data';
 import { mesYAno } from '../utils/fecha';
+import { idiomasTexto, nivelTexto, t, tp } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NeighborProfile'>;
-
-/** Lo que se enseña cuando un dato no está: nunca un hueco. */
-const SIN_DATO = 'Not specified';
 
 /**
  * Perfil público de otro vecino: quién es, cómo le valoran y, con enlace,
@@ -48,10 +46,10 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
 
   const cabecera = (
     <View style={styles.header}>
-      <Pressable style={styles.back} onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Back">
+      <Pressable style={styles.back} onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel={t('comun.atras')}>
         <BackIcon size={18} />
       </Pressable>
-      <Text style={styles.headerTitle}>Profile</Text>
+      <Text style={styles.headerTitle}>{t('vecino.titulo')}</Text>
     </View>
   );
 
@@ -60,7 +58,7 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
       <SafeAreaView style={styles.screen} edges={['top']}>
         {cabecera}
         {noEncontrado ? (
-          <Text style={styles.vacio}>We couldn't find this neighbor.</Text>
+          <Text style={styles.vacio}>{t('vecino.noEncontrado')}</Text>
         ) : (
           <ActivityIndicator style={{ marginTop: 40 }} color={colors.accent} />
         )}
@@ -70,12 +68,17 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
 
   const ayudas = perfil.servicesCompleted;
   const ubicacion = [perfil.postalCode, perfil.city].filter(Boolean).join(' ');
+  // Lo que se enseña cuando un dato no está: nunca un hueco.
+  const sinDato = t('vecino.sinDato');
   const datos: Array<[string, string]> = [
-    ['Languages', perfil.languages || SIN_DATO],
-    ['Location', ubicacion || SIN_DATO],
-    ['Usually responds', perfil.responseLabel && perfil.responseLabel !== '—' ? perfil.responseLabel : 'No data yet'],
-    ['Member since', perfil.memberSince ? mesYAno(perfil.memberSince) : SIN_DATO],
-    ['Identity', perfil.identityVerified ? 'Verified' : 'Not verified yet'],
+    [t('vecino.idiomas'), idiomasTexto(perfil.languages) || sinDato],
+    [t('vecino.ubicacion'), ubicacion || sinDato],
+    [
+      t('vecino.responde'),
+      perfil.responseLabel && perfil.responseLabel !== '—' ? perfil.responseLabel : t('vecino.sinDatos'),
+    ],
+    [t('vecino.miembro'), perfil.memberSince ? mesYAno(perfil.memberSince) : sinDato],
+    [t('vecino.identidad'), perfil.identityVerified ? t('vecino.verificada') : t('vecino.noVerificada')],
   ];
 
   return (
@@ -86,16 +89,16 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
           <Avatar name={perfil.name} photoURL={perfil.photoURL} size={84} />
           <View style={styles.nombreFila}>
             <Text style={styles.name}>{perfil.name}</Text>
-            {perfil.identityVerified && <Text style={styles.verificado}>✓ Verified</Text>}
+            {perfil.identityVerified && <Text style={styles.verificado}>{t('comun.verificado')}</Text>}
           </View>
           <View style={styles.levelChip}>
-            <Text style={styles.levelLabel}>{perfil.levelLabel}</Text>
+            <Text style={styles.levelLabel}>{nivelTexto(perfil.level, perfil.levelLabel)}</Text>
           </View>
           <View style={styles.valoracion}>
             <Stars value={perfil.rating} size={15} />
             <Text style={styles.valoracionTexto}>
-              {perfil.rating > 0 ? perfil.rating.toFixed(1) : 'No ratings yet'}
-              {perfil.ratingCount > 0 ? ` · ${perfil.ratingCount} ${perfil.ratingCount === 1 ? 'rating' : 'ratings'}` : ''}
+              {perfil.rating > 0 ? perfil.rating.toFixed(1) : t('comun.sinValoraciones')}
+              {perfil.ratingCount > 0 ? ` · ${tp('comun.valoraciones', perfil.ratingCount)}` : ''}
             </Text>
           </View>
         </View>
@@ -105,38 +108,38 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
             style={[styles.statItem, styles.statBorder]}
             onPress={() => verLista('helps')}
             accessibilityRole="button"
-            accessibilityLabel={`See ${perfil.name}'s helps`}
+            accessibilityLabel={t('vecino.verAyudas', { nombre: perfil.name })}
           >
             <Text style={styles.statValue}>{ayudas}</Text>
-            <Text style={styles.statLink}>Helps ›</Text>
+            <Text style={styles.statLink}>{t('vecino.ayudas')}</Text>
           </Pressable>
           <Pressable
             style={[styles.statItem, styles.statBorder]}
             onPress={() => verLista('services')}
             accessibilityRole="button"
-            accessibilityLabel={`See ${perfil.name}'s services`}
+            accessibilityLabel={t('vecino.verServicios', { nombre: perfil.name })}
           >
             <Text style={styles.statValue}>{servicios ?? '…'}</Text>
-            <Text style={styles.statLink}>Services ›</Text>
+            <Text style={styles.statLink}>{t('vecino.servicios')}</Text>
           </Pressable>
           <Pressable
             style={styles.statItem}
             onPress={() => verLista('helps')}
             accessibilityRole="button"
-            accessibilityLabel={`See ${perfil.name}'s reviews`}
+            accessibilityLabel={t('vecino.verResenas', { nombre: perfil.name })}
           >
-            <Text style={styles.statValue}>{perfil.rating > 0 ? `${perfil.rating.toFixed(1)} ★` : 'New'}</Text>
-            <Text style={styles.statLink}>Reviews ›</Text>
+            <Text style={styles.statValue}>{perfil.rating > 0 ? `${perfil.rating.toFixed(1)} ★` : t('vecino.nuevo')}</Text>
+            <Text style={styles.statLink}>{t('vecino.resenas')}</Text>
           </Pressable>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.bio}>{perfil.bio || `${perfil.name} hasn't written a bio yet.`}</Text>
+          <Text style={styles.sectionTitle}>{t('vecino.sobre')}</Text>
+          <Text style={styles.bio}>{perfil.bio || t('vecino.sinBio', { nombre: perfil.name })}</Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Details</Text>
+          <Text style={styles.sectionTitle}>{t('vecino.detalles')}</Text>
           <View style={styles.datos}>
             {datos.map(([etiqueta, valor], i) => (
               <View key={etiqueta} style={[styles.dato, i > 0 && styles.datoBorde]}>
@@ -148,13 +151,13 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Badges</Text>
+          <Text style={styles.sectionTitle}>{t('vecino.insignias')}</Text>
           <View style={styles.badgesRow}>
             {insignias(ayudas).map((b) => (
               <View
                 key={b.clave}
                 style={[styles.badgeItem, !b.conseguida && { opacity: 0.35 }]}
-                accessibilityLabel={b.conseguida ? b.titulo : `${b.titulo}, locked: ${b.requisito}`}
+                accessibilityLabel={b.conseguida ? b.titulo : t('insignias.bloqueada', { titulo: b.titulo, requisito: b.requisito })}
               >
                 <View style={[styles.badgeIcon, { backgroundColor: b.fondo }]}>{b.icono}</View>
                 <Text style={styles.badgeLabel}>{b.titulo}</Text>

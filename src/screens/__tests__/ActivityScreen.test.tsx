@@ -50,8 +50,8 @@ describe('My services', () => {
     ]);
     await renderActividad();
 
-    expect(await screen.findByLabelText('Foto de Con foto')).toBeTruthy();
-    expect(screen.queryByLabelText('Foto de Sin foto')).toBeNull();
+    expect(await screen.findByLabelText('Photo of Con foto')).toBeTruthy();
+    expect(screen.queryByLabelText('Photo of Sin foto')).toBeNull();
   });
 
   it('lista mis servicios con su estado y quién ayuda', async () => {

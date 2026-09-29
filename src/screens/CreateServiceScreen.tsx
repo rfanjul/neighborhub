@@ -11,16 +11,11 @@ import PillButton from '../components/PillButton';
 import { api } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import type { ServiceCategory } from '../data/mock';
+import { t } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateService'>;
 
-const categories: { label: string; value: ServiceCategory }[] = [
-  { label: 'Moving', value: 'moving' },
-  { label: 'Painting', value: 'painting' },
-  { label: 'Dog walking', value: 'dog' },
-  { label: 'Groceries', value: 'groceries' },
-  { label: 'Other', value: 'other' },
-];
+const categories: ServiceCategory[] = ['moving', 'painting', 'dog', 'groceries', 'other'];
 
 /** Una foto ya subida en una edición anterior (URL) frente a una nueva del móvil. */
 const yaSubida = (uri: string) => /^https?:\/\//.test(uri);
@@ -49,7 +44,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         setPhotos(s.photos);
         setOriginales(s.photos);
       })
-      .catch((e) => Alert.alert("Couldn't load the service", dataErrorMessage(e)));
+      .catch((e) => Alert.alert(t('crear.errorCargar'), dataErrorMessage(e)));
   }, [editandoId]);
 
   const guardarCambios = async () => {
@@ -74,7 +69,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
       navigation.goBack();
     } catch (e) {
       await Promise.all(subidas.map((url) => api.deleteServicePhoto(url).catch(() => undefined)));
-      Alert.alert("Couldn't save your changes", dataErrorMessage(e));
+      Alert.alert(t('crear.errorGuardar'), dataErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -86,10 +81,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
-      Alert.alert(
-        'Permission needed',
-        desde === 'camara' ? 'Allow camera access to take a photo.' : 'Allow photo access to pick a picture.'
-      );
+      Alert.alert(t('crear.permiso'), desde === 'camara' ? t('crear.permisoCamara') : t('crear.permisoFotos'));
       return;
     }
     const opciones: ImagePicker.ImagePickerOptions = { quality: 0.7, allowsEditing: true };
@@ -103,10 +95,10 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   };
 
   const elegirOrigenFoto = () => {
-    Alert.alert('Add a photo', undefined, [
-      { text: 'Take photo', onPress: anadirFoto('camara') },
-      { text: 'Choose from library', onPress: anadirFoto('galeria') },
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('crear.anadirFoto'), undefined, [
+      { text: t('crear.hacerFoto'), onPress: anadirFoto('camara') },
+      { text: t('crear.elegirFoto'), onPress: anadirFoto('galeria') },
+      { text: t('comun.cancelar'), style: 'cancel' },
     ]);
   };
 
@@ -127,7 +119,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      Alert.alert('Add a title', 'Give your service a short title first.');
+      Alert.alert(t('crear.faltaTitulo'), t('crear.faltaTituloTexto'));
       return;
     }
     if (editandoId) {
@@ -153,7 +145,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         photos: subidas,
         coords,
         durationLabel: duration.trim() || '—',
-        availableLabel: 'Flexible',
+        availableLabel: t('crear.flexible'),
         // La distancia se calcula al mostrarlo, desde coords.
         locationLabel: '',
         travelRadiusKm: Math.round(radius / 11),
@@ -163,7 +155,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
       // Si el alta falla después de subir fotos, se borran para no dejarlas
       // huérfanas. Un fallo al borrar no debe tapar el error original.
       await Promise.all(subidas.map((url) => api.deleteServicePhoto(url).catch(() => undefined)));
-      Alert.alert("Couldn't submit your service", dataErrorMessage(e));
+      Alert.alert(t('crear.errorEnviar'), dataErrorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -172,12 +164,12 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{editandoId ? 'Edit service' : 'New service'}</Text>
+        <Text style={styles.headerTitle}>{editandoId ? t('crear.tituloEditar') : t('crear.tituloNuevo')}</Text>
         <Pressable
           style={styles.closeButton}
           onPress={() => navigation.goBack()}
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={t('comun.cerrar')}
         >
           <CloseIcon size={14} />
         </Pressable>
@@ -185,10 +177,10 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
 
       <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 6 }}>
-          <Text style={styles.label}>Title</Text>
+          <Text style={styles.label}>{t('crear.titulo')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. Need help moving a wardrobe"
+            placeholder={t('crear.tituloEjemplo')}
             placeholderTextColor={colors.mutedLight}
             value={title}
             onChangeText={setTitle}
@@ -196,25 +188,27 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         </View>
 
         <View style={{ gap: 8 }}>
-          <Text style={styles.label}>Category</Text>
+          <Text style={styles.label}>{t('crear.categoria')}</Text>
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
             {categories.map((c) => (
               <Pressable
-                key={c.value}
-                style={[styles.categoryChip, category === c.value && styles.categoryChipActive]}
-                onPress={() => setCategory(c.value)}
+                key={c}
+                style={[styles.categoryChip, category === c && styles.categoryChipActive]}
+                onPress={() => setCategory(c)}
               >
-                <Text style={[styles.categoryLabel, category === c.value && styles.categoryLabelActive]}>{c.label}</Text>
+                <Text style={[styles.categoryLabel, category === c && styles.categoryLabelActive]}>
+                  {t(`categorias.${c}`)}
+                </Text>
               </Pressable>
             ))}
           </View>
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text style={styles.label}>Description</Text>
+          <Text style={styles.label}>{t('crear.descripcion')}</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
-            placeholder="Describe what you need help with..."
+            placeholder={t('crear.descripcionEjemplo')}
             placeholderTextColor={colors.mutedLight}
             value={description}
             onChangeText={setDescription}
@@ -223,14 +217,14 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         </View>
 
         <View style={{ gap: 8 }}>
-          <Text style={styles.label}>Photos</Text>
+          <Text style={styles.label}>{t('crear.fotos')}</Text>
           <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
             {photos.map((uri) => (
               <Pressable
                 key={uri}
                 onLongPress={() => setPhotos((previas) => previas.filter((p) => p !== uri))}
                 accessibilityRole="button"
-                accessibilityLabel="Photo, long press to remove"
+                accessibilityLabel={t('crear.fotoQuitar')}
               >
                 <Image source={{ uri }} style={styles.photo} />
               </Pressable>
@@ -239,19 +233,19 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
               style={styles.addPhoto}
               onPress={elegirOrigenFoto}
               accessibilityRole="button"
-              accessibilityLabel="Add a photo"
+              accessibilityLabel={t('crear.anadirFoto')}
             >
               <PlusIcon size={20} color={colors.mutedLight} />
             </Pressable>
           </View>
-          {photos.length > 0 && <Text style={styles.photoHint}>Long press a photo to remove it.</Text>}
+          {photos.length > 0 && <Text style={styles.photoHint}>{t('crear.pistaFotos')}</Text>}
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text style={styles.label}>Duration</Text>
+          <Text style={styles.label}>{t('crear.duracion')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="2 hours"
+            placeholder={t('crear.duracionEjemplo')}
             placeholderTextColor={colors.mutedLight}
             value={duration}
             onChangeText={setDuration}
@@ -260,8 +254,8 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
 
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={styles.label}>Travel radius</Text>
-            <Text style={styles.radiusValue}>Up to {Math.round(radius / 11)} km</Text>
+            <Text style={styles.label}>{t('crear.radio')}</Text>
+            <Text style={styles.radiusValue}>{t('crear.hasta', { km: Math.round(radius / 11) })}</Text>
           </View>
           <View style={styles.sliderTrack}>
             <View style={[styles.sliderFill, { width: `${radius}%` }]} />
@@ -272,11 +266,11 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
 
       <View style={styles.footer}>
         <PillButton
-          label={submitting ? 'Saving…' : editandoId ? 'Save changes' : 'Submit for review'}
+          label={submitting ? t('comun.guardando') : editandoId ? t('crear.guardarCambios') : t('crear.enviar')}
           onPress={handleSubmit}
           icon={submitting ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
         />
-        {!editandoId && <Text style={styles.footerHint}>An admin will review it before it becomes visible.</Text>}
+        {!editandoId && <Text style={styles.footerHint}>{t('crear.nota')}</Text>}
       </View>
     </SafeAreaView>
   );

@@ -52,7 +52,7 @@ describe('ProfileDetailsScreen', () => {
   it('guarda, refresca el perfil y vuelve atrás', async () => {
     const { auth, navigation } = await renderDatos({ profile: { name: 'Ruben' } as never });
 
-    await fireEvent.changeText(screen.getByPlaceholderText('Berlin'), '  Zurich ');
+    await fireEvent.changeText(screen.getByPlaceholderText('Zürich'), '  Zurich ');
     await fireEvent.press(screen.getByText('Save'));
 
     await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());

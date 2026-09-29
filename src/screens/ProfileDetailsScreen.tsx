@@ -7,6 +7,7 @@ import { colors, fonts, radii } from '../theme';
 import PillButton from '../components/PillButton';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../firebase/data';
+import { idiomasTexto, t } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProfileDetails'>;
 
@@ -60,7 +61,7 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
       await refreshProfile();
       navigation.goBack();
     } catch (e: any) {
-      Alert.alert("Couldn't save your profile", e?.message ?? 'Please try again.');
+      Alert.alert(t('datos.error'), e?.message ?? t('comun.errorInesperado'));
     } finally {
       setSubmitting(false);
     }
@@ -69,29 +70,29 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Your details</Text>
+        <Text style={styles.title}>{t('datos.titulo')}</Text>
         <Pressable onPress={() => navigation.goBack()} accessibilityRole="button">
-          <Text style={styles.logoutLink}>Cancel</Text>
+          <Text style={styles.logoutLink}>{t('comun.cancelar')}</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
-        <Field label="Full name" placeholder="Anna Weber" value={name} onChangeText={setName} />
-        <Field label="Date of birth" placeholder="MM / DD / YYYY" value={dob} onChangeText={setDob} />
+        <Field label={t('datos.nombre')} placeholder="Anna Weber" value={name} onChangeText={setName} />
+        <Field label={t('datos.nacimiento')} placeholder={t('datos.nacimientoEjemplo')} value={dob} onChangeText={setDob} />
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <View style={{ flex: 2, gap: 6 }}>
-            <Text style={styles.label}>City</Text>
-            <TextInput style={styles.input} placeholder="Berlin" placeholderTextColor={colors.mutedLight} value={city} onChangeText={setCity} />
+            <Text style={styles.label}>{t('datos.ciudad')}</Text>
+            <TextInput style={styles.input} placeholder="Zürich" placeholderTextColor={colors.mutedLight} value={city} onChangeText={setCity} />
           </View>
           <View style={{ flex: 1, gap: 6 }}>
-            <Text style={styles.label}>Postal code</Text>
-            <TextInput style={styles.input} placeholder="10115" placeholderTextColor={colors.mutedLight} value={postalCode} onChangeText={setPostalCode} />
+            <Text style={styles.label}>{t('datos.codigoPostal')}</Text>
+            <TextInput style={styles.input} placeholder="8004" placeholderTextColor={colors.mutedLight} value={postalCode} onChangeText={setPostalCode} />
           </View>
         </View>
 
         <View style={{ gap: 8 }}>
-          <Text style={styles.label}>Languages you speak</Text>
+          <Text style={styles.label}>{t('datos.idiomas')}</Text>
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
             {idiomasDisponibles.map((idioma) => {
               const marcado = languages.includes(idioma);
@@ -102,9 +103,9 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
                   onPress={() => alternarIdioma(idioma)}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: marcado }}
-                  accessibilityLabel={idioma}
+                  accessibilityLabel={idiomasTexto(idioma)}
                 >
-                  <Text style={marcado ? styles.langChipLabel : styles.addChipLabel}>{idioma}</Text>
+                  <Text style={marcado ? styles.langChipLabel : styles.addChipLabel}>{idiomasTexto(idioma)}</Text>
                 </Pressable>
               );
             })}
@@ -112,10 +113,10 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
         </View>
 
         <View style={{ gap: 6 }}>
-          <Text style={styles.label}>About you</Text>
+          <Text style={styles.label}>{t('datos.sobreTi')}</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
-            placeholder="Tell your neighbors a bit about yourself..."
+            placeholder={t('datos.sobreTiEjemplo')}
             placeholderTextColor={colors.mutedLight}
             value={bio}
             onChangeText={setBio}
@@ -126,7 +127,7 @@ export default function ProfileDetailsScreen({ navigation }: Props) {
 
       <View style={styles.footer}>
         <PillButton
-          label={submitting ? 'Saving…' : 'Save'}
+          label={submitting ? t('comun.guardando') : t('comun.guardar')}
           onPress={handleContinue}
           icon={submitting ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
         />

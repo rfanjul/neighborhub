@@ -3,6 +3,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import WelcomeScreen, { AVANCE_MS, diapositivas } from '../WelcomeScreen';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue, navigationProps } from '../../test-utils/renderWithAuth';
+import { cambiarIdioma } from '../../i18n';
+
+// Estos textos se comprueban en español.
+cambiarIdioma('es', { guardar: false });
 
 let mockIsExpoGo = false;
 
@@ -61,7 +65,7 @@ describe('WelcomeScreen en el development build', () => {
     for (const paso of ['1 · Pide ayuda', '2 · Ofrécete', '3 · Elige', '4 · Valora']) {
       expect(screen.getByText(paso)).toBeTruthy();
     }
-    expect(screen.getByText(/Apply to help/)).toBeTruthy();
+    expect(screen.getByText(/Ofrecer ayuda/)).toBeTruthy();
     expect(screen.getByText(/se abre el chat/)).toBeTruthy();
     expect(screen.getByText(/de 1 a 5 estrellas/)).toBeTruthy();
   });

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, type NavigationState } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../auth/AuthContext';
 import { colors } from '../theme';
@@ -19,24 +19,29 @@ import NeighborProfileScreen from '../screens/NeighborProfileScreen';
 import NeighborListScreen from '../screens/NeighborListScreen';
 import ChatScreen from '../screens/ChatScreen';
 import MainTabs from './MainTabs';
+import { t, useIdioma } from '../i18n';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AppStack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
   const { user, initializing } = useAuth();
+  // Al cambiar de idioma se vuelve a montar la navegación para que todo se
+  // pinte en el nuevo, pero en la misma pantalla en la que estaba.
+  const idioma = useIdioma();
+  const estado = useRef<NavigationState | undefined>(undefined);
 
   if (initializing) {
     // Splash mientras Firebase restaura la sesión de AsyncStorage.
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.accent} accessibilityRole="progressbar" accessibilityLabel="Cargando" />
+        <ActivityIndicator size="large" color={colors.accent} accessibilityRole="progressbar" accessibilityLabel={t('comun.cargando')} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer key={idioma} initialState={estado.current} onStateChange={(s) => (estado.current = s)}>
       {!user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Welcome" component={WelcomeScreen} />

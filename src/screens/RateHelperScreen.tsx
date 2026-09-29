@@ -9,10 +9,11 @@ import PillButton from '../components/PillButton';
 import Avatar from '../components/Avatar';
 import { api } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
+import { t, tp, type Clave } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RateHelper'>;
 
-const etiquetas = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent'];
+const etiquetas = ['', 'valorar.etiqueta1', 'valorar.etiqueta2', 'valorar.etiqueta3', 'valorar.etiqueta4', 'valorar.etiqueta5'] as const;
 
 /**
  * Dar por hecha la ayuda: de 1 a 5 estrellas y un comentario opcional para
@@ -31,7 +32,7 @@ export default function RateHelperScreen({ navigation, route }: Props) {
       .getService(serviceId)
       .then(async (s) => {
         setTitulo(s.title);
-        const nombre = s.helperName ?? 'your helper';
+        const nombre = s.helperName ?? t('valorar.tuAyudante');
         setAyudante({ name: nombre, photoURL: null });
         if (s.helperId) {
           const perfil = await api.getUserProfile(s.helperId).catch(() => null);
@@ -43,7 +44,7 @@ export default function RateHelperScreen({ navigation, route }: Props) {
 
   const enviar = async () => {
     if (!nota) {
-      Alert.alert('Choose a rating', 'Tap the stars to rate from 1 to 5.');
+      Alert.alert(t('valorar.faltaNota'), t('valorar.faltaNotaTexto'));
       return;
     }
     setEnviando(true);
@@ -51,7 +52,7 @@ export default function RateHelperScreen({ navigation, route }: Props) {
       await api.rateHelper(serviceId, nota, comentario);
       navigation.goBack();
     } catch (e) {
-      Alert.alert("Couldn't save your rating", dataErrorMessage(e));
+      Alert.alert(t('valorar.error'), dataErrorMessage(e));
     } finally {
       setEnviando(false);
     }
@@ -63,12 +64,12 @@ export default function RateHelperScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Rate the help</Text>
+          <Text style={styles.headerTitle}>{t('valorar.titulo')}</Text>
           <Pressable
             style={styles.closeButton}
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t('comun.cerrar')}
           >
             <CloseIcon size={14} />
           </Pressable>
@@ -78,7 +79,7 @@ export default function RateHelperScreen({ navigation, route }: Props) {
           {ayudante && (
             <View style={styles.persona}>
               <Avatar name={ayudante.name} photoURL={ayudante.photoURL} size={64} />
-              <Text style={styles.pregunta}>How did {nombre} help you?</Text>
+              <Text style={styles.pregunta}>{t('valorar.pregunta', { nombre })}</Text>
               {titulo ? <Text style={styles.servicio}>{titulo}</Text> : null}
             </View>
           )}
@@ -90,19 +91,19 @@ export default function RateHelperScreen({ navigation, route }: Props) {
                 onPress={() => setNota(n)}
                 hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel={n === 1 ? '1 star' : `${n} stars`}
+                accessibilityLabel={tp('valorar.estrella', n)}
                 accessibilityState={{ selected: n <= nota }}
               >
                 <StarIcon size={40} color={colors.amber} filled={n <= nota} />
               </Pressable>
             ))}
           </View>
-          <Text style={styles.etiqueta}>{nota ? etiquetas[nota] : 'Tap to rate'}</Text>
+          <Text style={styles.etiqueta}>{nota ? t(etiquetas[nota] as Clave) : t('valorar.toca')}</Text>
 
-          <Text style={styles.label}>Comment (optional)</Text>
+          <Text style={styles.label}>{t('valorar.comentario')}</Text>
           <TextInput
             style={styles.input}
-            placeholder={`Tell others what it was like to get help from ${nombre || 'them'}.`}
+            placeholder={t('valorar.ejemplo', { nombre: nombre || t('valorar.ellos') })}
             placeholderTextColor={colors.mutedLight}
             value={comentario}
             onChangeText={setComentario}
@@ -114,12 +115,12 @@ export default function RateHelperScreen({ navigation, route }: Props) {
 
         <View style={styles.footer}>
           <PillButton
-            label={enviando ? 'Saving…' : 'Complete and rate'}
+            label={enviando ? t('comun.guardando') : t('valorar.boton')}
             onPress={enviar}
             disabled={enviando}
             icon={enviando ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
           />
-          <Text style={styles.hint}>The service will be marked as completed. Ratings can't be changed later.</Text>
+          <Text style={styles.hint}>{t('valorar.nota')}</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

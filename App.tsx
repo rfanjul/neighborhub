@@ -13,10 +13,13 @@ import {
 import { AuthProvider } from './src/auth/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { colors } from './src/theme';
+import { cargarIdiomaGuardado } from './src/i18n';
 
 // El splash se mantiene hasta que estén las fuentes, para que la app no
 // aparezca un instante con la tipografía del sistema.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+// Si la persona eligió otro idioma que el del iPhone, se recupera ya.
+cargarIdiomaGuardado();
 
 export default function App() {
   const [balooLoaded] = useBaloo2Fonts({ Baloo2_600SemiBold, Baloo2_700Bold });

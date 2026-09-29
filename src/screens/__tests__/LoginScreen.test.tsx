@@ -4,6 +4,10 @@ import LoginScreen from '../LoginScreen';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue, navigationProps } from '../../test-utils/renderWithAuth';
 import { firebaseError } from '../../test-utils/firebaseError';
+import { cambiarIdioma } from '../../i18n';
+
+// Estos textos se comprueban en español.
+cambiarIdioma('es', { guardar: false });
 
 jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 

@@ -13,6 +13,7 @@ import type { ServiceRequest } from '../data/mock';
 import { api, type Application, type ApiUserProfile, type Review } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import { insignias } from '../components/insignias';
+import { idiomasTexto, nivelTexto, t, tp } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceOffers'>;
 
@@ -31,7 +32,7 @@ function Ofertante({
 }) {
   if (!perfil) {
     return (
-      <Pressable style={styles.fila} onPress={onVerPerfil} accessibilityRole="button" accessibilityLabel={`See ${nombre}'s profile`}>
+      <Pressable style={styles.fila} onPress={onVerPerfil} accessibilityRole="button" accessibilityLabel={t('comun.verPerfil', { nombre })}>
         <Avatar name={nombre} photoURL={null} size={48} />
         <Text style={[styles.nombre, { flex: 1 }]}>{nombre}</Text>
         <Text style={styles.chevron}>›</Text>
@@ -46,27 +47,27 @@ function Ofertante({
         style={styles.fila}
         onPress={onVerPerfil}
         accessibilityRole="button"
-        accessibilityLabel={`See ${perfil.name}'s profile`}
+        accessibilityLabel={t('comun.verPerfil', { nombre: perfil.name })}
       >
         <Avatar name={perfil.name} photoURL={perfil.photoURL} size={48} />
         <View style={{ flex: 1, gap: 3 }}>
           <View style={styles.filaNombre}>
             <Text style={styles.nombre}>{perfil.name}</Text>
-            {perfil.identityVerified && <Text style={styles.verificado}>✓ Verified</Text>}
+            {perfil.identityVerified && <Text style={styles.verificado}>{t('comun.verificado')}</Text>}
           </View>
           {perfil.rating > 0 ? (
             <View style={styles.filaNombre}>
               <Stars value={perfil.rating} size={13} />
               <Text style={styles.meta}>
                 {perfil.rating.toFixed(1)}
-                {perfil.ratingCount > 0 ? ` · ${perfil.ratingCount} ${perfil.ratingCount === 1 ? 'rating' : 'ratings'}` : ''}
+                {perfil.ratingCount > 0 ? ` · ${tp('comun.valoraciones', perfil.ratingCount)}` : ''}
               </Text>
             </View>
           ) : (
-            <Text style={styles.meta}>No ratings yet</Text>
+            <Text style={styles.meta}>{t('comun.sinValoraciones')}</Text>
           )}
           <Text style={styles.meta}>
-            {ayudas === 1 ? '1 help' : `${ayudas} helps`} · {perfil.levelLabel}
+            {tp('comun.ayudas', ayudas)} · {nivelTexto(perfil.level, perfil.levelLabel)}
           </Text>
         </View>
         <Text style={styles.chevron}>›</Text>
@@ -80,7 +81,7 @@ function Ofertante({
           ))}
         </View>
       )}
-      {perfil.languages ? <Text style={styles.meta}>Speaks {perfil.languages}</Text> : null}
+      {perfil.languages ? <Text style={styles.meta}>{t('comun.habla', { idiomas: idiomasTexto(perfil.languages) })}</Text> : null}
       {perfil.bio ? <Text style={styles.bio}>{perfil.bio}</Text> : null}
     </View>
   );
@@ -105,7 +106,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
       setOfertas(o);
       setResena(s.status === 'rated' ? await api.getReview(serviceId).catch(() => null) : null);
     } catch (e) {
-      Alert.alert("Couldn't load the offers", dataErrorMessage(e));
+      Alert.alert(t('ofertas.errorCargar'), dataErrorMessage(e));
     }
   }, [serviceId]);
 
@@ -116,17 +117,17 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
   );
 
   const elegir = (oferta: Application) => {
-    Alert.alert(`Choose ${oferta.applicantName}?`, 'The other offers will be declined and you can chat with them.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('ofertas.elegirTitulo', { nombre: oferta.applicantName }), t('ofertas.elegirTexto'), [
+      { text: t('comun.cancelar'), style: 'cancel' },
       {
-        text: 'Choose',
+        text: t('ofertas.elegir'),
         onPress: async () => {
           setOcupado(true);
           try {
             await api.selectApplicant(serviceId, oferta.id);
             await cargar();
           } catch (e) {
-            Alert.alert("Couldn't choose this offer", dataErrorMessage(e));
+            Alert.alert(t('ofertas.errorElegir'), dataErrorMessage(e));
           } finally {
             setOcupado(false);
           }
@@ -151,7 +152,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
           style={styles.back}
           onPress={() => navigation.goBack()}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('comun.atras')}
         >
           <BackIcon size={18} />
         </Pressable>
@@ -160,7 +161,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
             {servicio?.title ?? ''}
           </Text>
           <Text style={styles.subtitulo}>
-            {ofertas.length === 1 ? '1 offer' : `${ofertas.length} offers`}
+            {tp('comun.ofertas', ofertas.length)}
           </Text>
         </View>
         {/* Se puede editar mientras no se haya elegido a nadie. */}
@@ -170,24 +171,26 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
             onPress={() => navigation.navigate('CreateService', { serviceId })}
             accessibilityRole="button"
           >
-            <Text style={styles.editarTexto}>Edit</Text>
+            <Text style={styles.editarTexto}>{t('ofertas.editar')}</Text>
           </Pressable>
         )}
       </View>
 
       {servicio?.status === 'pending' && (
-        <Text style={styles.aviso}>Waiting for review. Neighbors can make offers once it's approved.</Text>
+        <Text style={styles.aviso}>{t('ofertas.enRevision')}</Text>
       )}
 
       {(enCurso || terminado) && servicio?.helperName && (
         <View style={styles.elegido}>
           <Text style={styles.elegidoTexto}>
-            {terminado ? `Completed with ${servicio.helperName}` : `${servicio.helperName} is helping you`}
+            {terminado
+              ? t('ofertas.completadoCon', { nombre: servicio.helperName })
+              : t('ofertas.teAyuda', { nombre: servicio.helperName })}
           </Text>
           {resena && (
             <View style={{ gap: 4 }}>
               <View style={styles.filaNombre}>
-                <Text style={styles.meta}>Your rating</Text>
+                <Text style={styles.meta}>{t('ofertas.tuValoracion')}</Text>
                 <Stars value={resena.rating} size={14} />
               </View>
               {resena.comment ? <Text style={styles.comentario}>“{resena.comment}”</Text> : null}
@@ -195,13 +198,13 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
           )}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <PillButton
-              label="Open chat"
+              label={t('comun.abrirChat')}
               onPress={() => navigation.navigate('Chat', { serviceId })}
               style={{ flex: 1 }}
             />
             {(enCurso || porValorar) && (
               <PillButton
-                label={enCurso ? 'Mark as completed' : `Rate ${servicio.helperName}`}
+                label={enCurso ? t('ofertas.marcarHecho') : t('ofertas.valorarA', { nombre: servicio.helperName })}
                 variant="outline"
                 onPress={valorar}
                 style={{ flex: 1 }}
@@ -217,7 +220,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
         keyExtractor={(o) => o.id}
         contentContainerStyle={styles.lista}
         ListEmptyComponent={
-          servicio && abierto ? <Text style={styles.vacio}>No offers yet. We'll show them here as they arrive.</Text> : null
+          servicio && abierto ? <Text style={styles.vacio}>{t('ofertas.vacio')}</Text> : null
         }
         renderItem={({ item }) => (
           <View style={[styles.tarjeta, item.status === 'rejected' && { opacity: 0.55 }]}>
@@ -228,15 +231,19 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
             />
             {item.comment ? (
               <View style={styles.oferta}>
-                <Text style={styles.etiquetaOferta}>Their offer</Text>
+                <Text style={styles.etiquetaOferta}>{t('ofertas.suOferta')}</Text>
                 <Text style={styles.comentario}>“{item.comment}”</Text>
               </View>
             ) : null}
             {abierto ? (
-              <PillButton label="Choose" onPress={() => elegir(item)} disabled={ocupado} />
+              <PillButton label={t('ofertas.elegir')} onPress={() => elegir(item)} disabled={ocupado} />
             ) : (
               <Text style={[styles.estado, item.status === 'selected' && { color: colors.green }]}>
-                {item.status === 'selected' ? 'Selected' : item.status === 'rejected' ? 'Not selected' : 'Waiting'}
+                {item.status === 'selected'
+                  ? t('ofertas.elegida')
+                  : item.status === 'rejected'
+                    ? t('ofertas.noElegida')
+                    : t('ofertas.esperando')}
               </Text>
             )}
           </View>

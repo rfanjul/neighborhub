@@ -29,7 +29,7 @@ describe('RateHelperScreen', () => {
 
     expect(await screen.findByText('How did Luis Pérez help you?')).toBeTruthy();
     expect(screen.getByText('Move table')).toBeTruthy();
-    expect(screen.getByLabelText('Foto de Luis Pérez')).toBeTruthy();
+    expect(screen.getByLabelText('Photo of Luis Pérez')).toBeTruthy();
     expect(screen.getByText('Tap to rate')).toBeTruthy();
   });
 
@@ -99,7 +99,7 @@ describe('RateHelperScreen', () => {
     await fireEvent.press(await screen.findByLabelText('3 stars'));
     await fireEvent.press(screen.getByText('Complete and rate'));
 
-    await waitFor(() => expect(alerta).toHaveBeenCalledWith("Couldn't save your rating", 'No tienes permiso para hacer esto.'));
+    await waitFor(() => expect(alerta).toHaveBeenCalledWith("Couldn't save your rating", "You don't have permission to do this."));
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(screen.getByText('Complete and rate')).toBeTruthy();
     alerta.mockRestore();

@@ -8,6 +8,7 @@ import { CloseIcon } from '../icons';
 import PillButton from '../components/PillButton';
 import { api } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
+import { t } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Apply'>;
 
@@ -27,7 +28,7 @@ export default function ApplyScreen({ navigation, route }: Props) {
 
   const enviar = async () => {
     if (!comentario.trim()) {
-      Alert.alert('Add a comment', 'Tell them a little about how you can help.');
+      Alert.alert(t('ofertar.faltaComentario'), t('ofertar.faltaComentarioTexto'));
       return;
     }
     setEnviando(true);
@@ -36,7 +37,7 @@ export default function ApplyScreen({ navigation, route }: Props) {
       // La oferta aparece en "My offers" hasta que quien publica elija.
       navigation.navigate('Main', { screen: 'ActivityTab', params: { segmento: 'offers' } });
     } catch (e) {
-      Alert.alert("Couldn't send your offer", dataErrorMessage(e));
+      Alert.alert(t('ofertar.error'), dataErrorMessage(e));
     } finally {
       setEnviando(false);
     }
@@ -46,12 +47,12 @@ export default function ApplyScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Make an offer</Text>
+          <Text style={styles.headerTitle}>{t('ofertar.titulo')}</Text>
           <Pressable
             style={styles.closeButton}
             onPress={() => navigation.goBack()}
             accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessibilityLabel={t('comun.cerrar')}
           >
             <CloseIcon size={14} />
           </Pressable>
@@ -59,10 +60,10 @@ export default function ApplyScreen({ navigation, route }: Props) {
 
         <View style={styles.body}>
           {titulo ? <Text style={styles.servicio}>{titulo}</Text> : null}
-          <Text style={styles.label}>Your comment</Text>
+          <Text style={styles.label}>{t('ofertar.comentario')}</Text>
           <TextInput
             style={styles.input}
-            placeholder="When could you help, and what do you bring? e.g. I have a ladder and I'm free on Saturday."
+            placeholder={t('ofertar.ejemplo')}
             placeholderTextColor={colors.mutedLight}
             value={comentario}
             onChangeText={setComentario}
@@ -75,12 +76,12 @@ export default function ApplyScreen({ navigation, route }: Props) {
 
         <View style={styles.footer}>
           <PillButton
-            label={enviando ? 'Sending…' : 'Send offer'}
+            label={enviando ? t('comun.enviando') : t('ofertar.enviar')}
             onPress={enviar}
             disabled={enviando}
             icon={enviando ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
           />
-          <Text style={styles.hint}>Several neighbors can offer; the owner picks one.</Text>
+          <Text style={styles.hint}>{t('ofertar.nota')}</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

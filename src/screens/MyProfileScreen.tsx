@@ -11,6 +11,7 @@ import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
+import { cambiarIdioma, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
 
 export default function MyProfileScreen() {
   const { logout, user } = useAuth();
@@ -24,10 +25,21 @@ export default function MyProfileScreen() {
   const [ayudas, setAyudas] = useState(0);
 
   const handleSettingsPress = () => {
-    Alert.alert('Account', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Edit my details', onPress: () => navigation.navigate('ProfileDetails') },
-      { text: 'Log out', style: 'destructive', onPress: () => logout() },
+    Alert.alert(t('miPerfil.cuenta'), undefined, [
+      { text: t('comun.cancelar'), style: 'cancel' },
+      { text: t('miPerfil.editarDatos'), onPress: () => navigation.navigate('ProfileDetails') },
+      { text: t('idioma.titulo'), onPress: elegirIdioma },
+      { text: t('miPerfil.salir'), style: 'destructive', onPress: () => logout() },
+    ]);
+  };
+
+  const elegirIdioma = () => {
+    Alert.alert(t('idioma.elegir'), undefined, [
+      ...idiomas.map(({ codigo, nombre }) => ({
+        text: codigo === idiomaActual() ? `✓ ${nombre}` : nombre,
+        onPress: () => cambiarIdioma(codigo),
+      })),
+      { text: t('comun.cancelar'), style: 'cancel' as const },
     ]);
   };
 
@@ -69,12 +81,12 @@ export default function MyProfileScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={styles.headerTitle}>{t('miPerfil.titulo')}</Text>
         <Pressable
           style={styles.settingsButton}
           onPress={handleSettingsPress}
           accessibilityRole="button"
-          accessibilityLabel="Settings"
+          accessibilityLabel={t('miPerfil.ajustes')}
         >
           <SettingsIcon size={15} />
         </Pressable>
@@ -82,14 +94,14 @@ export default function MyProfileScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
         <View style={styles.identity}>
-          <Pressable onPress={() => setShowCamera(true)} accessibilityRole="button" accessibilityLabel="Change photo">
+          <Pressable onPress={() => setShowCamera(true)} accessibilityRole="button" accessibilityLabel={t('miPerfil.cambiarFoto')}>
             {photoURL ? (
               <Image source={{ uri: `${photoURL}${photoURL.includes('?') ? '&' : '?'}v=${photoVersion}` }} style={styles.avatar} />
             ) : (
               <View style={styles.avatar} />
             )}
             <View style={styles.avatarEditBadge}>
-              <Text style={styles.avatarEditBadgeText}>Edit</Text>
+              <Text style={styles.avatarEditBadgeText}>{t('miPerfil.editar')}</Text>
             </View>
           </Pressable>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
@@ -98,7 +110,7 @@ export default function MyProfileScreen() {
           </View>
           <View style={styles.levelChip}>
             <Text style={styles.levelLabel}>
-              Level {currentUser.level} · {currentUser.levelLabel}
+              {t('miPerfil.nivel', { nivel: currentUser.level, etiqueta: nivelTexto(currentUser.level, currentUser.levelLabel) })}
             </Text>
           </View>
         </View>
@@ -109,44 +121,44 @@ export default function MyProfileScreen() {
             style={[styles.statItem, styles.statBorder]}
             onPress={verMisAyudas}
             accessibilityRole="button"
-            accessibilityLabel="See my helps"
+            accessibilityLabel={t('miPerfil.verAyudas')}
           >
             <Text style={styles.statValue}>{ayudas}</Text>
-            <Text style={styles.statLink}>Helps ›</Text>
+            <Text style={styles.statLink}>{t('miPerfil.ayudas')}</Text>
           </Pressable>
           <Pressable
             style={[styles.statItem, styles.statBorder]}
             onPress={verMisAyudas}
             accessibilityRole="button"
-            accessibilityLabel="See my reviews"
+            accessibilityLabel={t('miPerfil.verResenas')}
           >
             <Text style={styles.statValue}>{currentUser.rating} ★</Text>
-            <Text style={styles.statLink}>Reviews ›</Text>
+            <Text style={styles.statLink}>{t('miPerfil.resenas')}</Text>
           </Pressable>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{currentUser.responseLabel}</Text>
-            <Text style={styles.statLabel}>Response</Text>
+            <Text style={styles.statLabel}>{t('miPerfil.respuesta')}</Text>
           </View>
         </View>
 
         <View style={styles.creditsCard}>
           <View>
-            <Text style={styles.creditsCaption}>Your credits</Text>
+            <Text style={styles.creditsCaption}>{t('miPerfil.creditos')}</Text>
             <Text style={styles.creditsValue}>{currentUser.credits}</Text>
           </View>
           <Pressable style={styles.addCreditsButton}>
-            <Text style={styles.addCreditsLabel}>+ Add credits</Text>
+            <Text style={styles.addCreditsLabel}>{t('miPerfil.anadirCreditos')}</Text>
           </Pressable>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Badges</Text>
+          <Text style={styles.sectionTitle}>{t('miPerfil.insignias')}</Text>
           <View style={styles.badgesRow}>
             {insignias(ayudas).map((b) => (
               <View
                 key={b.clave}
                 style={[styles.badgeItem, !b.conseguida && { opacity: 0.35 }]}
-                accessibilityLabel={b.conseguida ? b.titulo : `${b.titulo}, locked: ${b.requisito}`}
+                accessibilityLabel={b.conseguida ? b.titulo : t('insignias.bloqueada', { titulo: b.titulo, requisito: b.requisito })}
               >
                 <View style={[styles.badgeIcon, { backgroundColor: b.fondo }]}>{b.icono}</View>
                 <Text style={styles.badgeLabel}>{b.titulo}</Text>

@@ -13,6 +13,7 @@ import type { ServiceRequest } from '../data/mock';
 import { api, type Review } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import { mesYAno } from '../utils/fecha';
+import { t, tp } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NeighborList'>;
 
@@ -34,13 +35,11 @@ export default function NeighborListScreen({ navigation, route }: Props) {
     }, [userId, lista])
   );
 
-  const titulo = lista === 'helps' ? `${nombre}'s helps` : `${nombre}'s services`;
+  const titulo = lista === 'helps' ? t('listaVecino.ayudasDe', { nombre }) : t('listaVecino.serviciosDe', { nombre });
   const elementos = lista === 'helps' ? resenas : servicios;
   const cuenta = elementos?.length ?? 0;
   const subtitulo =
-    lista === 'helps'
-      ? `${cuenta} ${cuenta === 1 ? 'help' : 'helps'}, with the neighbor's review`
-      : `${cuenta} open ${cuenta === 1 ? 'service' : 'services'}`;
+    lista === 'helps' ? tp('listaVecino.ayudasCuenta', cuenta) : tp('listaVecino.serviciosCuenta', cuenta);
 
   let contenido: React.ReactNode;
   if (error) {
@@ -53,10 +52,10 @@ export default function NeighborListScreen({ navigation, route }: Props) {
         data={resenas}
         keyExtractor={(r) => r.serviceId}
         contentContainerStyle={styles.lista}
-        ListEmptyComponent={<Text style={styles.vacio}>{nombre} hasn't completed any helps yet.</Text>}
+        ListEmptyComponent={<Text style={styles.vacio}>{t('listaVecino.sinAyudas', { nombre })}</Text>}
         renderItem={({ item }) => (
           <View style={styles.tarjeta}>
-            <Text style={styles.servicio}>{item.serviceTitle || 'Help'}</Text>
+            <Text style={styles.servicio}>{item.serviceTitle || t('listaVecino.ayuda')}</Text>
             <View style={styles.fila}>
               <Stars value={item.rating} size={14} />
               {item.createdAt > 0 && <Text style={styles.meta}>{mesYAno(item.createdAt)}</Text>}
@@ -64,7 +63,7 @@ export default function NeighborListScreen({ navigation, route }: Props) {
             {item.comment ? <Text style={styles.comentario}>“{item.comment}”</Text> : null}
             <View style={styles.fila}>
               <Avatar name={item.reviewerName} photoURL={item.reviewerPhotoURL} size={24} />
-              <Text style={styles.meta}>by {item.reviewerName}</Text>
+              <Text style={styles.meta}>{t('listaVecino.por', { nombre: item.reviewerName })}</Text>
             </View>
           </View>
         )}
@@ -76,7 +75,7 @@ export default function NeighborListScreen({ navigation, route }: Props) {
         data={servicios}
         keyExtractor={(s) => s.id}
         contentContainerStyle={styles.lista}
-        ListEmptyComponent={<Text style={styles.vacio}>{nombre} has no open services right now.</Text>}
+        ListEmptyComponent={<Text style={styles.vacio}>{t('listaVecino.sinServicios', { nombre })}</Text>}
         renderItem={({ item }) => (
           <ServiceCard service={item} onPress={() => navigation.navigate('ServiceDetail', { serviceId: item.id })} />
         )}
@@ -87,7 +86,7 @@ export default function NeighborListScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <Pressable style={styles.back} onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Back">
+        <Pressable style={styles.back} onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel={t('comun.atras')}>
           <BackIcon size={18} />
         </Pressable>
         <View style={{ flex: 1 }}>

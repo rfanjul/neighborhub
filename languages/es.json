@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Neighborhub",
+    "NSCameraUsageDescription": "Neighborhub usa la cámara para tu foto de perfil y para fotografiar la ayuda que necesitas.",
+    "NSPhotoLibraryUsageDescription": "Neighborhub usa tus fotos para que ilustres los servicios que publicas.",
+    "NSLocationWhenInUseUsageDescription": "Neighborhub usa tu ubicación para mostrarte peticiones de ayuda cerca y situar las tuyas en el mapa."
+  }
+}

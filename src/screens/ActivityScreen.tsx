@@ -11,6 +11,7 @@ import Chip from '../components/Chip';
 import CategoryIcon from '../components/CategoryIcon';
 import type { ServiceRequest } from '../data/mock';
 import { api, type Application } from '../firebase/data';
+import { t, type Clave } from '../i18n';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'ActivityTab'>,
@@ -20,19 +21,19 @@ type Props = CompositeScreenProps<
 type Segmento = 'services' | 'offers';
 
 /** Etiqueta y colores del estado de un servicio propio. */
-const estadoServicio: Record<string, { texto: string; fondo: string; color: string }> = {
-  pending: { texto: 'Pending review', fondo: colors.amberTint, color: colors.amberDark },
-  approved: { texto: 'Open for offers', fondo: colors.greenTint, color: colors.green },
-  accepted: { texto: 'In progress', fondo: colors.blueTint, color: colors.blue },
-  in_progress: { texto: 'In progress', fondo: colors.blueTint, color: colors.blue },
-  completed: { texto: 'Completed', fondo: colors.greenTint, color: colors.green },
-  rated: { texto: 'Completed', fondo: colors.greenTint, color: colors.green },
+const estadoServicio: Record<string, { texto: Clave; fondo: string; color: string }> = {
+  pending: { texto: 'estados.pending', fondo: colors.amberTint, color: colors.amberDark },
+  approved: { texto: 'actividad.abierto', fondo: colors.greenTint, color: colors.green },
+  accepted: { texto: 'actividad.enCurso', fondo: colors.blueTint, color: colors.blue },
+  in_progress: { texto: 'actividad.enCurso', fondo: colors.blueTint, color: colors.blue },
+  completed: { texto: 'actividad.completado', fondo: colors.greenTint, color: colors.green },
+  rated: { texto: 'actividad.completado', fondo: colors.greenTint, color: colors.green },
 };
 
-const estadoOferta: Record<Application['status'], { texto: string; fondo: string; color: string }> = {
-  pending: { texto: 'Waiting', fondo: colors.amberTint, color: colors.amberDark },
-  selected: { texto: 'Selected', fondo: colors.greenTint, color: colors.green },
-  rejected: { texto: 'Not selected', fondo: colors.border, color: colors.muted },
+const estadoOferta: Record<Application['status'], { texto: Clave; fondo: string; color: string }> = {
+  pending: { texto: 'actividad.esperando', fondo: colors.amberTint, color: colors.amberDark },
+  selected: { texto: 'actividad.elegida', fondo: colors.greenTint, color: colors.green },
+  rejected: { texto: 'actividad.noElegida', fondo: colors.border, color: colors.muted },
 };
 
 export default function ActivityScreen({ navigation, route }: Props) {
@@ -67,12 +68,12 @@ export default function ActivityScreen({ navigation, route }: Props) {
   const error = errores[segmento];
   const vacio =
     segmento === 'services'
-      ? "You haven't published any service yet. Tap + to ask for help."
-      : "You haven't made any offer yet. Find a service on the wall and offer to help.";
+      ? t('actividad.vacioServicios')
+      : t('actividad.vacioOfertas');
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <Text style={styles.titulo}>Activity</Text>
+      <Text style={styles.titulo}>{t('actividad.titulo')}</Text>
       <View style={styles.segmentos} accessibilityRole="tablist">
         {(['services', 'offers'] as const).map((s) => (
           <Pressable
@@ -83,7 +84,7 @@ export default function ActivityScreen({ navigation, route }: Props) {
             accessibilityState={{ selected: segmento === s }}
           >
             <Text style={[styles.segmentoTexto, segmento === s && styles.segmentoTextoActivo]}>
-              {s === 'services' ? 'My services' : 'My offers'}
+              {s === 'services' ? t('actividad.misServicios') : t('actividad.misOfertas')}
             </Text>
           </Pressable>
         ))}
@@ -91,7 +92,7 @@ export default function ActivityScreen({ navigation, route }: Props) {
 
       {error && (
         <Text style={styles.error}>
-          {segmento === 'services' ? "Couldn't load your services." : "Couldn't load your offers."} Pull down to retry.
+          {segmento === 'services' ? t('actividad.errorServicios') : t('actividad.errorOfertas')} {t('actividad.reintentar')}
         </Text>
       )}
 
@@ -112,7 +113,7 @@ export default function ActivityScreen({ navigation, route }: Props) {
               >
                 {/* Como una lista de anuncios: la foto a la izquierda, o su categoría. */}
                 {item.photos[0] ? (
-                  <Image source={{ uri: item.photos[0] }} style={styles.miniatura} accessibilityLabel={`Foto de ${item.title}`} />
+                  <Image source={{ uri: item.photos[0] }} style={styles.miniatura} accessibilityLabel={t('comun.fotoDe', { nombre: item.title })} />
                 ) : (
                   <CategoryIcon category={item.category} size={72} />
                 )}
@@ -121,8 +122,8 @@ export default function ActivityScreen({ navigation, route }: Props) {
                     {item.title}
                   </Text>
                   <View style={{ alignItems: 'flex-start', gap: 6 }}>
-                    <Chip label={estado.texto} background={estado.fondo} color={estado.color} />
-                    {item.helperName && <Text style={styles.meta}>with {item.helperName}</Text>}
+                    <Chip label={t(estado.texto)} background={estado.fondo} color={estado.color} />
+                    {item.helperName && <Text style={styles.meta}>{t('actividad.con', { nombre: item.helperName })}</Text>}
                   </View>
                 </View>
               </Pressable>
@@ -149,14 +150,14 @@ export default function ActivityScreen({ navigation, route }: Props) {
                   </Text>
                 ) : null}
                 <View style={styles.fila}>
-                  <Chip label={estado.texto} background={estado.fondo} color={estado.color} />
+                  <Chip label={t(estado.texto)} background={estado.fondo} color={estado.color} />
                   {item.status === 'selected' && (
                     <Pressable
                       style={styles.botonChat}
                       onPress={() => navigation.navigate('Chat', { serviceId: item.serviceId })}
                       accessibilityRole="button"
                     >
-                      <Text style={styles.botonChatTexto}>Open chat</Text>
+                      <Text style={styles.botonChatTexto}>{t('comun.abrirChat')}</Text>
                     </Pressable>
                   )}
                 </View>

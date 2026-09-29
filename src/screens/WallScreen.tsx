@@ -13,6 +13,7 @@ import ServiceCard from '../components/ServiceCard';
 import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import { useUbicacion } from '../geo/useUbicacion';
+import { t } from '../i18n';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'HomeTab'>,
@@ -72,8 +73,8 @@ export default function WallScreen({ navigation }: Props) {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>{nombre ? `Hi, ${nombre} 👋` : 'Hi 👋'}</Text>
-          <Text style={styles.headline}>Need help nearby?</Text>
+          <Text style={styles.greeting}>{nombre ? t('muro.hola', { nombre }) : t('muro.holaSolo')}</Text>
+          <Text style={styles.headline}>{t('muro.titulo')}</Text>
         </View>
         <View style={styles.creditsPill}>
           <CoinIcon size={16} />
@@ -86,7 +87,7 @@ export default function WallScreen({ navigation }: Props) {
           <SearchIcon size={16} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search requests..."
+            placeholder={t('muro.buscar')}
             placeholderTextColor={colors.mutedLight}
             value={query}
             onChangeText={setQuery}
@@ -100,7 +101,7 @@ export default function WallScreen({ navigation }: Props) {
       </View>
 
       {!usingBackend && (
-        <Text style={styles.offlineNote}>Showing demo data — couldn't reach Firestore (check your connection or Firebase setup).</Text>
+        <Text style={styles.offlineNote}>{t('muro.demo')}</Text>
       )}
 
       <FlatList
@@ -110,7 +111,7 @@ export default function WallScreen({ navigation }: Props) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
         ListEmptyComponent={
           <Text style={styles.emptyText}>
-            {query.trim() ? `No requests match "${query.trim()}".` : 'No requests nearby yet. Be the first to ask for help!'}
+            {query.trim() ? t('muro.sinResultados', { busqueda: query.trim() }) : t('muro.vacio')}
           </Text>
         }
         renderItem={({ item }) => (

@@ -14,6 +14,7 @@ import type { ServiceRequest } from '../data/mock';
 import { api } from '../firebase/data';
 import { distanciaKm, formatearDistancia, type Coordenadas } from '../geo/distancia';
 import { useUbicacion } from '../geo/useUbicacion';
+import { t } from '../i18n';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'MapTab'>,
@@ -79,13 +80,11 @@ export default function MapScreen({ navigation }: Props) {
 
       {error ? (
         <View style={styles.aviso}>
-          <Text style={styles.avisoTexto}>Couldn't load services. Pull the wall to retry.</Text>
+          <Text style={styles.avisoTexto}>{t('mapa.error')}</Text>
         </View>
       ) : servicios.length === 0 ? (
         <View style={styles.aviso}>
-          <Text style={styles.avisoTexto}>
-            No services with a location yet.
-          </Text>
+          <Text style={styles.avisoTexto}>{t('mapa.vacio')}</Text>
         </View>
       ) : null}
 
@@ -99,7 +98,7 @@ export default function MapScreen({ navigation }: Props) {
             <Image
               source={{ uri: seleccionado.photos[0] }}
               style={styles.previewFoto}
-              accessibilityLabel={`Foto de ${seleccionado.title}`}
+              accessibilityLabel={t('comun.fotoDe', { nombre: seleccionado.title })}
             />
           ) : (
             <CategoryIcon category={seleccionado.category} size={52} />
@@ -109,7 +108,9 @@ export default function MapScreen({ navigation }: Props) {
               {seleccionado.title}
             </Text>
             <Text style={styles.previewMeta}>
-              {ubicacion ? `${formatearDistancia(distanciaKm(ubicacion, seleccionado.coords))} away · ` : ''}
+              {ubicacion
+                ? `${t('comun.aDistancia', { distancia: formatearDistancia(distanciaKm(ubicacion, seleccionado.coords)) })} · `
+                : ''}
               {seleccionado.requester.name}
             </Text>
           </View>

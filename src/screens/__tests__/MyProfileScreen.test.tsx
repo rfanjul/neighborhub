@@ -6,6 +6,7 @@ import { insignias } from '../../components/insignias';
 import { api } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue } from '../../test-utils/renderWithAuth';
+import { cambiarIdioma, idiomaActual } from '../../i18n';
 
 const mockNavigate = jest.fn();
 jest.mock('@react-navigation/native', () => ({
@@ -52,23 +53,40 @@ describe('insignias', () => {
   const conseguidas = (n: number) => insignias(n).filter((b) => b.conseguida).map((b) => b.titulo);
 
   it('el contador de ayudas siempre está', () => {
-    expect(conseguidas(0)).toEqual(['0 ayudas']);
-    expect(conseguidas(1)).toEqual(['1 ayuda']);
+    expect(conseguidas(0)).toEqual(['0 helps']);
+    expect(conseguidas(1)).toEqual(['1 help']);
   });
 
   it.each([
-    [10, ['10 ayudas']],
-    [11, ['11 ayudas', 'Amateur']],
-    [25, ['25 ayudas', 'Amateur']],
-    [26, ['26 ayudas', 'Amateur', 'Veterano']],
-    [50, ['50 ayudas', 'Amateur', 'Veterano']],
-    [51, ['51 ayudas', 'Amateur', 'Veterano', 'Ejemplar']],
+    [10, ['10 helps']],
+    [11, ['11 helps', 'Amateur']],
+    [25, ['25 helps', 'Amateur']],
+    [26, ['26 helps', 'Amateur', 'Veteran']],
+    [50, ['50 helps', 'Amateur', 'Veteran']],
+    [51, ['51 helps', 'Amateur', 'Veteran', 'Exemplary']],
   ])('con %i ayudas se consiguen %p', (n, esperadas) => {
     expect(conseguidas(n)).toEqual(esperadas);
   });
 });
 
 describe('MyProfileScreen', () => {
+  it('en ajustes se puede cambiar el idioma de la app', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await render(<MyProfileScreen />);
+
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    const cuenta = alerta.mock.calls.at(-1)![2]!;
+    await act(async () => cuenta.find((b) => b.text === 'Language')!.onPress!());
+
+    const idiomas = alerta.mock.calls.at(-1)![2]!.map((b) => b.text);
+    expect(idiomas).toEqual(['✓ English', 'Deutsch', 'Español', 'Cancel']);
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Deutsch')!.onPress!());
+
+    expect(idiomaActual()).toBe('de');
+    cambiarIdioma('en', { guardar: false });
+    alerta.mockRestore();
+  });
+
   it('ayudas y valoración llevan a mi lista de ayudas con sus reseñas', async () => {
     auth = authValue({ user: { uid: 'uid-1' } as never });
     (useAuth as jest.Mock).mockReturnValue(auth);
@@ -95,17 +113,17 @@ describe('MyProfileScreen', () => {
     mockedApi.countCompletedHelps.mockResolvedValue(12);
     await render(<MyProfileScreen />);
 
-    expect(await screen.findByText('12 ayudas')).toBeTruthy();
+    expect(await screen.findByText('12 helps')).toBeTruthy();
     expect(screen.getByText('12')).toBeTruthy();
     expect(screen.getByLabelText('Amateur')).toBeTruthy();
-    expect(screen.getByLabelText('Veterano, locked: Más de 25 ayudas')).toBeTruthy();
+    expect(screen.getByLabelText('Veteran, locked: More than 25 helps')).toBeTruthy();
   });
 
   it('si no se pueden contar, cero en vez de romperse', async () => {
     mockedApi.countCompletedHelps.mockRejectedValue(new Error('offline'));
     await render(<MyProfileScreen />);
 
-    expect(await screen.findByText('0 ayudas')).toBeTruthy();
+    expect(await screen.findByText('0 helps')).toBeTruthy();
   });
 
   it('enseña los datos reales del perfil', async () => {

@@ -39,6 +39,11 @@ jest.mock('./src/firebase/data', () => ({
   },
 }));
 
+// El idioma elegido se guarda en AsyncStorage; en test, su mock en memoria.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 // Las pantallas leen los márgenes seguros del dispositivo; en test no hay
 // dispositivo, así que se usa el mock que publica la propia librería.
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);

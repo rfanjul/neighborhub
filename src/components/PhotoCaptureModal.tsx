@@ -5,6 +5,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { colors, fonts, radii } from '../theme';
 import { CloseIcon } from '../icons';
 import PillButton from './PillButton';
+import { t } from '../i18n';
 
 type Props = {
   visible: boolean;
@@ -30,7 +31,7 @@ export default function PhotoCaptureModal({ visible, onClose, onCaptured }: Prop
       await onCaptured(photo.uri);
       onClose();
     } catch (e: any) {
-      Alert.alert("Couldn't update your photo", e?.message ?? 'Please try again.');
+      Alert.alert(t('foto.error'), e?.message ?? t('comun.errorInesperado'));
     } finally {
       setSaving(false);
     }
@@ -40,10 +41,10 @@ export default function PhotoCaptureModal({ visible, onClose, onCaptured }: Prop
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Pressable style={styles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
+          <Pressable style={styles.closeButton} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('comun.cerrar')}>
             <CloseIcon size={14} />
           </Pressable>
-          <Text style={styles.title}>Update photo</Text>
+          <Text style={styles.title}>{t('foto.titulo')}</Text>
           <View style={{ width: 30 }} />
         </View>
 
@@ -58,14 +59,14 @@ export default function PhotoCaptureModal({ visible, onClose, onCaptured }: Prop
 
         <View style={styles.footer}>
           {!permission?.granted ? (
-            <PillButton label="Allow camera access" onPress={requestPermission} style={{ width: '100%' }} />
+            <PillButton label={t('foto.permitir')} onPress={requestPermission} style={{ width: '100%' }} />
           ) : (
             <Pressable
               style={styles.shutter}
               onPress={handleCapture}
               disabled={saving}
               accessibilityRole="button"
-              accessibilityLabel="Take photo"
+              accessibilityLabel={t('foto.hacer')}
             >
               {saving && <ActivityIndicator color={colors.white} />}
             </Pressable>

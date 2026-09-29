@@ -9,6 +9,7 @@ import WallScreen from '../screens/WallScreen';
 import MapScreen from '../screens/MapScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import MyProfileScreen from '../screens/MyProfileScreen';
+import { t } from '../i18n';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -33,12 +34,12 @@ export default function MainTabs({ navigation }: Props) {
       <Tab.Screen
         name="HomeTab"
         component={WallScreen}
-        options={{ title: 'Home', tabBarIcon: ({ color }) => <HomeIcon color={color} /> }}
+        options={{ title: t('tabs.inicio'), tabBarIcon: ({ color }) => <HomeIcon color={color} /> }}
       />
       <Tab.Screen
         name="MapTab"
         component={MapScreen}
-        options={{ title: 'Map', tabBarIcon: ({ color }) => <MapIcon color={color} /> }}
+        options={{ title: t('tabs.mapa'), tabBarIcon: ({ color }) => <MapIcon color={color} /> }}
       />
       <Tab.Screen
         name="CreateTab"
@@ -61,12 +62,12 @@ export default function MainTabs({ navigation }: Props) {
       <Tab.Screen
         name="ActivityTab"
         component={ActivityScreen}
-        options={{ title: 'Activity', tabBarIcon: ({ color }) => <ChatIcon color={color} /> }}
+        options={{ title: t('tabs.actividad'), tabBarIcon: ({ color }) => <ChatIcon color={color} /> }}
       />
       <Tab.Screen
         name="ProfileTab"
         component={MyProfileScreen}
-        options={{ title: 'Profile', tabBarIcon: ({ color }) => <ProfileIcon color={color} /> }}
+        options={{ title: t('tabs.perfil'), tabBarIcon: ({ color }) => <ProfileIcon color={color} /> }}
       />
     </Tab.Navigator>
   );

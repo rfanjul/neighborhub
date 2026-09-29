@@ -5,6 +5,7 @@ import { colors, fonts } from '../theme';
 import { BackIcon } from '../icons';
 import Degradado from './Degradado';
 import LogoMark from './LogoMark';
+import { t } from '../i18n';
 
 /**
  * Cabecera con foto a sangre para las pantallas sin sesión: la foto se
@@ -42,7 +43,7 @@ export default function FotoCabecera({
       />
       <View style={[styles.arriba, { marginTop: margenes.top + 8 }]}>
         {onBack ? (
-          <Pressable style={styles.volver} onPress={onBack} accessibilityRole="button" accessibilityLabel="Back">
+          <Pressable style={styles.volver} onPress={onBack} accessibilityRole="button" accessibilityLabel={t('comun.atras')}>
             <BackIcon size={18} />
           </Pressable>
         ) : (

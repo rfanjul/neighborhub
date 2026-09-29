@@ -14,16 +14,9 @@ import PillButton from '../components/PillButton';
 import { mockServices, type ServiceRequest } from '../data/mock';
 import { api, type Application } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
+import { t } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
-
-const categoryLabel: Record<string, string> = {
-  painting: 'Painting',
-  dog: 'Dog walking',
-  groceries: 'Groceries',
-  moving: 'Moving',
-  other: 'Other',
-};
 
 type Accion = {
   label: string;
@@ -41,16 +34,16 @@ export function accionPrincipal(service: ServiceRequest, uid: string | null, miO
   if (uid && service.requesterId === uid) {
     // Pendiente de revisión aún no puede recibir ofertas: lo útil es editarlo.
     if (service.status === 'pending') {
-      return { label: 'Edit service', destino: 'CreateService', nota: 'Offers open once an admin approves it.' };
+      return { label: t('detalle.editar'), destino: 'CreateService', nota: t('detalle.enRevisionNota') };
     }
-    return { label: 'View offers', destino: 'ServiceOffers' };
+    return { label: t('detalle.verOfertas'), destino: 'ServiceOffers' };
   }
-  if (uid && service.helperId === uid) return { label: 'Open chat', destino: 'Chat' };
-  if (miOferta?.status === 'pending') return { label: 'Offer sent', nota: 'Waiting for the owner to choose.' };
-  if (miOferta?.status === 'rejected') return { label: 'Offer not selected', nota: 'The owner chose another neighbor.' };
-  if (service.status === 'approved') return { label: 'Apply to help', destino: 'Apply' };
-  if (service.status === 'pending') return { label: 'Waiting for review', nota: 'Offers open once an admin approves it.' };
-  return { label: 'No longer taking offers' };
+  if (uid && service.helperId === uid) return { label: t('comun.abrirChat'), destino: 'Chat' };
+  if (miOferta?.status === 'pending') return { label: t('detalle.ofertaEnviada'), nota: t('detalle.ofertaEnviadaNota') };
+  if (miOferta?.status === 'rejected') return { label: t('detalle.noElegida'), nota: t('detalle.noElegidaNota') };
+  if (service.status === 'approved') return { label: t('detalle.ofrecerse'), destino: 'Apply' };
+  if (service.status === 'pending') return { label: t('detalle.enRevision'), nota: t('detalle.enRevisionNota') };
+  return { label: t('detalle.cerrado') };
 }
 
 const statusColor: Record<string, { fondo: string; color: string }> = {
@@ -64,19 +57,10 @@ const statusColor: Record<string, { fondo: string; color: string }> = {
 
 /** "★ 4.8 (12) · replies in ~2h", sin valores vacíos. */
 export function resumenAutor(r: ServiceRequest['requester']): string {
-  const partes = [r.rating > 0 ? `★ ${r.rating}${r.ratingCount > 0 ? ` (${r.ratingCount})` : ''}` : 'No ratings yet'];
-  if (r.responseLabel && r.responseLabel !== '—') partes.push(`replies in ${r.responseLabel}`);
+  const partes = [r.rating > 0 ? `★ ${r.rating}${r.ratingCount > 0 ? ` (${r.ratingCount})` : ''}` : t('comun.sinValoraciones')];
+  if (r.responseLabel && r.responseLabel !== '—') partes.push(t('detalle.responde', { tiempo: r.responseLabel }));
   return partes.join(' · ');
 }
-
-const statusLabel: Record<string, string> = {
-  pending: 'Pending review',
-  approved: 'Approved',
-  accepted: 'Accepted',
-  in_progress: 'In progress',
-  completed: 'Completed',
-  rated: 'Rated',
-};
 
 export default function ServiceDetailScreen({ route, navigation }: Props) {
   const fallback = mockServices.find((s) => s.id === route.params.serviceId) ?? mockServices[0];
@@ -107,9 +91,9 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
   const ubicacion = useUbicacion();
   const distancia =
     service.coords && ubicacion
-      ? `${formatearDistancia(distanciaKm(ubicacion, service.coords))} away`
+      ? t('comun.aDistancia', { distancia: formatearDistancia(distanciaKm(ubicacion, service.coords)) })
       : service.distanceKm > 0
-        ? `${service.distanceKm} km away`
+        ? t('comun.aDistancia', { distancia: `${service.distanceKm} km` })
         : null;
 
   return (
@@ -129,7 +113,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                 source={{ uri }}
                 style={{ width: anchoPantalla, height: 260 }}
                 resizeMode="cover"
-                accessibilityLabel={`Foto de ${service.title}`}
+                accessibilityLabel={t('comun.fotoDe', { nombre: service.title })}
               />
             ))}
           </ScrollView>
@@ -138,7 +122,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
           style={[styles.backButton, { top: insets.top + 12 }]}
           onPress={() => navigation.goBack()}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={t('comun.atras')}
         >
           <BackIcon size={18} />
         </Pressable>
@@ -153,9 +137,9 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
 
       <ScrollView contentContainerStyle={styles.body}>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Chip label={categoryLabel[service.category]} background={colors.accentTint} color={colors.accentDark} />
+          <Chip label={t(`categorias.${service.category}`)} background={colors.accentTint} color={colors.accentDark} />
           <Chip
-            label={statusLabel[service.status]}
+            label={t(`estados.${service.status}`)}
             background={(statusColor[service.status] ?? statusColor.pending).fondo}
             color={(statusColor[service.status] ?? statusColor.pending).color}
           />
@@ -169,7 +153,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
           disabled={!verAutor}
           onPress={() => service.requesterId && navigation.navigate('NeighborProfile', { userId: service.requesterId })}
           accessibilityRole={verAutor ? 'button' : undefined}
-          accessibilityLabel={verAutor ? `See ${service.requester.name}'s profile` : undefined}
+          accessibilityLabel={verAutor ? t('comun.verPerfil', { nombre: service.requester.name }) : undefined}
         >
           <Avatar name={service.requester.name} photoURL={service.requester.photoURL} size={44} color={service.requester.avatarColor} />
           <View style={{ flex: 1 }}>
@@ -184,24 +168,24 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
         <View style={styles.infoList}>
           {service.durationLabel && service.durationLabel !== '—' ? (
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Duration</Text>
+              <Text style={styles.infoLabel}>{t('detalle.duracion')}</Text>
               <Text style={styles.infoValue}>{service.durationLabel}</Text>
             </View>
           ) : null}
           {service.credits > 0 && (
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Credits requested</Text>
+              <Text style={styles.infoLabel}>{t('detalle.creditos')}</Text>
               <Text style={[styles.infoValue, { color: colors.accentDark }]}>{service.credits} cr</Text>
             </View>
           )}
           {distancia ? (
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Location</Text>
+              <Text style={styles.infoLabel}>{t('detalle.ubicacion')}</Text>
               <Text style={styles.infoValue}>{distancia}</Text>
             </View>
           ) : null}
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Available</Text>
+            <Text style={styles.infoLabel}>{t('detalle.disponible')}</Text>
             <Text style={styles.infoValue}>{service.availableLabel}</Text>
           </View>
         </View>

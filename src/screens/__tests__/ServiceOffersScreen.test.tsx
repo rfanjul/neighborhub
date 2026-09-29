@@ -63,8 +63,8 @@ describe('ServiceOffersScreen', () => {
     expect(screen.getByLabelText('4.8 out of 5 stars')).toBeTruthy();
     expect(screen.getByText('27 helps · Trusted neighbor')).toBeTruthy();
     expect(screen.getByText('Amateur')).toBeTruthy();
-    expect(screen.getByText('Veterano')).toBeTruthy();
-    expect(screen.queryByText('Ejemplar')).toBeNull();
+    expect(screen.getByText('Veteran')).toBeTruthy();
+    expect(screen.queryByText('Exemplary')).toBeNull();
     expect(screen.getByText('Speaks German, Spanish')).toBeTruthy();
     expect(screen.getByText('Their offer')).toBeTruthy();
     expect(screen.getByText('“Soy Luis”')).toBeTruthy();
@@ -90,7 +90,7 @@ describe('ServiceOffersScreen', () => {
         ...oferta('eva', 'Eva'),
         applicant: perfil({
           name: 'Eva', bio: null, languages: null, rating: 0, ratingCount: 0, servicesCompleted: 1,
-          levelLabel: 'New neighbor', identityVerified: false,
+          level: 1, levelLabel: 'New neighbor', identityVerified: false,
         }),
       },
     ]);
@@ -214,7 +214,7 @@ describe('ServiceOffersScreen', () => {
     await fireEvent.press((await screen.findAllByText('Choose'))[0]);
     await confirmar(alerta, 'Choose');
 
-    await waitFor(() => expect(alerta).toHaveBeenCalledWith("Couldn't choose this offer", 'No tienes permiso para hacer esto.'));
+    await waitFor(() => expect(alerta).toHaveBeenCalledWith("Couldn't choose this offer", "You don't have permission to do this."));
     alerta.mockRestore();
   });
 

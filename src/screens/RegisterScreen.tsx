@@ -6,6 +6,7 @@ import { authErrorMessage } from '../auth/errors';
 import { Button, ErrorText, Input } from '../components/ui';
 import PantallaConFoto from '../components/PantallaConFoto';
 import { fotosBienvenida } from '../data/fotosBienvenida';
+import { t } from '../i18n';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -20,11 +21,11 @@ export default function RegisterScreen({ navigation }: Props) {
 
   const submit = async () => {
     if (!email.trim() || !password) {
-      setError('Escribe tu email y una contraseña.');
+      setError(t('registro.faltanDatos'));
       return;
     }
     if (password !== confirm) {
-      setError('Las contraseñas no coinciden.');
+      setError(t('registro.noCoinciden'));
       return;
     }
     setError(null);
@@ -41,17 +42,17 @@ export default function RegisterScreen({ navigation }: Props) {
   return (
     <PantallaConFoto
       foto={fotosBienvenida.registro}
-      titulo="Únete a tu barrio"
-      subtitulo="Pide ayuda, ofrece la tuya y conoce a quien vive al lado."
+      titulo={t('registro.titulo')}
+      subtitulo={t('registro.subtitulo')}
       onBack={() => navigation.goBack()}
     >
-      <Input placeholder="Nombre" autoCapitalize="words" textContentType="name" value={name} onChangeText={setName} />
-      <Input placeholder="Email" keyboardType="email-address" textContentType="emailAddress" value={email} onChangeText={setEmail} />
-      <Input placeholder="Contraseña (mínimo 6 caracteres)" secureTextEntry textContentType="newPassword" value={password} onChangeText={setPassword} />
-      <Input placeholder="Repite la contraseña" secureTextEntry textContentType="newPassword" value={confirm} onChangeText={setConfirm} onSubmitEditing={submit} />
+      <Input placeholder={t('registro.nombre')} autoCapitalize="words" textContentType="name" value={name} onChangeText={setName} />
+      <Input placeholder={t('registro.email')} keyboardType="email-address" textContentType="emailAddress" value={email} onChangeText={setEmail} />
+      <Input placeholder={t('registro.contrasena')} secureTextEntry textContentType="newPassword" value={password} onChangeText={setPassword} />
+      <Input placeholder={t('registro.repetir')} secureTextEntry textContentType="newPassword" value={confirm} onChangeText={setConfirm} onSubmitEditing={submit} />
       <ErrorText message={error} />
-      <Button title="Crear cuenta" onPress={submit} loading={loading} />
-      <Button title="Ya tengo cuenta" variant="link" onPress={() => navigation.replace('Login')} />
+      <Button title={t('registro.boton')} onPress={submit} loading={loading} />
+      <Button title={t('registro.yaTengo')} variant="link" onPress={() => navigation.replace('Login')} />
     </PantallaConFoto>
   );
 }

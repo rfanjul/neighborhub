@@ -1,8 +1,9 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { act, render, screen, waitFor } from '@testing-library/react-native';
 import RootNavigator from '../RootNavigator';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue } from '../../test-utils/renderWithAuth';
+import { cambiarIdioma } from '../../i18n';
 
 jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 jest.mock('../../auth/environment', () => ({ isExpoGo: false }));
@@ -42,15 +43,15 @@ describe('RootNavigator', () => {
   it('enseña el splash mientras Firebase restaura la sesión', async () => {
     await renderNavigator({ initializing: true });
 
-    expect(screen.getByLabelText('Cargando')).toBeTruthy();
+    expect(screen.getByLabelText('Loading')).toBeTruthy();
     expect(screen.queryByText('Neighborhub')).toBeNull();
   });
 
   it('sin sesión arranca en la pantalla de acceso', async () => {
     await renderNavigator({ initializing: false, user: null });
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy());
-    expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in with email' })).toBeTruthy());
+    expect(screen.getByRole('button', { name: 'Sign in with email' })).toBeTruthy();
   });
 
   it('con sesión y perfil completo entra directo a la app', async () => {
@@ -61,7 +62,7 @@ describe('RootNavigator', () => {
     });
 
     await waitFor(() => expect(screen.getByText('Home')).toBeTruthy());
-    expect(screen.queryByRole('button', { name: 'Entrar con email' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Sign in with email' })).toBeNull();
   });
 
   it('entra al muro aunque el perfil esté a medias: editarlo ya no es obligatorio', async () => {
@@ -92,7 +93,17 @@ describe('RootNavigator', () => {
     mockedUseAuth.mockReturnValue(authValue({ initializing: false, user: null, profile: null }));
     await view.rerender(<RootNavigator />);
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in with email' })).toBeTruthy());
     expect(screen.queryByText('Home')).toBeNull();
+  });
+
+  it('al cambiar de idioma lo repinta todo en el nuevo, en la misma pantalla', async () => {
+    await renderNavigator({ initializing: false, user: null });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign in with email' })).toBeTruthy());
+
+    await act(async () => cambiarIdioma('de', { guardar: false }));
+
+    expect(await screen.findByRole('button', { name: 'Mit E-Mail anmelden' })).toBeTruthy();
+    await act(async () => cambiarIdioma('en', { guardar: false }));
   });
 });

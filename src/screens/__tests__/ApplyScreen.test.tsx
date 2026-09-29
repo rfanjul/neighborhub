@@ -55,7 +55,7 @@ describe('ApplyScreen', () => {
     await fireEvent.changeText(screen.getByPlaceholderText(/When could you help/), 'Hola');
     await fireEvent.press(screen.getByText('Send offer'));
 
-    await waitFor(() => expect(alerta).toHaveBeenCalledWith("Couldn't send your offer", 'No tienes permiso para hacer esto.'));
+    await waitFor(() => expect(alerta).toHaveBeenCalledWith("Couldn't send your offer", "You don't have permission to do this."));
     expect(navigation.navigate).not.toHaveBeenCalled();
     alerta.mockRestore();
   });

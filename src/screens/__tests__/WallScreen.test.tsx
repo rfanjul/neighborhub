@@ -68,7 +68,7 @@ describe('WallScreen', () => {
 
     await fireEvent.changeText(screen.getByPlaceholderText('Search requests...'), 'fontanero');
 
-    expect(screen.getByText('No requests match "fontanero".')).toBeTruthy();
+    expect(screen.getByText('No requests match “fontanero”.')).toBeTruthy();
   });
 
   it('con el muro vacío invita a publicar en vez de hablar de búsquedas', async () => {

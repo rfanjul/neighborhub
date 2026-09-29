@@ -9,6 +9,7 @@ import type { ServiceRequest } from '../data/mock';
 import { api, type ChatMessage } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import { useAuth } from '../auth/AuthContext';
+import { t } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
@@ -30,7 +31,7 @@ export default function ChatScreen({ navigation, route }: Props) {
     return api.subscribeMessages(serviceId, setMensajes, (e) =>
       setError(
         (e as { code?: string }).code === 'permission-denied'
-          ? 'The chat opens once an offer has been selected.'
+          ? t('chat.cerrado')
           : dataErrorMessage(e)
       )
     );
@@ -55,14 +56,14 @@ export default function ChatScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Back">
+        <Pressable onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel={t('comun.atras')}>
           <BackIcon size={18} />
         </Pressable>
         <View style={styles.avatar} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{otraPersona}</Text>
           <Text style={styles.subtitle} numberOfLines={1}>
-            {servicio ? `Re: ${servicio.title}` : ''}
+            {servicio ? t('chat.sobre', { titulo: servicio.title }) : ''}
           </Text>
         </View>
       </View>
@@ -75,7 +76,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         >
           {error && <Text style={styles.error}>{error}</Text>}
           {!error && mensajes.length === 0 && (
-            <Text style={styles.vacio}>Say hi and agree on when and where to meet.</Text>
+            <Text style={styles.vacio}>{t('chat.vacio')}</Text>
           )}
           {mensajes.map((m) => (
             <View key={m.id} style={[styles.bubbleWrap, m.fromMe ? styles.bubbleWrapRight : styles.bubbleWrapLeft]}>
@@ -89,14 +90,14 @@ export default function ChatScreen({ navigation, route }: Props) {
         <View style={styles.inputBar}>
           <TextInput
             style={styles.input}
-            placeholder="Message..."
+            placeholder={t('chat.mensaje')}
             placeholderTextColor={colors.mutedLight}
             value={borrador}
             onChangeText={setBorrador}
             onSubmitEditing={enviar}
             returnKeyType="send"
           />
-          <Pressable style={styles.sendButton} onPress={enviar} accessibilityRole="button" accessibilityLabel="Send">
+          <Pressable style={styles.sendButton} onPress={enviar} accessibilityRole="button" accessibilityLabel={t('chat.enviar')}>
             <SendIcon size={18} />
           </Pressable>
         </View>

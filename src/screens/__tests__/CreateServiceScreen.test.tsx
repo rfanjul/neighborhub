@@ -172,7 +172,7 @@ describe('CreateServiceScreen', () => {
     await waitFor(() =>
       expect(alerta).toHaveBeenCalledWith(
         "Couldn't submit your service",
-        'No se pudo conectar con el servidor. Inténtalo de nuevo en un momento.'
+        "Couldn't reach the server. Please try again in a moment."
       )
     );
     expect(mockedApi.uploadServicePhoto).not.toHaveBeenCalled();
@@ -190,7 +190,7 @@ describe('CreateServiceScreen', () => {
     await fireEvent.press(screen.getByText('Submit for review'));
 
     await waitFor(() => expect(mockedApi.deleteServicePhoto).toHaveBeenCalledWith('https://storage/foto-1.jpg'));
-    expect(alerta2).toHaveBeenCalledWith("Couldn't submit your service", 'No tienes permiso para hacer esto.');
+    expect(alerta2).toHaveBeenCalledWith("Couldn't submit your service", "You don't have permission to do this.");
     alerta2.mockRestore();
   });
 });
@@ -266,7 +266,7 @@ describe('editar un servicio', () => {
 
     await fireEvent.press(screen.getByText('Save changes'));
 
-    await waitFor(() => expect(alerta2).toHaveBeenCalledWith("Couldn't save your changes", 'No tienes permiso para hacer esto.'));
+    await waitFor(() => expect(alerta2).toHaveBeenCalledWith("Couldn't save your changes", "You don't have permission to do this."));
     expect(mockedApi.deleteServicePhoto).toHaveBeenCalledWith('https://storage/nueva.jpg');
     expect(mockedApi.deleteServicePhoto).not.toHaveBeenCalledWith('https://storage/vieja-1.jpg');
     alerta.mockRestore();

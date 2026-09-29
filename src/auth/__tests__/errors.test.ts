@@ -1,5 +1,9 @@
 import { authErrorMessage } from '../errors';
 import { firebaseError } from '../../test-utils/firebaseError';
+import { cambiarIdioma } from '../../i18n';
+
+// Estos textos se comprueban en español.
+cambiarIdioma('es', { guardar: false });
 
 describe('authErrorMessage', () => {
   it.each([

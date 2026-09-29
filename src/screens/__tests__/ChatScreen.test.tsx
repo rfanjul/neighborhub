@@ -93,7 +93,7 @@ describe('ChatScreen', () => {
     await fireEvent.press(screen.getByLabelText('Send'));
 
     await waitFor(() => expect(screen.getByPlaceholderText('Message...').props.value).toBe('Hola'));
-    expect(screen.getByText(/No se pudo conectar/)).toBeTruthy();
+    expect(screen.getByText(/Couldn't reach the server/)).toBeTruthy();
   });
 
   it('sin oferta elegida explica por qué no hay chat', async () => {

@@ -101,7 +101,7 @@ describe('ServiceDetailScreen', () => {
     mockedApi.getService.mockResolvedValue(servicio({ requester: { ...servicio().requester, photoURL: 'https://ej/ana.jpg' } }));
     await renderDetalle();
 
-    expect((await screen.findByLabelText('Foto de Ana')).props.source).toEqual({ uri: 'https://ej/ana.jpg' });
+    expect((await screen.findByLabelText('Photo of Ana')).props.source).toEqual({ uri: 'https://ej/ana.jpg' });
   });
 
   it('sin duración ni distancia conocidas no enseña esas filas', async () => {
@@ -132,7 +132,7 @@ describe('ServiceDetailScreen', () => {
 
     expect(await screen.findByText('Montar un armario')).toBeTruthy();
     expect(screen.getByText('3 horas')).toBeTruthy();
-    expect(screen.getAllByLabelText('Foto de Montar un armario')).toHaveLength(2);
+    expect(screen.getAllByLabelText('Photo of Montar un armario')).toHaveLength(2);
   });
 
   it('sin créditos no enseña la fila de créditos', async () => {

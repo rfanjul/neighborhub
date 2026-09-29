@@ -18,6 +18,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ...config.ios,
     bundleIdentifier: 'com.app.neighborhub',
     usesAppleSignIn: true,
+    infoPlist: {
+      ...config.ios?.infoPlist,
+      // La app está en inglés, alemán y español: así iOS elige bien el idioma
+      // de lo nativo (botón de Apple, permisos) y deja cambiarlo en Ajustes.
+      CFBundleDevelopmentRegion: 'en',
+      CFBundleLocalizations: ['en', 'de', 'es'],
+    },
+  },
+  // Textos nativos (permisos y nombre) en cada idioma.
+  locales: {
+    en: './languages/en.json',
+    de: './languages/de.json',
+    es: './languages/es.json',
   },
   android: {
     ...config.android,
@@ -33,17 +46,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-camera',
       {
-        cameraPermission: 'Neighborhub usa la cámara para que te hagas la foto de perfil.',
+        cameraPermission: 'Neighborhub uses the camera for your profile photo and to take pictures of the help you need.',
         recordAudioAndroid: false,
       },
     ],
     [
       'expo-image-picker',
-      { photosPermission: 'Neighborhub usa tus fotos para que ilustres los servicios que publicas.' },
+      { photosPermission: 'Neighborhub uses your photos so you can illustrate the requests you post.' },
     ],
     [
       'expo-location',
-      { locationWhenInUsePermission: 'Neighborhub usa tu ubicación para mostrarte peticiones de ayuda cerca.' },
+      {
+        locationWhenInUsePermission:
+          'Neighborhub uses your location to show you requests for help nearby and to place yours on the map.',
+      },
     ],
     [
       'expo-splash-screen',

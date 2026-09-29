@@ -6,6 +6,7 @@ import { authErrorMessage } from '../auth/errors';
 import { Button, ErrorText, Input } from '../components/ui';
 import PantallaConFoto from '../components/PantallaConFoto';
 import { fotosBienvenida } from '../data/fotosBienvenida';
+import { t } from '../i18n';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -37,7 +38,7 @@ export default function LoginScreen({ navigation }: Props) {
 
   const submit = async () => {
     if (!email.trim() || !password) {
-      setError('Escribe tu email y tu contraseña.');
+      setError(t('entrar.faltanDatos'));
       return;
     }
     await entrar(email, password);
@@ -48,17 +49,17 @@ export default function LoginScreen({ navigation }: Props) {
   return (
     <PantallaConFoto
       foto={fotosBienvenida.entrar}
-      titulo="Hola de nuevo"
-      subtitulo="Entra y mira qué necesitan hoy tus vecinos."
+      titulo={t('entrar.titulo')}
+      subtitulo={t('entrar.subtitulo')}
       onBack={() => navigation.goBack()}
     >
-      <Input placeholder="Email" keyboardType="email-address" textContentType="emailAddress" value={email} onChangeText={setEmail} />
-      <Input placeholder="Contraseña" secureTextEntry textContentType="password" value={password} onChangeText={setPassword} onSubmitEditing={submit} />
+      <Input placeholder={t('entrar.email')} keyboardType="email-address" textContentType="emailAddress" value={email} onChangeText={setEmail} />
+      <Input placeholder={t('entrar.contrasena')} secureTextEntry textContentType="password" value={password} onChangeText={setPassword} onSubmitEditing={submit} />
       <ErrorText message={error} />
-      <Button title="Entrar" onPress={submit} loading={loading} />
-      <Button title="¿Olvidaste tu contraseña?" variant="link" onPress={() => navigation.navigate('ForgotPassword', { email })} />
-      <Button title="No tengo cuenta" variant="link" onPress={() => navigation.replace('Register')} />
-      {demo && <Button title="Entrar con la cuenta demo" variant="secondary" onPress={() => entrar(demo.email, demo.password)} />}
+      <Button title={t('entrar.boton')} onPress={submit} loading={loading} />
+      <Button title={t('entrar.olvidada')} variant="link" onPress={() => navigation.navigate('ForgotPassword', { email })} />
+      <Button title={t('entrar.sinCuenta')} variant="link" onPress={() => navigation.replace('Register')} />
+      {demo && <Button title={t('entrar.demo')} variant="secondary" onPress={() => entrar(demo.email, demo.password)} />}
     </PantallaConFoto>
   );
 }

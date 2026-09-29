@@ -1,4 +1,8 @@
 import { dataErrorMessage } from '../errors';
+import { cambiarIdioma } from '../../i18n';
+
+// Estos textos se comprueban en español.
+cambiarIdioma('es', { guardar: false });
 
 const conCodigo = (code: string, message = 'raw') => Object.assign(new Error(message), { code });
 

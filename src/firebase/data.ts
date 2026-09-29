@@ -25,6 +25,7 @@ import {
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { auth, db } from './index';
 import type { ServiceCategory, ServiceRequest } from '../data/mock';
+import { t } from '../i18n';
 
 const storage = getStorage();
 
@@ -266,7 +267,7 @@ export const api = {
   async getMe(): Promise<ApiUserProfile> {
     const uid = currentUid();
     const snap = await getDoc(doc(db, 'users', uid));
-    if (!snap.exists()) throw new Error('Profile not found — try signing in again.');
+    if (!snap.exists()) throw new Error(t('erroresDatos.perfilNoEncontrado'));
     return profileFromDoc(uid, snap.data());
   },
 
@@ -350,7 +351,7 @@ export const api = {
 
   async getService(id: string): Promise<ServiceRequest> {
     const snap = await getDoc(doc(db, 'helpRequests', id));
-    if (!snap.exists()) throw new Error('Service not found');
+    if (!snap.exists()) throw new Error(t('erroresDatos.servicioNoEncontrado'));
     const [servicio] = await conAutores([serviceFromDoc(snap.id, snap.data())]);
     return servicio;
   },
@@ -427,15 +428,15 @@ export const api = {
    */
   async rateHelper(serviceId: string, rating: number, comment: string): Promise<void> {
     const uid = currentUid();
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error('Choose between 1 and 5 stars');
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error(t('erroresDatos.notaInvalida'));
     await runTransaction(db, async (tx) => {
       const servicioRef = doc(db, 'helpRequests', serviceId);
       const snap = await tx.get(servicioRef);
-      if (!snap.exists()) throw new Error('Service not found');
+      if (!snap.exists()) throw new Error(t('erroresDatos.servicioNoEncontrado'));
       const servicio = snap.data();
-      if (servicio.requesterId !== uid) throw new Error('Only the owner can rate this help');
+      if (servicio.requesterId !== uid) throw new Error(t('erroresDatos.soloDueno'));
       if (!servicio.helperId || !['accepted', 'in_progress', 'completed'].includes(servicio.status)) {
-        throw new Error('This service is not ready to be rated');
+        throw new Error(t('erroresDatos.noListo'));
       }
       const ayudanteRef = doc(db, 'users', servicio.helperId);
       const ayudante = (await tx.get(ayudanteRef)).data() ?? {};
@@ -490,11 +491,11 @@ export const api = {
   async applyToService(serviceId: string, comment: string): Promise<Application> {
     const uid = currentUid();
     const [me, snap] = await Promise.all([api.getMe(), getDoc(doc(db, 'helpRequests', serviceId))]);
-    if (!snap.exists()) throw new Error('Service not found');
+    if (!snap.exists()) throw new Error(t('erroresDatos.servicioNoEncontrado'));
     const servicio = snap.data();
-    if (servicio.status !== 'approved') throw new Error('Only approved services accept offers');
+    if (servicio.status !== 'approved') throw new Error(t('erroresDatos.soloAprobados'));
     const requesterId = servicio.requesterId;
-    if (requesterId === uid) throw new Error("You can't make an offer on your own service");
+    if (requesterId === uid) throw new Error(t('erroresDatos.propio'));
     const id = `${serviceId}_${uid}`;
     const datos = {
       serviceId,
@@ -544,7 +545,7 @@ export const api = {
   async selectApplicant(serviceId: string, applicationId: string): Promise<void> {
     const ofertas = await api.listApplicationsForService(serviceId);
     const elegida = ofertas.find((o) => o.id === applicationId);
-    if (!elegida) throw new Error('Offer not found');
+    if (!elegida) throw new Error(t('erroresDatos.ofertaNoEncontrada'));
     const lote = writeBatch(db);
     lote.update(doc(db, 'helpRequests', serviceId), {
       status: 'accepted',

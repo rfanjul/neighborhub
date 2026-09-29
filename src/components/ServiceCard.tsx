@@ -5,11 +5,14 @@ import CategoryIcon from './CategoryIcon';
 import Avatar from './Avatar';
 import type { ServiceRequest } from '../data/mock';
 import { distanciaKm, formatearDistancia, type Coordenadas } from '../geo/distancia';
+import { t } from '../i18n';
 
 /** Distancia real si hay coordenadas y ubicación; si no, la guardada; si tampoco, nada. */
 function textoDistancia(service: ServiceRequest, ubicacion?: Coordenadas | null): string | null {
-  if (service.coords && ubicacion) return `${formatearDistancia(distanciaKm(ubicacion, service.coords))} away`;
-  if (service.distanceKm > 0) return `${service.distanceKm} km away`;
+  if (service.coords && ubicacion) {
+    return t('comun.aDistancia', { distancia: formatearDistancia(distanciaKm(ubicacion, service.coords)) });
+  }
+  if (service.distanceKm > 0) return t('comun.aDistancia', { distancia: `${service.distanceKm} km` });
   return null;
 }
 
@@ -32,7 +35,7 @@ export default function ServiceCard({
           source={{ uri: service.photos[0] }}
           style={styles.cover}
           resizeMode="cover"
-          accessibilityLabel={`Foto de ${service.title}`}
+          accessibilityLabel={t('comun.fotoDe', { nombre: service.title })}
         />
       )}
       <View style={styles.cuerpo}>
@@ -57,7 +60,7 @@ export default function ServiceCard({
           </View>
           {service.status === 'pending' && (
             <View style={styles.pendingChip}>
-              <Text style={styles.pendingLabel}>Pending review</Text>
+              <Text style={styles.pendingLabel}>{t('estados.pending')}</Text>
             </View>
           )}
           {/* Quien publica ya no fija créditos: sin cifra no se enseña "0 cr". */}

@@ -74,7 +74,7 @@ describe('MapScreen', () => {
 
     await fireEvent.press(await screen.findByTestId('marcador-cerca'));
 
-    expect(screen.getByLabelText('Foto de Pintar pared').props.source).toEqual({ uri: 'https://ej/pared.jpg' });
+    expect(screen.getByLabelText('Photo of Pintar pared').props.source).toEqual({ uri: 'https://ej/pared.jpg' });
   });
 
   it('al tocar un marcador enseña el servicio con su distancia y lleva al detalle', async () => {
