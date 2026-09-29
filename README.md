@@ -167,6 +167,26 @@ si no, el mapa nativo de Apple. Para activarlo:
    (`npx eas-cli env:create --name GOOGLE_MAPS_IOS_API_KEY ...`).
 4. Build nuevo: el SDK de Google Maps va dentro del binario.
 
+## Datos de prueba
+
+`scripts/seed.js` crea 10 vecinos de Zúrich con 3 servicios **aprobados**
+cada uno (título, descripción, categoría, fotos, GPS, duración, disponibilidad,
+autor con foto y valoración). Todo lleva `seed: true` y ids `seed-…`.
+
+Usa el Admin SDK, que se salta las reglas, así que necesita credenciales de
+administrador. En Firebase Console → ⚙️ Configuración del proyecto → Cuentas de
+servicio → **Generar nueva clave privada**, guárdala como
+`service-account.json` en la raíz (está en `.gitignore`, nunca la subas) y:
+
+```bash
+npm run seed         # crea o actualiza (idempotente)
+npm run seed:clean   # borra solo lo sembrado, más sus ofertas y mensajes
+```
+
+También vale `GOOGLE_APPLICATION_CREDENTIALS=/ruta/clave.json` o, contra el
+emulador, `FIRESTORE_EMULATOR_HOST=localhost:8180`. Los vecinos de prueba
+son solo perfiles de Firestore, no cuentas con las que se pueda iniciar sesión.
+
 ## Reglas de seguridad
 
 `firestore.rules` y `storage.rules` son las que hay que publicar en la

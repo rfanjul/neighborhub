@@ -52,3 +52,6 @@ firebase-debug.log
 firestore-debug.log
 storage-debug.log
 ui-debug.log
+
+# clave de cuenta de servicio para scripts/seed.js
+service-account.json
