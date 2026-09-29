@@ -5,7 +5,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore';
 
 let env: RulesTestEnvironment;
 
@@ -581,5 +581,30 @@ describe('reseñas', () => {
     await assertFails(getDoc(doc(anonimo(), 'reviews/s1')));
     await assertFails(updateDoc(doc(como('ana'), 'reviews/s1'), { rating: 1 }));
     await assertFails(deleteDoc(doc(como('ana'), 'reviews/s1')));
+  });
+});
+
+describe('mensajes de contacto', () => {
+  const mensaje = (cambios: object = {}) => ({
+    tipo: 'problema', nombre: 'Ana', email: 'ana@example.com', mensaje: 'La app se cierra al abrir el mapa',
+    referencia: '', origen: 'web', createdAt: serverTimestamp(), ...cambios,
+  });
+
+  it('cualquiera, incluso sin sesión, envía un mensaje bien formado', async () => {
+    await assertSucceeds(addDoc(collection(anonimo(), 'contactMessages'), mensaje()));
+  });
+
+  it.each([
+    ['sin email válido', { email: 'no-es-un-email' }],
+    ['demasiado corto', { mensaje: 'hola' }],
+    ['de un tipo que no existe', { tipo: 'spam' }],
+    ['con campos de más', { admin: true }],
+  ])('rechaza un mensaje %s', async (_caso, cambios) => {
+    await assertFails(addDoc(collection(anonimo(), 'contactMessages'), mensaje(cambios)));
+  });
+
+  it('nadie los lee desde la app', async () => {
+    await sembrar('contactMessages/m1', mensaje({ createdAt: 1 }));
+    await assertFails(getDoc(doc(como('ana'), 'contactMessages/m1')));
   });
 });

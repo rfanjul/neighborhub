@@ -18,6 +18,17 @@
     "ui": {
       "enabled": false
     },
-    "singleProjectMode": true
+    "singleProjectMode": true,
+    "hosting": {
+      "port": 5050
+    }
+  },
+  "hosting": {
+    "public": "web",
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "ignore": [
+      "**/.*"
+    ]
   }
 }

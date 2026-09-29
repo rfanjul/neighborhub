@@ -170,6 +170,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Mensajes del formulario de contacto de la web: cualquiera puede
+    // escribir uno bien formado; nadie los lee desde fuera (se revisan en
+    // la consola de Firebase).
+    match /contactMessages/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['tipo', 'nombre', 'email', 'mensaje', 'referencia', 'origen', 'createdAt'])
+        && request.resource.data.tipo in ['pregunta', 'problema', 'reportar', 'borrar-cuenta', 'otro']
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 200
+        && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+[.][^@\\s]+$')
+        && request.resource.data.mensaje is string
+        && request.resource.data.mensaje.size() >= 10
+        && request.resource.data.mensaje.size() <= 3000
+        && request.resource.data.get('nombre', '').size() <= 100
+        && request.resource.data.get('referencia', '').size() <= 200
+        && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
+
     // Reseñas: una por servicio (id = servicio), de quien lo publicó a
     // quien le ayudó. Públicas para cualquiera con sesión.
     match /reviews/{serviceId} {
