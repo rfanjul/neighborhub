@@ -128,6 +128,23 @@ la app tiene que ser **https**:
 exp+login-demo://expo-development-client/?url=https%3A%2F%2F<subdominio>.exp.direct
 ```
 
+Si el túnel de Expo no arranca (`failed to start tunnel`, o en el log de
+ngrok `ERR_NGROK_108`), no es un fallo del proyecto: usa una cuenta de
+ngrok compartida por todos los usuarios de Expo y a veces llega a su
+límite de sesiones. Alternativa sin cuenta, con Cloudflare
+(`brew install cloudflared`):
+
+```bash
+cloudflared tunnel --url http://localhost:8085
+# copia la URL https://….trycloudflare.com que imprime y:
+EXPO_PACKAGER_PROXY_URL=https://….trycloudflare.com npx expo start --dev-client --port 8085
+```
+
+La URL para la app es entonces
+`exp+login-demo://expo-development-client/?url=<URL de cloudflare codificada>`.
+`EXPO_PACKAGER_PROXY_URL` hace que el manifiesto anuncie el bundle con esa
+dirección https en vez de la IP local.
+
 Con `http://` la app descarga el manifiesto pero no el bundle y sale
 "Could not connect to development server": iOS (App Transport Security)
 solo permite HTTP sin cifrar en la red local, no hacia un dominio de
