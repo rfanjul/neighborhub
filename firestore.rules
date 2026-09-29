@@ -1,11 +1,11 @@
 rules_version = '2';
 
-// Pegar en Firebase Console -> Firestore Database -> Rules -> Publish.
+// Se publican con `npm run rules:deploy` (o pegándolas en la consola).
 // Están cubiertas por rules/__tests__/firestore.rules.test.ts, que se ejecuta
 // contra el emulador con `npm run test:rules`.
 //
 // Siguen sin un rol de admin: la moderación (aprobar servicios, ajustar
-// créditos o valoraciones) se hace desde la consola o con el Admin SDK, que
+// créditos o verificar identidades) se hace desde la consola o con el Admin SDK, que
 // se saltan estas reglas.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -30,16 +30,38 @@ service cloud.firestore {
         && request.resource.data.rating == 0
         && request.resource.data.level == 1
         && request.resource.data.servicesCompleted == 0
+        && request.resource.data.get('ratingSum', 0) == 0
+        && request.resource.data.get('ratingCount', 0) == 0
         && request.resource.data.identityVerified == false;
 
-      // Cada uno edita solo sus datos personales. Créditos, valoración,
-      // nivel, estadísticas y verificación los mueve el servidor.
-      allow update: if signedIn()
-        && request.auth.uid == userId
-        && changedKeys().hasOnly([
-          'name', 'bio', 'dateOfBirth', 'city', 'postalCode', 'country',
-          'languages', 'onboardingCompleted', 'photoURL'
-        ]);
+      /**
+       * Quien recibe ayuda la valora: en la misma escritura crea la reseña
+       * (reviews/<servicio>, apuntada en lastReviewId) y suma esa nota y una
+       * ayuda más al perfil de quien ayudó. Una vez por servicio.
+       */
+      function recibeValoracion() {
+        let id = request.resource.data.lastReviewId;
+        let resena = getAfter(/databases/$(database)/documents/reviews/$(id)).data;
+        return request.auth.uid != userId
+          && changedKeys().hasOnly(['ratingSum', 'ratingCount', 'servicesCompleted', 'lastReviewId'])
+          && !exists(/databases/$(database)/documents/reviews/$(id))
+          && resena.reviewerId == request.auth.uid
+          && resena.revieweeId == userId
+          && request.resource.data.ratingCount == resource.data.get('ratingCount', 0) + 1
+          && request.resource.data.ratingSum == resource.data.get('ratingSum', 0) + resena.rating
+          && request.resource.data.servicesCompleted == resource.data.get('servicesCompleted', 0) + 1;
+      }
+
+      // Cada uno edita solo sus datos personales. Créditos, nivel y
+      // verificación los mueve el servidor; la valoración, las reseñas.
+      allow update: if signedIn() && (
+        (request.auth.uid == userId
+          && changedKeys().hasOnly([
+            'name', 'bio', 'dateOfBirth', 'city', 'postalCode', 'country',
+            'languages', 'onboardingCompleted', 'photoURL'
+          ]))
+        || recibeValoracion()
+      );
 
       allow delete: if false;
     }
@@ -54,8 +76,7 @@ service cloud.firestore {
       /** Transiciones permitidas una vez elegida la persona que ayuda. */
       function avanza(desde, hasta) {
         return (desde == 'accepted' && hasta in ['in_progress', 'completed'])
-          || (desde == 'in_progress' && hasta == 'completed')
-          || (desde == 'completed' && hasta == 'rated');
+          || (desde == 'in_progress' && hasta == 'completed');
       }
 
       allow read: if signedIn() && (
@@ -88,7 +109,16 @@ service cloud.firestore {
         // tocando solo el estado.
         ((isRequester() || isHelper())
           && avanza(resource.data.status, request.resource.data.status)
-          && changedKeys().hasOnly(['status', 'updatedAt']))
+          && changedKeys().hasOnly(['status', 'updatedAt'])) ||
+
+        // Quien publica lo da por terminado valorando a quien ayudó: pasa a
+        // valorado en la misma escritura que crea su reseña, y solo una vez.
+        (isRequester()
+          && resource.data.status in ['accepted', 'in_progress', 'completed']
+          && request.resource.data.status == 'rated'
+          && changedKeys().hasOnly(['status', 'updatedAt'])
+          && !exists(/databases/$(database)/documents/reviews/$(requestId))
+          && existsAfter(/databases/$(database)/documents/reviews/$(requestId)))
       );
 
       allow delete: if false;
@@ -138,6 +168,38 @@ service cloud.firestore {
         && changedKeys().hasOnly(['status', 'updatedAt']);
 
       allow delete: if false;
+    }
+
+    // Reseñas: una por servicio (id = servicio), de quien lo publicó a
+    // quien le ayudó. Públicas para cualquiera con sesión.
+    match /reviews/{serviceId} {
+      function pedido() {
+        return get(/databases/$(database)/documents/helpRequests/$(serviceId)).data;
+      }
+
+      allow read: if signedIn();
+
+      // Solo al cerrar el servicio (pasa a valorado) y sumando la nota al
+      // perfil de quien ayudó, todo en la misma escritura.
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'serviceId', 'serviceTitle', 'reviewerId', 'reviewerName', 'reviewerPhotoURL',
+          'revieweeId', 'rating', 'comment', 'createdAt'
+        ])
+        && request.resource.data.serviceId == serviceId
+        && request.resource.data.reviewerId == request.auth.uid
+        && pedido().requesterId == request.auth.uid
+        && pedido().helperId == request.resource.data.revieweeId
+        && pedido().status in ['accepted', 'in_progress', 'completed']
+        && getAfter(/databases/$(database)/documents/helpRequests/$(serviceId)).data.status == 'rated'
+        && getAfter(/databases/$(database)/documents/users/$(request.resource.data.revieweeId)).data.lastReviewId == serviceId
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() <= 500;
+
+      allow update, delete: if false;
     }
   }
 }

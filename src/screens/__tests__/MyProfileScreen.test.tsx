@@ -1,7 +1,8 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import MyProfileScreen, { insignias } from '../MyProfileScreen';
+import MyProfileScreen from '../MyProfileScreen';
+import { insignias } from '../../components/insignias';
 import { api } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue } from '../../test-utils/renderWithAuth';

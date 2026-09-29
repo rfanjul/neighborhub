@@ -2,7 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import ServiceOffersScreen from '../ServiceOffersScreen';
-import { api, type Application } from '../../firebase/data';
+import { api, type Application, type ApiUserProfile } from '../../firebase/data';
 import { servicio } from '../../test-utils/servicio';
 
 jest.mock('@react-navigation/native', () => ({
@@ -21,6 +21,30 @@ const oferta = (id: string, nombre: string, status: Application['status'] = 'pen
   requesterId: 'ana',
   comment: `Soy ${nombre}`,
   status,
+});
+
+const perfil = (cambios: Partial<ApiUserProfile> = {}): ApiUserProfile => ({
+  id: 'luis',
+  name: 'Luis',
+  email: 'luis@example.com',
+  bio: 'Carpintero jubilado, tengo de todo en el taller.',
+  dateOfBirth: null,
+  city: 'Zürich',
+  postalCode: null,
+  country: null,
+  languages: 'German, Spanish',
+  credits: 0,
+  level: 3,
+  levelLabel: 'Trusted neighbor',
+  servicesCompleted: 27,
+  rating: 4.8,
+  ratingCount: 21,
+  responseLabel: '< 1h',
+  identityVerified: true,
+  onboardingCompleted: true,
+  hasPhoto: false,
+  photoURL: null,
+  ...cambios,
 });
 
 async function renderOfertas() {
@@ -52,6 +76,61 @@ describe('ServiceOffersScreen', () => {
     expect(screen.getByText('2 offers')).toBeTruthy();
   });
 
+  it('cada oferta enseña quién es: valoración, ayudas, insignias, idiomas y bio', async () => {
+    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil() }]);
+    await renderOfertas();
+
+    expect(await screen.findByText('Carpintero jubilado, tengo de todo en el taller.')).toBeTruthy();
+    expect(screen.getByText('✓ Verified')).toBeTruthy();
+    expect(screen.getByText('4.8 · 21 ratings')).toBeTruthy();
+    expect(screen.getByLabelText('4.8 out of 5 stars')).toBeTruthy();
+    expect(screen.getByText('27 helps · Trusted neighbor')).toBeTruthy();
+    expect(screen.getByText('Amateur')).toBeTruthy();
+    expect(screen.getByText('Veterano')).toBeTruthy();
+    expect(screen.queryByText('Ejemplar')).toBeNull();
+    expect(screen.getByText('Speaks German, Spanish')).toBeTruthy();
+    expect(screen.getByText('Their offer')).toBeTruthy();
+    expect(screen.getByText('“Soy Luis”')).toBeTruthy();
+  });
+
+  it('un vecino nuevo sale sin valoraciones, sin insignias ni bio', async () => {
+    mockedApi.listApplicationsForService.mockResolvedValue([
+      {
+        ...oferta('eva', 'Eva'),
+        applicant: perfil({
+          name: 'Eva', bio: null, languages: null, rating: 0, ratingCount: 0, servicesCompleted: 1,
+          levelLabel: 'New neighbor', identityVerified: false,
+        }),
+      },
+    ]);
+    await renderOfertas();
+
+    expect(await screen.findByText('No ratings yet')).toBeTruthy();
+    expect(screen.getByText('1 help · New neighbor')).toBeTruthy();
+    expect(screen.queryByText('✓ Verified')).toBeNull();
+    expect(screen.queryByText(/Speaks/)).toBeNull();
+    expect(screen.queryByText('Amateur')).toBeNull();
+  });
+
+  it('con valoración antigua sin reseñas enseña la nota sin contarlas', async () => {
+    mockedApi.listApplicationsForService.mockResolvedValue([
+      { ...oferta('luis', 'Luis'), applicant: perfil({ rating: 4.5, ratingCount: 0, servicesCompleted: 0 }) },
+    ]);
+    await renderOfertas();
+
+    expect(await screen.findByText('4.5')).toBeTruthy();
+    expect(screen.getByText('0 helps · Trusted neighbor')).toBeTruthy();
+  });
+
+  it('una sola reseña se dice en singular', async () => {
+    mockedApi.listApplicationsForService.mockResolvedValue([
+      { ...oferta('luis', 'Luis'), applicant: perfil({ rating: 5, ratingCount: 1 }) },
+    ]);
+    await renderOfertas();
+
+    expect(await screen.findByText('5.0 · 1 rating')).toBeTruthy();
+  });
+
   it('elegir una pide confirmación y la selecciona', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await renderOfertas();
@@ -78,24 +157,51 @@ describe('ServiceOffersScreen', () => {
     expect(navigation.navigate).toHaveBeenCalledWith('Chat', { serviceId: 's1' });
   });
 
-  it('se marca como completado tras confirmar', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('marcar como completado lleva a valorar a quien ayudó', async () => {
     mockedApi.getService.mockResolvedValue(servicio({ status: 'accepted', helperId: 'luis', helperName: 'Luis' }));
-    await renderOfertas();
+    const navigation = await renderOfertas();
 
     await fireEvent.press(await screen.findByText('Mark as completed'));
-    await confirmar(alerta, 'Completed');
 
-    expect(mockedApi.completeService).toHaveBeenCalledWith('s1');
-    alerta.mockRestore();
+    expect(navigation.navigate).toHaveBeenCalledWith('RateHelper', { serviceId: 's1' });
   });
 
-  it('completado ya no deja completarlo otra vez', async () => {
+  it('si quien ayudó ya lo marcó como hecho, falta mi valoración', async () => {
     mockedApi.getService.mockResolvedValue(servicio({ status: 'completed', helperId: 'luis', helperName: 'Luis' }));
-    await renderOfertas();
+    const navigation = await renderOfertas();
 
     expect(await screen.findByText('Completed with Luis')).toBeTruthy();
     expect(screen.queryByText('Mark as completed')).toBeNull();
+    await fireEvent.press(screen.getByText('Rate Luis'));
+
+    expect(navigation.navigate).toHaveBeenCalledWith('RateHelper', { serviceId: 's1' });
+  });
+
+  it('ya valorado enseña mi valoración y no deja repetirla', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ status: 'rated', helperId: 'luis', helperName: 'Luis' }));
+    mockedApi.getReview.mockResolvedValue({
+      serviceId: 's1', reviewerId: 'ana', reviewerName: 'Ana', revieweeId: 'luis', rating: 4, comment: 'Muy puntual',
+    });
+    await renderOfertas();
+
+    expect(await screen.findByText('Your rating')).toBeTruthy();
+    expect(screen.getByLabelText('4 out of 5 stars')).toBeTruthy();
+    expect(screen.getByText('“Muy puntual”')).toBeTruthy();
+    expect(screen.queryByText('Rate Luis')).toBeNull();
+    expect(screen.queryByText('Mark as completed')).toBeNull();
+  });
+
+  it('valorado sin comentario, o si la reseña no se puede leer, no rompe', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ status: 'rated', helperId: 'luis', helperName: 'Luis' }));
+    mockedApi.getReview.mockResolvedValueOnce({
+      serviceId: 's1', reviewerId: 'ana', reviewerName: 'Ana', revieweeId: 'luis', rating: 5, comment: '',
+    });
+    await renderOfertas();
+    expect(await screen.findByText('Your rating')).toBeTruthy();
+
+    mockedApi.getReview.mockRejectedValueOnce(new Error('sin red'));
+    await renderOfertas();
+    expect((await screen.findAllByText('Completed with Luis')).length).toBeGreaterThan(0);
   });
 
   it('pendiente de revisión explica que aún no llegan ofertas', async () => {

@@ -205,6 +205,10 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
     const uid = `seed-user-${String(i + 1).padStart(2, '0')}`;
     const email = `${v.nombre.toLowerCase().replace(/[^a-z]+/g, '.')}@example.com`;
     const photoURL = avatar(v.nombre);
+    // Una reseña por ayuda: la media sale de la suma, como en la app.
+    const ratingCount = v.ayudas;
+    const ratingSum = Math.round(v.valoracion * ratingCount);
+    const rating = Math.round((ratingSum / ratingCount) * 10) / 10;
     usuarios.push({
       id: uid,
       data: {
@@ -220,7 +224,9 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
         level: v.nivel,
         levelLabel: niveles[v.nivel],
         servicesCompleted: v.ayudas,
-        rating: v.valoracion,
+        rating,
+        ratingSum,
+        ratingCount,
         responseLabel: v.respuesta,
         identityVerified: v.verificada,
         onboardingCompleted: true,
@@ -247,7 +253,7 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
           status: 'approved',
           requesterId: uid,
           requesterName: v.nombre,
-          requesterRating: v.valoracion,
+          requesterRating: rating,
           requesterResponseLabel: v.respuesta,
           requesterPhotoURL: photoURL,
           helperId: null,

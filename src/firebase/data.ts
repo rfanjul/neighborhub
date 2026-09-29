@@ -16,6 +16,7 @@ import {
   orderBy,
   serverTimestamp,
   writeBatch,
+  runTransaction,
   onSnapshot,
 } from '@firebase/firestore';
 // Storage has no React Native-specific build, but unlike Firestore it
@@ -39,6 +40,18 @@ export type Application = {
   requesterId: string;
   comment: string;
   status: ApplicationStatus;
+  /** Perfil de quien oferta, para decidir a quién elegir. Solo en las recibidas. */
+  applicant?: ApiUserProfile | null;
+};
+
+/** Valoración de quien publicó a quien le ayudó; una por servicio. */
+export type Review = {
+  serviceId: string;
+  reviewerId: string;
+  reviewerName: string;
+  revieweeId: string;
+  rating: number;
+  comment: string;
 };
 
 export type ChatMessage = {
@@ -81,7 +94,10 @@ export type ApiUserProfile = {
   level: number;
   levelLabel: string;
   servicesCompleted: number;
+  /** Media de las reseñas recibidas, con un decimal. */
   rating: number;
+  /** Cuántas reseñas hay detrás de esa media. */
+  ratingCount: number;
   responseLabel: string;
   identityVerified: boolean;
   onboardingCompleted: boolean;
@@ -122,6 +138,15 @@ export async function ensureUserDocument(uid: string, defaults: { name: string; 
   });
 }
 
+/**
+ * Media de las reseñas (ratingSum / ratingCount) con un decimal. Los perfiles
+ * sin reseñas conservan el campo rating que tuvieran.
+ */
+export function valoracionMedia(d: any): number {
+  if (d?.ratingCount > 0) return Math.round((d.ratingSum / d.ratingCount) * 10) / 10;
+  return d?.rating ?? 0;
+}
+
 function profileFromDoc(id: string, d: any): ApiUserProfile {
   return {
     id,
@@ -137,7 +162,8 @@ function profileFromDoc(id: string, d: any): ApiUserProfile {
     level: d.level ?? 1,
     levelLabel: d.levelLabel ?? 'New neighbor',
     servicesCompleted: d.servicesCompleted ?? 0,
-    rating: d.rating ?? 0,
+    rating: valoracionMedia(d),
+    ratingCount: d.ratingCount ?? 0,
     responseLabel: d.responseLabel ?? '—',
     identityVerified: d.identityVerified ?? false,
     onboardingCompleted: d.onboardingCompleted ?? false,
@@ -173,7 +199,7 @@ async function conAutores(servicios: ServiceRequest[]): Promise<ServiceRequest[]
       requester: {
         ...s.requester,
         name: p.name ?? s.requester.name,
-        rating: p.rating ?? s.requester.rating,
+        rating: p.ratingCount > 0 ? valoracionMedia(p) : (p.rating ?? s.requester.rating),
         responseLabel: p.responseLabel ?? s.requester.responseLabel,
         photoURL: p.photoURL ?? s.requester.photoURL,
       },
@@ -221,6 +247,12 @@ export const api = {
     const snap = await getDoc(doc(db, 'users', uid));
     if (!snap.exists()) throw new Error('Profile not found — try signing in again.');
     return profileFromDoc(uid, snap.data());
+  },
+
+  /** Perfil de otro vecino, o null si no existe. */
+  async getUserProfile(uid: string): Promise<ApiUserProfile | null> {
+    const snap = await getDoc(doc(db, 'users', uid));
+    return snap.exists() ? profileFromDoc(uid, snap.data()) : null;
   },
 
   async updateMe(input: Partial<{
@@ -366,9 +398,62 @@ export const api = {
     return snap.docs.filter((d) => ['completed', 'rated'].includes(d.data().status)).length;
   },
 
-  /** Quien publica confirma que la ayuda ya está hecha. */
-  async completeService(id: string): Promise<void> {
-    await updateDoc(doc(db, 'helpRequests', id), { status: 'completed', updatedAt: serverTimestamp() });
+  /**
+   * Quien publica da la ayuda por hecha y valora a quien ayudó (1 a 5 y un
+   * comentario opcional). En una transacción: crea la reseña, suma la nota y
+   * una ayuda al perfil de quien ayudó y pasa el servicio a valorado. Las
+   * reglas comprueban que todo cuadra.
+   */
+  async rateHelper(serviceId: string, rating: number, comment: string): Promise<void> {
+    const uid = currentUid();
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new Error('Choose between 1 and 5 stars');
+    await runTransaction(db, async (tx) => {
+      const servicioRef = doc(db, 'helpRequests', serviceId);
+      const snap = await tx.get(servicioRef);
+      if (!snap.exists()) throw new Error('Service not found');
+      const servicio = snap.data();
+      if (servicio.requesterId !== uid) throw new Error('Only the owner can rate this help');
+      if (!servicio.helperId || !['accepted', 'in_progress', 'completed'].includes(servicio.status)) {
+        throw new Error('This service is not ready to be rated');
+      }
+      const ayudanteRef = doc(db, 'users', servicio.helperId);
+      const ayudante = (await tx.get(ayudanteRef)).data() ?? {};
+      const yo = (await tx.get(doc(db, 'users', uid))).data() ?? {};
+
+      tx.set(doc(db, 'reviews', serviceId), {
+        serviceId,
+        serviceTitle: servicio.title ?? '',
+        reviewerId: uid,
+        reviewerName: yo.name ?? 'Neighbor',
+        reviewerPhotoURL: yo.photoURL ?? null,
+        revieweeId: servicio.helperId,
+        rating,
+        comment: comment.trim(),
+        createdAt: serverTimestamp(),
+      });
+      tx.update(ayudanteRef, {
+        ratingSum: (ayudante.ratingSum ?? 0) + rating,
+        ratingCount: (ayudante.ratingCount ?? 0) + 1,
+        servicesCompleted: (ayudante.servicesCompleted ?? 0) + 1,
+        lastReviewId: serviceId,
+      });
+      tx.update(servicioRef, { status: 'rated', updatedAt: serverTimestamp() });
+    });
+  },
+
+  /** La reseña de un servicio, si ya se valoró. */
+  async getReview(serviceId: string): Promise<Review | null> {
+    const snap = await getDoc(doc(db, 'reviews', serviceId));
+    if (!snap.exists()) return null;
+    const d = snap.data();
+    return {
+      serviceId,
+      reviewerId: d.reviewerId,
+      reviewerName: d.reviewerName ?? 'Neighbor',
+      revieweeId: d.revieweeId,
+      rating: d.rating,
+      comment: d.comment ?? '',
+    };
   },
 
   /** Ofrecerse para un servicio aprobado, con un comentario para quien lo publicó. */
@@ -406,7 +491,19 @@ export const api = {
     const snap = await getDocs(
       query(collection(db, 'applications'), where('serviceId', '==', serviceId), where('requesterId', '==', currentUid()))
     );
-    return masNuevosPrimero(snap.docs).map((d) => applicationFromDoc(d.id, d.data()));
+    const ofertas = masNuevosPrimero(snap.docs).map((d) => applicationFromDoc(d.id, d.data()));
+    // Con el perfil de cada vecino: foto, bio, valoración, ayudas… Un perfil
+    // que no se pueda leer deja la oferta solo con el nombre.
+    return Promise.all(
+      ofertas.map(async (o) => {
+        try {
+          const perfil = await getDoc(doc(db, 'users', o.applicantId));
+          return { ...o, applicant: perfil.exists() ? profileFromDoc(o.applicantId, perfil.data()) : null };
+        } catch {
+          return { ...o, applicant: null };
+        }
+      })
+    );
   },
 
   /**

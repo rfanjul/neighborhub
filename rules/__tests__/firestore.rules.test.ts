@@ -429,3 +429,157 @@ describe('mensajes de un servicio', () => {
     await assertFails(deleteDoc(doc(como('ana'), 'helpRequests/s1/messages/m1')));
   });
 });
+
+describe('reseñas', () => {
+  const luis = { ...perfilInicial, name: 'Luis', email: 'luis@example.com', ratingSum: 8, ratingCount: 2, servicesCompleted: 2 };
+
+  beforeEach(async () => {
+    await sembrar('users/ana', perfilInicial);
+    await sembrar('users/luis', luis);
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis', helperName: 'Luis' }));
+  });
+
+  /** Lo que escribe la app al valorar: reseña, perfil de quien ayudó y servicio. */
+  function valorar(
+    uid: string,
+    {
+      nota = 4,
+      resena = {},
+      perfil = {},
+      servicioCambios = { status: 'rated' } as object | null,
+      tocarPerfil = true,
+    }: { nota?: number; resena?: object; perfil?: object; servicioCambios?: object | null; tocarPerfil?: boolean } = {}
+  ) {
+    const db = como(uid);
+    const lote = writeBatch(db);
+    lote.set(doc(db, 'reviews/s1'), {
+      serviceId: 's1',
+      serviceTitle: 'Pintar pared',
+      reviewerId: uid,
+      reviewerName: 'Ana',
+      reviewerPhotoURL: null,
+      revieweeId: 'luis',
+      rating: nota,
+      comment: 'Muy amable y puntual',
+      createdAt: 1,
+      ...resena,
+    });
+    if (tocarPerfil) {
+      lote.update(doc(db, 'users/luis'), {
+        ratingSum: 8 + nota,
+        ratingCount: 3,
+        servicesCompleted: 3,
+        lastReviewId: 's1',
+        ...perfil,
+      });
+    }
+    if (servicioCambios) lote.update(doc(db, 'helpRequests/s1'), servicioCambios);
+    return lote.commit();
+  }
+
+  it('quien publica valora a quien le ayudó y la nota se suma a su perfil', async () => {
+    await assertSucceeds(valorar('ana', { nota: 5 }));
+
+    const perfil = await getDoc(doc(como('marta'), 'users/luis'));
+    expect(perfil.data()).toMatchObject({ ratingSum: 13, ratingCount: 3, servicesCompleted: 3 });
+    expect((await getDoc(doc(como('ana'), 'helpRequests/s1'))).data()?.status).toBe('rated');
+  });
+
+  it('también cuando quien ayuda ya lo había marcado como completado', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'completed', helperId: 'luis' }));
+
+    await assertSucceeds(valorar('ana'));
+  });
+
+  it('el comentario es opcional', async () => {
+    await assertSucceeds(valorar('ana', { resena: { comment: '' } }));
+  });
+
+  it('solo se valora una vez por servicio', async () => {
+    await assertSucceeds(valorar('ana'));
+    await sembrar('helpRequests/s1', servicio({ status: 'completed', helperId: 'luis' }));
+
+    await assertFails(valorar('ana', { perfil: { ratingSum: 16, ratingCount: 4, servicesCompleted: 4 } }));
+  });
+
+  it.each([0, 6, 3.5])('la nota %s no vale: de 1 a 5 estrellas', async (nota) => {
+    await assertFails(valorar('ana', { nota }));
+  });
+
+  it('un comentario de más de 500 caracteres no vale', async () => {
+    await assertFails(valorar('ana', { resena: { comment: 'x'.repeat(501) } }));
+  });
+
+  it('quien ayuda no se valora a sí mismo', async () => {
+    await assertFails(valorar('luis', { resena: { reviewerId: 'luis' } }));
+  });
+
+  it('un extraño no valora un servicio ajeno', async () => {
+    await assertFails(valorar('marta'));
+  });
+
+  it('no se valora a alguien que no ayudó en ese servicio', async () => {
+    await sembrar('users/marta', { ...perfilInicial, name: 'Marta' });
+    const db = como('ana');
+    const lote = writeBatch(db);
+    lote.set(doc(db, 'reviews/s1'), {
+      serviceId: 's1', reviewerId: 'ana', revieweeId: 'marta', rating: 5, comment: '', createdAt: 1,
+    });
+    lote.update(doc(db, 'users/marta'), { ratingSum: 5, ratingCount: 1, servicesCompleted: 1, lastReviewId: 's1' });
+    lote.update(doc(db, 'helpRequests/s1'), { status: 'rated' });
+
+    await assertFails(lote.commit());
+  });
+
+  it('antes de elegir a nadie no hay nada que valorar', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+
+    await assertFails(valorar('ana'));
+  });
+
+  it('la suma del perfil tiene que cuadrar con la nota', async () => {
+    await assertFails(valorar('ana', { nota: 3, perfil: { ratingSum: 8 + 5 } }));
+    await assertFails(valorar('ana', { perfil: { ratingCount: 10 } }));
+    await assertFails(valorar('ana', { perfil: { servicesCompleted: 50 } }));
+  });
+
+  it('la reseña no se cuela sin sumarla al perfil', async () => {
+    await assertFails(valorar('ana', { tocarPerfil: false }));
+  });
+
+  it('ni sin cerrar el servicio', async () => {
+    await assertFails(valorar('ana', { servicioCambios: null }));
+  });
+
+  it('valorar no permite colar más cambios en el perfil', async () => {
+    await assertFails(valorar('ana', { perfil: { identityVerified: true } }));
+    await assertFails(valorar('ana', { perfil: { credits: 100 } }));
+  });
+
+  it('nadie se sube la valoración a mano', async () => {
+    await assertFails(updateDoc(doc(como('luis'), 'users/luis'), { ratingSum: 50, ratingCount: 10 }));
+    await assertFails(
+      updateDoc(doc(como('ana'), 'users/luis'), { ratingSum: 13, ratingCount: 3, servicesCompleted: 3, lastReviewId: 's1' })
+    );
+  });
+
+  it('un perfil no nace con valoraciones', async () => {
+    await assertFails(setDoc(doc(como('marta'), 'users/marta'), { ...perfilInicial, ratingSum: 50, ratingCount: 10 }));
+  });
+
+  it('un servicio no pasa a valorado sin reseña', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'completed', helperId: 'luis' }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'rated' }));
+    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'rated' }));
+  });
+
+  it('las reseñas las lee cualquiera con sesión, y no se editan ni se borran', async () => {
+    await assertSucceeds(valorar('ana'));
+
+    await assertSucceeds(getDoc(doc(como('marta'), 'reviews/s1')));
+    await assertFails(getDoc(doc(anonimo(), 'reviews/s1')));
+    await assertFails(updateDoc(doc(como('ana'), 'reviews/s1'), { rating: 1 }));
+    await assertFails(deleteDoc(doc(como('ana'), 'reviews/s1')));
+  });
+});

@@ -55,6 +55,10 @@ test('crea 10 vecinos y 30 servicios aprobados, visibles en el muro', async () =
 
   const perfil = await getDoc(doc(vecino(), 'users', 'seed-user-01'));
   expect(perfil.data()).toMatchObject({ name: 'Anna Weber', onboardingCompleted: true, city: 'Zürich' });
+  // La valoración cuadra con sus reseñas, para que las nuevas sumen bien.
+  const { rating, ratingSum, ratingCount, servicesCompleted } = perfil.data()!;
+  expect(ratingCount).toBe(servicesCompleted);
+  expect(rating).toBe(Math.round((ratingSum / ratingCount) * 10) / 10);
 });
 
 test('se puede sembrar dos veces sin duplicar', async () => {

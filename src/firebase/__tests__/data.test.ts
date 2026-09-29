@@ -82,6 +82,37 @@ jest.mock('@firebase/firestore', () => {
         },
       };
     },
+    // Como la real: lee, acumula las escrituras y las aplica todas o ninguna.
+    runTransaction: async (_db: unknown, fn: (tx: any) => Promise<void>) => {
+      const operaciones: Array<() => void> = [];
+      const tx = {
+        get: async (r: { path: string; id: string }) => ({
+          id: r.id,
+          exists: () => mockStore.has(r.path),
+          data: () => mockStore.get(r.path),
+        }),
+        set(r: { path: string }, data: Doc) {
+          validar(data);
+          operaciones.push(() => mockStore.set(r.path, { ...data }));
+        },
+        update(r: { path: string }, data: Doc) {
+          validar(data);
+          operaciones.push(() => {
+            if (!mockStore.has(r.path)) throw new Error('No document to update');
+            mockStore.set(r.path, { ...mockStore.get(r.path), ...data });
+          });
+        },
+      };
+      await fn(tx);
+      const copia = new Map(mockStore);
+      try {
+        operaciones.forEach((op) => op());
+      } catch (e) {
+        mockStore.clear();
+        copia.forEach((v, k) => mockStore.set(k, v));
+        throw e;
+      }
+    },
     onSnapshot: (q: { path: string; filtros: any[] }, next: (snap: any) => void) => {
       const prefijo = `${q.path}/`;
       const docs = [...mockStore.entries()]
@@ -220,6 +251,13 @@ describe('servicios', () => {
     expect(guardado.requesterPhotoURL).toBe('https://storage/ana.jpg');
   });
 
+  it('la valoración del autor es la media de sus reseñas', async () => {
+    mockStore.set('users/ana', { name: 'Ana', rating: 2, ratingSum: 14, ratingCount: 3 });
+    mockStore.set('helpRequests/s1', { ...servicioBase, status: 'approved', requesterId: 'ana', requesterRating: 1 });
+
+    expect((await api.getService('s1')).requester.rating).toBe(4.7);
+  });
+
   it('al leerlo usa el perfil actual del autor: foto y nombre nuevos, servicios viejos incluidos', async () => {
     mockStore.set('helpRequests/viejo', { ...servicioBase, status: 'approved', requesterId: 'luis', requesterName: 'Luis', createdAt: 1 });
     mockStore.set('users/luis', { name: 'Luis García', photoURL: 'https://storage/luis.jpg', rating: 4.5, responseLabel: '~1h' });
@@ -351,6 +389,15 @@ describe('ofertas', () => {
       expect((await api.listApplicationsForService('mio')).map((o) => o.applicantName)).toEqual(['Marta', 'Luis']);
     });
 
+    it('cada oferta trae el perfil de quien la hace, o null si no lo hay', async () => {
+      mockStore.set('users/luis', { name: 'Luis', bio: 'Tengo caja de herramientas', ratingSum: 9, ratingCount: 2, servicesCompleted: 12 });
+
+      const [marta, luis] = await api.listApplicationsForService('mio');
+
+      expect(luis.applicant).toMatchObject({ id: 'luis', bio: 'Tengo caja de herramientas', rating: 4.5, ratingCount: 2, servicesCompleted: 12 });
+      expect(marta.applicant).toBeNull();
+    });
+
     it('al elegir una, el servicio pasa a aceptado con esa persona y el resto se rechaza', async () => {
       await api.selectApplicant('mio', 'mio_luis');
 
@@ -371,11 +418,99 @@ describe('ofertas', () => {
       expect((await api.listMyServices()).map((s) => s.id)).toEqual(['mio2', 'mio']);
     });
 
-    it('marco un servicio como completado', async () => {
-      await api.completeService('mio');
+    describe('valorar a quien ayudó', () => {
+      beforeEach(() => {
+        mockStore.set('helpRequests/mio', { ...servicioBase, status: 'accepted', requesterId: 'uid-1', helperId: 'luis', helperName: 'Luis' });
+        mockStore.set('users/luis', { name: 'Luis', ratingSum: 8, ratingCount: 2, servicesCompleted: 2 });
+      });
 
-      expect(mockStore.get('helpRequests/mio')?.status).toBe('completed');
+      it('guarda la reseña, la suma al perfil de quien ayudó y cierra el servicio', async () => {
+        await api.rateHelper('mio', 5, '  Muy puntual  ');
+
+        expect(mockStore.get('reviews/mio')).toMatchObject({
+          serviceId: 'mio',
+          serviceTitle: 'Pintar pared',
+          reviewerId: 'uid-1',
+          reviewerName: 'Luis',
+          revieweeId: 'luis',
+          rating: 5,
+          comment: 'Muy puntual',
+        });
+        expect(mockStore.get('users/luis')).toMatchObject({ ratingSum: 13, ratingCount: 3, servicesCompleted: 3, lastReviewId: 'mio' });
+        expect(mockStore.get('helpRequests/mio')?.status).toBe('rated');
+        expect((await api.getUserProfile('luis'))?.rating).toBe(4.3);
+      });
+
+      it('también si quien ayudó ya lo había marcado como hecho', async () => {
+        mockStore.set('helpRequests/mio', { ...servicioBase, status: 'completed', requesterId: 'uid-1', helperId: 'luis' });
+
+        await api.rateHelper('mio', 4, '');
+
+        expect(mockStore.get('helpRequests/mio')?.status).toBe('rated');
+      });
+
+      it('un ayudante sin reseñas empieza a contar desde cero', async () => {
+        mockStore.set('users/luis', { name: 'Luis' });
+
+        await api.rateHelper('mio', 3, '');
+
+        expect(mockStore.get('users/luis')).toMatchObject({ ratingSum: 3, ratingCount: 1, servicesCompleted: 1 });
+      });
+
+      it.each([0, 6, 2.5])('no acepta %s estrellas y no escribe nada', async (nota) => {
+        await expect(api.rateHelper('mio', nota, '')).rejects.toThrow('between 1 and 5');
+
+        expect(mockStore.has('reviews/mio')).toBe(false);
+        expect(mockStore.get('helpRequests/mio')?.status).toBe('accepted');
+      });
+
+      it('solo valora quien publicó', async () => {
+        mockStore.set('helpRequests/mio', { ...servicioBase, status: 'accepted', requesterId: 'otro', helperId: 'luis' });
+
+        await expect(api.rateHelper('mio', 5, '')).rejects.toThrow('Only the owner');
+      });
+
+      it('sin nadie elegido no hay nada que valorar', async () => {
+        mockStore.set('helpRequests/mio', { ...servicioBase, status: 'approved', requesterId: 'uid-1' });
+
+        await expect(api.rateHelper('mio', 5, '')).rejects.toThrow('not ready');
+        expect(mockStore.has('reviews/mio')).toBe(false);
+      });
+
+      it('avisa si el servicio no existe', async () => {
+        await expect(api.rateHelper('no-existe', 5, '')).rejects.toThrow('Service not found');
+      });
+
+      it('si una escritura falla no queda nada a medias', async () => {
+        mockStore.delete('users/luis');
+
+        await expect(api.rateHelper('mio', 5, '')).rejects.toThrow('No document to update');
+        expect(mockStore.has('reviews/mio')).toBe(false);
+        expect(mockStore.get('helpRequests/mio')?.status).toBe('accepted');
+      });
+
+      it('la reseña se puede leer después; sin valorar no hay', async () => {
+        expect(await api.getReview('mio')).toBeNull();
+
+        await api.rateHelper('mio', 4, 'Genial');
+
+        expect(await api.getReview('mio')).toEqual({
+          serviceId: 'mio',
+          reviewerId: 'uid-1',
+          reviewerName: 'Luis',
+          revieweeId: 'luis',
+          rating: 4,
+          comment: 'Genial',
+        });
+      });
     });
+  });
+
+  it('el perfil de otro vecino, o null si no existe', async () => {
+    mockStore.set('users/marta', { name: 'Marta', rating: 4.8 });
+
+    expect(await api.getUserProfile('marta')).toMatchObject({ id: 'marta', name: 'Marta', rating: 4.8, ratingCount: 0 });
+    expect(await api.getUserProfile('nadie')).toBeNull();
   });
 
   it('cuenta las ayudas completadas, no las que siguen en curso', async () => {

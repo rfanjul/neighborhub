@@ -26,6 +26,8 @@ export type RootStackParamList = {
   Apply: { serviceId: string };
   /** Ofertas recibidas en un servicio propio: elegir, chatear, completar. */
   ServiceOffers: { serviceId: string };
+  /** Dar por hecha la ayuda valorando a quien ayudó (1 a 5 y comentario). */
+  RateHelper: { serviceId: string };
   Chat: { serviceId: string };
   /** Sin serviceId crea uno nuevo; con él, edita ese servicio. */
   CreateService: { serviceId?: string } | undefined;

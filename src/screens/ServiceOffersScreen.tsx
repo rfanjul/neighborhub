@@ -7,20 +7,77 @@ import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, shadow } from '../theme';
 import { BackIcon } from '../icons';
 import PillButton from '../components/PillButton';
+import Avatar from '../components/Avatar';
+import Stars from '../components/Stars';
 import type { ServiceRequest } from '../data/mock';
-import { api, type Application } from '../firebase/data';
+import { api, type Application, type ApiUserProfile, type Review } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
+import { insignias } from '../components/insignias';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceOffers'>;
 
+/** Quién es quien oferta: foto, valoración, ayudas, insignias, idiomas y bio. */
+function Ofertante({ nombre, perfil }: { nombre: string; perfil: ApiUserProfile | null | undefined }) {
+  if (!perfil) {
+    return (
+      <View style={styles.fila}>
+        <Avatar name={nombre} photoURL={null} size={48} />
+        <Text style={styles.nombre}>{nombre}</Text>
+      </View>
+    );
+  }
+  const ayudas = perfil.servicesCompleted;
+  const logradas = insignias(ayudas).filter((i) => i.clave !== 'ayudas' && i.conseguida);
+  return (
+    <View style={{ gap: 10 }}>
+      <View style={styles.fila}>
+        <Avatar name={perfil.name} photoURL={perfil.photoURL} size={48} />
+        <View style={{ flex: 1, gap: 3 }}>
+          <View style={styles.filaNombre}>
+            <Text style={styles.nombre}>{perfil.name}</Text>
+            {perfil.identityVerified && <Text style={styles.verificado}>✓ Verified</Text>}
+          </View>
+          {perfil.rating > 0 ? (
+            <View style={styles.filaNombre}>
+              <Stars value={perfil.rating} size={13} />
+              <Text style={styles.meta}>
+                {perfil.rating.toFixed(1)}
+                {perfil.ratingCount > 0 ? ` · ${perfil.ratingCount} ${perfil.ratingCount === 1 ? 'rating' : 'ratings'}` : ''}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.meta}>No ratings yet</Text>
+          )}
+          <Text style={styles.meta}>
+            {ayudas === 1 ? '1 help' : `${ayudas} helps`} · {perfil.levelLabel}
+          </Text>
+        </View>
+      </View>
+      {logradas.length > 0 && (
+        <View style={styles.insignias}>
+          {logradas.map((i) => (
+            <Text key={i.clave} style={[styles.insignia, { backgroundColor: i.fondo }]}>
+              {i.titulo}
+            </Text>
+          ))}
+        </View>
+      )}
+      {perfil.languages ? <Text style={styles.meta}>Speaks {perfil.languages}</Text> : null}
+      {perfil.bio ? <Text style={styles.bio}>{perfil.bio}</Text> : null}
+    </View>
+  );
+}
+
 /**
  * Ofertas recibidas en un servicio propio. Mientras está abierto se elige
- * una (solo una); después, se habla con esa persona y se marca como hecho.
+ * una (solo una); después, se habla con esa persona y, al terminar, se le
+ * valora, que es lo que da el servicio por completado.
  */
 export default function ServiceOffersScreen({ navigation, route }: Props) {
   const { serviceId } = route.params;
   const [servicio, setServicio] = useState<ServiceRequest | null>(null);
   const [ofertas, setOfertas] = useState<Application[]>([]);
+  const [resena, setResena] = useState<Review | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -28,6 +85,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
       const [s, o] = await Promise.all([api.getService(serviceId), api.listApplicationsForService(serviceId)]);
       setServicio(s);
       setOfertas(o);
+      setResena(s.status === 'rated' ? await api.getReview(serviceId).catch(() => null) : null);
     } catch (e) {
       Alert.alert("Couldn't load the offers", dataErrorMessage(e));
     }
@@ -59,29 +117,14 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     ]);
   };
 
-  const completar = () => {
-    Alert.alert('Mark as completed?', 'Confirm the help has been done.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Completed',
-        onPress: async () => {
-          setOcupado(true);
-          try {
-            await api.completeService(serviceId);
-            await cargar();
-          } catch (e) {
-            Alert.alert("Couldn't update the service", dataErrorMessage(e));
-          } finally {
-            setOcupado(false);
-          }
-        },
-      },
-    ]);
-  };
+  // Completar es valorar: la pantalla de valoración deja el servicio cerrado.
+  const valorar = () => navigation.navigate('RateHelper', { serviceId });
 
   const abierto = servicio?.status === 'approved';
   const enCurso = servicio?.status === 'accepted' || servicio?.status === 'in_progress';
   const terminado = servicio?.status === 'completed' || servicio?.status === 'rated';
+  // Quien ayudó ya lo marcó como hecho, pero falta mi valoración.
+  const porValorar = servicio?.status === 'completed';
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -123,14 +166,29 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
           <Text style={styles.elegidoTexto}>
             {terminado ? `Completed with ${servicio.helperName}` : `${servicio.helperName} is helping you`}
           </Text>
+          {resena && (
+            <View style={{ gap: 4 }}>
+              <View style={styles.filaNombre}>
+                <Text style={styles.meta}>Your rating</Text>
+                <Stars value={resena.rating} size={14} />
+              </View>
+              {resena.comment ? <Text style={styles.comentario}>“{resena.comment}”</Text> : null}
+            </View>
+          )}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <PillButton
               label="Open chat"
               onPress={() => navigation.navigate('Chat', { serviceId })}
               style={{ flex: 1 }}
             />
-            {enCurso && (
-              <PillButton label="Mark as completed" variant="outline" onPress={completar} style={{ flex: 1 }} disabled={ocupado} />
+            {(enCurso || porValorar) && (
+              <PillButton
+                label={enCurso ? 'Mark as completed' : `Rate ${servicio.helperName}`}
+                variant="outline"
+                onPress={valorar}
+                style={{ flex: 1 }}
+                disabled={ocupado}
+              />
             )}
           </View>
         </View>
@@ -145,8 +203,13 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
         }
         renderItem={({ item }) => (
           <View style={[styles.tarjeta, item.status === 'rejected' && { opacity: 0.55 }]}>
-            <Text style={styles.nombre}>{item.applicantName}</Text>
-            {item.comment ? <Text style={styles.comentario}>“{item.comment}”</Text> : null}
+            <Ofertante nombre={item.applicantName} perfil={item.applicant} />
+            {item.comment ? (
+              <View style={styles.oferta}>
+                <Text style={styles.etiquetaOferta}>Their offer</Text>
+                <Text style={styles.comentario}>“{item.comment}”</Text>
+              </View>
+            ) : null}
             {abierto ? (
               <PillButton label="Choose" onPress={() => elegir(item)} disabled={ocupado} />
             ) : (
@@ -185,7 +248,24 @@ const styles = StyleSheet.create({
   lista: { padding: 20, gap: 12 },
   vacio: { marginTop: 30, textAlign: 'center', fontFamily: fonts.body, fontSize: 14, color: colors.muted },
   tarjeta: { backgroundColor: colors.card, borderRadius: radii.lg, padding: 16, gap: 10, ...shadow },
+  fila: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  filaNombre: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   nombre: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
+  verificado: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.green },
+  meta: { fontFamily: fonts.body, fontSize: 12, color: colors.muted },
+  insignias: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  insignia: {
+    overflow: 'hidden',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 11,
+    color: colors.ink,
+  },
+  bio: { fontFamily: fonts.body, fontSize: 13, color: colors.ink, lineHeight: 19 },
+  oferta: { gap: 4, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  etiquetaOferta: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.mutedLight, textTransform: 'uppercase' },
   comentario: { fontFamily: fonts.body, fontSize: 13, color: colors.muted, lineHeight: 18 },
   estado: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.muted },
   cargando: { position: 'absolute', top: '50%', alignSelf: 'center' },
