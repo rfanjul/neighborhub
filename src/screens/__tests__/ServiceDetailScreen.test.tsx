@@ -206,3 +206,26 @@ describe('autor del servicio', () => {
     expect(screen.queryByLabelText(/'s profile$/)).toBeNull();
   });
 });
+
+describe('denunciar', () => {
+  it('un servicio ajeno se puede denunciar desde el detalle', async () => {
+    const abrir = jest.spyOn(require('react-native').Linking, 'openURL').mockResolvedValue(true);
+    mockedApi.getService.mockResolvedValue(servicio({ id: 's1', requesterId: 'ana' }));
+    await renderDetalle('luis');
+
+    await fireEvent.press(await screen.findByText(/Report this request/));
+
+    expect(abrir).toHaveBeenCalledWith(
+      'https://neighborhood-c4dc9.web.app/en/support?origen=app&tipo=reportar&ref=service%3As1#contacto'
+    );
+    abrir.mockRestore();
+  });
+
+  it('el propio no', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ requesterId: 'ana' }));
+    await renderDetalle('ana');
+
+    await waitFor(() => expect(mockedApi.getService).toHaveBeenCalled());
+    expect(screen.queryByText(/Report this request/)).toBeNull();
+  });
+});

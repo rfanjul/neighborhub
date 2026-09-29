@@ -14,6 +14,7 @@ const messages: Record<string, Clave> = {
   'auth/network-request-failed': 'erroresAuth.sinConexion',
   'auth/account-exists-with-different-credential': 'erroresAuth.otroMetodo',
   'auth/operation-not-allowed': 'erroresAuth.metodoDesactivado',
+  'auth/requires-recent-login': 'erroresAuth.reautenticar',
 };
 
 // Se mira el campo `code` en lugar de `instanceof FirebaseError`: el SDK se

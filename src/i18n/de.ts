@@ -128,6 +128,7 @@ const de: Diccionario = {
     faltaEmail: 'Gib deine E-Mail ein.',
   },
   erroresAuth: {
+    reautenticar: 'Melde dich aus Sicherheitsgründen erneut an und versuche es nochmals.',
     emailInvalido: 'Die E-Mail ist ungültig.',
     faltaContrasena: 'Gib dein Passwort ein.',
     contrasenaDebil: 'Das Passwort muss mindestens 6 Zeichen haben.',
@@ -350,6 +351,26 @@ const de: Diccionario = {
     por: 'von {nombre}',
     sinAyudas: '{nombre} hat noch keine Hilfe abgeschlossen.',
     sinServicios: '{nombre} hat gerade keine offenen Anfragen.',
+  },
+  cuenta: {
+    ayuda: 'Hilfe & Kontakt',
+    privacidad: 'Datenschutzerklärung',
+    terminos: 'Nutzungsbedingungen',
+    legal: 'Hilfe & Rechtliches',
+    borrar: 'Konto löschen',
+    borrarTitulo: 'Konto löschen?',
+    borrarTexto:
+      'Dein Konto, dein Profil, deine Fotos sowie deine offenen Anfragen und Angebote werden gelöscht. Das kann nicht rückgängig gemacht werden.',
+    borrarBoton: 'Löschen',
+    confirmarTitulo: 'Bestätige, dass du es bist',
+    confirmarTexto: 'Gib dein Passwort ein, um dein Konto zu löschen.',
+    borrada: 'Dein Konto wurde gelöscht.',
+    errorBorrar: 'Dein Konto konnte nicht gelöscht werden',
+    reportarServicio: 'Diese Anfrage melden',
+    reportarUsuario: 'Diese Person melden',
+  },
+  legal: {
+    aceptas: 'Wenn du fortfährst, akzeptierst du unsere Nutzungsbedingungen und die Datenschutzerklärung.',
   },
   foto: {
     titulo: 'Foto ändern',

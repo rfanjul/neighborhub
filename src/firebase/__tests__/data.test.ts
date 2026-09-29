@@ -36,6 +36,9 @@ jest.mock('@firebase/firestore', () => {
       if (!mockStore.has(r.path)) throw new Error('No document to update');
       mockStore.set(r.path, { ...mockStore.get(r.path), ...data });
     },
+    deleteDoc: async (r: { path: string }) => {
+      mockStore.delete(r.path);
+    },
     addDoc: async (c: { path: string }, data: Doc) => {
       validar(data);
       const id = `auto-${++mockSecuencia}`;
@@ -639,5 +642,47 @@ describe('sin sesión', () => {
     await expect(api.getMe()).rejects.toThrow('Not signed in');
 
     auth.currentUser = anterior;
+  });
+});
+
+describe('borrar mis datos', () => {
+  beforeEach(() => {
+    mockStore.set('users/uid-1', { name: 'Yo' });
+    mockStore.set('users/otro', { name: 'Otro' });
+    // Mis servicios: uno abierto con fotos y ofertas, uno pendiente y uno ya en curso.
+    mockStore.set('helpRequests/abierto', {
+      ...servicioBase, status: 'approved', requesterId: 'uid-1',
+      photos: ['https://storage.example/service-photos/uid-1/a.jpg'],
+    });
+    mockStore.set('helpRequests/pendiente', { ...servicioBase, status: 'pending', requesterId: 'uid-1' });
+    mockStore.set('helpRequests/encurso', { ...servicioBase, status: 'accepted', requesterId: 'uid-1', helperId: 'otro' });
+    mockStore.set('helpRequests/ajeno', { ...servicioBase, status: 'approved', requesterId: 'otro' });
+    mockStore.set('applications/abierto_otro', { serviceId: 'abierto', applicantId: 'otro', requesterId: 'uid-1', status: 'pending' });
+    // Mis ofertas: una pendiente y otra ya elegida.
+    mockStore.set('applications/ajeno_uid-1', { serviceId: 'ajeno', applicantId: 'uid-1', requesterId: 'otro', status: 'pending' });
+    mockStore.set('applications/viejo_uid-1', { serviceId: 'viejo', applicantId: 'uid-1', requesterId: 'otro', status: 'selected' });
+  });
+
+  it('borra lo que no implica a nadie más y conserva lo que sí', async () => {
+    await api.deleteMyData();
+
+    expect(mockStore.has('users/uid-1')).toBe(false);
+    expect(mockStore.has('helpRequests/abierto')).toBe(false);
+    expect(mockStore.has('helpRequests/pendiente')).toBe(false);
+    expect(mockStore.has('applications/abierto_otro')).toBe(false);
+    expect(mockStore.has('applications/ajeno_uid-1')).toBe(false);
+
+    expect(mockStore.has('helpRequests/encurso')).toBe(true);
+    expect(mockStore.has('applications/viejo_uid-1')).toBe(true);
+    expect(mockStore.has('helpRequests/ajeno')).toBe(true);
+    expect(mockStore.has('users/otro')).toBe(true);
+  });
+
+  it('borra también las fotos de esos servicios y la de perfil', async () => {
+    await api.deleteMyData();
+
+    expect(mockBorrados).toEqual(
+      expect.arrayContaining(['https://storage.example/service-photos/uid-1/a.jpg', 'profile-photos/uid-1.jpg'])
+    );
   });
 });

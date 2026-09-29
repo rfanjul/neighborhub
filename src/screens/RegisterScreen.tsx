@@ -7,6 +7,7 @@ import { Button, ErrorText, Input } from '../components/ui';
 import PantallaConFoto from '../components/PantallaConFoto';
 import { fotosBienvenida } from '../data/fotosBienvenida';
 import { t } from '../i18n';
+import AvisoLegal from '../components/AvisoLegal';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
@@ -53,6 +54,7 @@ export default function RegisterScreen({ navigation }: Props) {
       <ErrorText message={error} />
       <Button title={t('registro.boton')} onPress={submit} loading={loading} />
       <Button title={t('registro.yaTengo')} variant="link" onPress={() => navigation.replace('Login')} />
+      <AvisoLegal />
     </PantallaConFoto>
   );
 }

@@ -128,6 +128,7 @@ const es: Diccionario = {
     faltaEmail: 'Escribe tu email.',
   },
   erroresAuth: {
+    reautenticar: 'Por seguridad, vuelve a iniciar sesión e inténtalo otra vez.',
     emailInvalido: 'El email no es válido.',
     faltaContrasena: 'Escribe tu contraseña.',
     contrasenaDebil: 'La contraseña debe tener al menos 6 caracteres.',
@@ -350,6 +351,26 @@ const es: Diccionario = {
     por: 'de {nombre}',
     sinAyudas: '{nombre} todavía no ha completado ninguna ayuda.',
     sinServicios: '{nombre} no tiene servicios abiertos ahora mismo.',
+  },
+  cuenta: {
+    ayuda: 'Ayuda y contacto',
+    privacidad: 'Política de privacidad',
+    terminos: 'Términos de uso',
+    legal: 'Ayuda y legal',
+    borrar: 'Borrar cuenta',
+    borrarTitulo: '¿Borrar tu cuenta?',
+    borrarTexto:
+      'Se borrarán tu cuenta, tu perfil, tus fotos y tus servicios y ofertas abiertos. No se puede deshacer.',
+    borrarBoton: 'Borrar',
+    confirmarTitulo: 'Confirma que eres tú',
+    confirmarTexto: 'Escribe tu contraseña para borrar tu cuenta.',
+    borrada: 'Tu cuenta se ha borrado.',
+    errorBorrar: 'No se pudo borrar tu cuenta',
+    reportarServicio: 'Denunciar este servicio',
+    reportarUsuario: 'Denunciar a este usuario',
+  },
+  legal: {
+    aceptas: 'Al continuar aceptas nuestros términos de uso y la política de privacidad.',
   },
   foto: {
     titulo: 'Cambiar la foto',

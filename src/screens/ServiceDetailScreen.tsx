@@ -15,6 +15,7 @@ import { mockServices, type ServiceRequest } from '../data/mock';
 import { api, type Application } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import { t } from '../i18n';
+import { abrirEnlace, enlaces } from '../config/enlaces';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
 
@@ -162,6 +163,15 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
           </View>
           {verAutor && <Text style={styles.chevron}>›</Text>}
         </Pressable>
+        {verAutor && (
+          <Pressable
+            onPress={() => abrirEnlace(enlaces.contacto('reportar', `service:${service.id}`))}
+            accessibilityRole="link"
+            hitSlop={8}
+          >
+            <Text style={styles.reportar}>🚩 {t('cuenta.reportarServicio')}</Text>
+          </Pressable>
+        )}
 
         <Text style={styles.description}>{service.description}</Text>
 
@@ -234,6 +244,7 @@ const styles = StyleSheet.create({
   },
   requesterName: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.ink },
   chevron: { fontFamily: fonts.bodySemiBold, fontSize: 28, color: colors.mutedLight },
+  reportar: { fontFamily: fonts.body, fontSize: 14, color: colors.muted, textDecorationLine: 'underline' },
   requesterMeta: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   description: { fontFamily: fonts.body, fontSize: 16, lineHeight: 25, color: colors.muted },
   infoList: { gap: 10 },

@@ -27,6 +27,7 @@ jest.mock('./src/firebase/data', () => ({
     getReview: jest.fn(async () => null),
     listReviewsFor: jest.fn(async () => []),
     listServicesBy: jest.fn(async () => []),
+    deleteMyData: jest.fn(async () => undefined),
     applyToService: jest.fn(async () => null),
     listMyApplications: jest.fn(async () => []),
     listApplicationsForService: jest.fn(async () => []),

@@ -18,6 +18,8 @@ export function authValue(overrides: Partial<AuthValue> = {}): AuthValue {
     loginWithGoogle: jest.fn().mockResolvedValue(true),
     loginWithApple: jest.fn().mockResolvedValue(true),
     logout: jest.fn().mockResolvedValue(undefined),
+    deleteAccount: jest.fn().mockResolvedValue(true),
+    provider: null,
     ...overrides,
   } as AuthValue;
 }

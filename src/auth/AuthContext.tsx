@@ -1,8 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
+  EmailAuthProvider,
   GoogleAuthProvider,
   OAuthProvider,
   createUserWithEmailAndPassword,
+  deleteUser,
+  reauthenticateWithCredential,
+  revokeAccessToken,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithCredential,
@@ -46,6 +50,14 @@ type AuthContextValue = {
   loginWithGoogle: () => Promise<boolean>;
   loginWithApple: () => Promise<boolean>;
   logout: () => Promise<void>;
+  /**
+   * Borra la cuenta y los datos propios. Primero confirma que es la persona
+   * (Firebase lo exige): con la contraseña si entró con email, o volviendo
+   * a pasar por Apple o Google. Resuelve a false si cancela.
+   */
+  deleteAccount: (password?: string) => Promise<boolean>;
+  /** Cómo entró: 'password', 'apple.com' o 'google.com'. */
+  provider: string | null;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -127,7 +139,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const loginWithApple = async () => {
+  /**
+   * Pasa por Apple y devuelve la credencial de Firebase (con su nonce) y el
+   * código de autorización; null si la persona cancela.
+   */
+  const pedirApple = async (scopes: AppleAuthentication.AppleAuthenticationScope[]) => {
     if (!(await AppleAuthentication.isAvailableAsync())) {
       throw new Error('Sign in with Apple no está disponible aquí (Expo Go o simulador sin Apple ID).');
     }
@@ -138,25 +154,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let appleCredential: AppleAuthentication.AppleAuthenticationCredential;
     try {
-      appleCredential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-        nonce: hashedNonce,
-      });
+      appleCredential = await AppleAuthentication.signInAsync({ requestedScopes: scopes, nonce: hashedNonce });
     } catch (error) {
       if ((error as { code?: string }).code === 'ERR_REQUEST_CANCELED') {
-        return false;
+        return null;
       }
       throw error;
     }
     if (!appleCredential.identityToken) {
       throw new Error('Apple no devolvió un identityToken.');
     }
+    const credential = new OAuthProvider('apple.com').credential({ idToken: appleCredential.identityToken, rawNonce });
+    return { appleCredential, credential };
+  };
 
-    const provider = new OAuthProvider('apple.com');
-    const credential = provider.credential({ idToken: appleCredential.identityToken, rawNonce });
+  /** Pasa por Google y devuelve la credencial de Firebase; null si cancela. */
+  const pedirGoogle = async () => {
+    if (!google) {
+      throw new Error('Google Sign-In no está disponible en Expo Go; usa el development build.');
+    }
+    const { GoogleSignin, isSuccessResponse, isErrorWithCode, statusCodes } = google;
+    try {
+      const response = await GoogleSignin.signIn();
+      if (!isSuccessResponse(response)) return null;
+      if (!response.data.idToken) throw new Error('Google no devolvió un idToken.');
+      return GoogleAuthProvider.credential(response.data.idToken);
+    } catch (error) {
+      if (isErrorWithCode(error) && error.code === statusCodes.SIGN_IN_CANCELLED) return null;
+      throw error;
+    }
+  };
+
+  const loginWithApple = async () => {
+    const apple = await pedirApple([
+      AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+      AppleAuthentication.AppleAuthenticationScope.EMAIL,
+    ]);
+    if (!apple) return false;
+    const { appleCredential, credential } = apple;
     const result = await signInWithCredential(auth, credential);
 
     // Apple solo envía el nombre la primera vez; guardarlo ya o se pierde.
@@ -165,6 +200,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .join(' ');
     if (fullName && !result.user.displayName) {
       await updateProfile(result.user, { displayName: fullName });
+    }
+    return true;
+  };
+
+  const deleteAccount = async (password?: string) => {
+    const actual = auth.currentUser;
+    if (!actual) throw new Error('Not signed in');
+    const metodo = actual.providerData?.[0]?.providerId ?? 'password';
+
+    // 1. Confirmar que es la persona, con el mismo método con el que entró.
+    if (metodo === 'apple.com') {
+      const apple = await pedirApple([]);
+      if (!apple) return false;
+      await reauthenticateWithCredential(actual, apple.credential);
+      // Apple pide revocar el acceso de la app al borrar la cuenta.
+      if (apple.appleCredential.authorizationCode) {
+        try {
+          await revokeAccessToken(auth, apple.appleCredential.authorizationCode);
+        } catch {
+          // Sin la clave de Apple configurada en Firebase no se puede revocar;
+          // la cuenta se borra igualmente.
+        }
+      }
+    } else if (metodo === 'google.com') {
+      const credential = await pedirGoogle();
+      if (!credential) return false;
+      await reauthenticateWithCredential(actual, credential);
+    } else {
+      if (!password) throw Object.assign(new Error('Password required'), { code: 'auth/missing-password' });
+      await reauthenticateWithCredential(actual, EmailAuthProvider.credential(actual.email ?? '', password));
+    }
+
+    // 2. Sus datos y, por último, la cuenta.
+    await api.deleteMyData();
+    await deleteUser(actual);
+    try {
+      await google?.GoogleSignin.signOut();
+    } catch {
+      // no había sesión de Google
     }
     return true;
   };
@@ -192,6 +266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginWithGoogle,
         loginWithApple,
         logout,
+        deleteAccount,
+        provider: user?.providerData?.[0]?.providerId ?? (user ? 'password' : null),
       }}
     >
       {children}

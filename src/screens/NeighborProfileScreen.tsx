@@ -12,6 +12,7 @@ import { insignias } from '../components/insignias';
 import { api, type ApiUserProfile } from '../firebase/data';
 import { mesYAno } from '../utils/fecha';
 import { idiomasTexto, nivelTexto, t, tp } from '../i18n';
+import { abrirEnlace, enlaces } from '../config/enlaces';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NeighborProfile'>;
 
@@ -166,6 +167,13 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
             ))}
           </View>
         </View>
+        <Pressable
+          style={styles.section}
+          onPress={() => abrirEnlace(enlaces.contacto('reportar', `user:${userId}`))}
+          accessibilityRole="link"
+        >
+          <Text style={styles.reportar}>🚩 {t('cuenta.reportarUsuario')}</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -211,4 +219,5 @@ const styles = StyleSheet.create({
   badgeIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   badgeRequisito: { marginTop: 2, fontFamily: fonts.body, fontSize: 12, color: colors.muted, textAlign: 'center' },
   badgeLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.muted, textAlign: 'center' },
+  reportar: { fontFamily: fonts.body, fontSize: 14, color: colors.muted, textDecorationLine: 'underline' },
 });

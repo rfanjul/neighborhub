@@ -12,9 +12,11 @@ import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
 import { cambiarIdioma, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
+import { abrirEnlace, enlaces } from '../config/enlaces';
+import { authErrorMessage } from '../auth/errors';
 
 export default function MyProfileScreen() {
-  const { logout, user } = useAuth();
+  const { logout, user, deleteAccount, provider } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [currentUser, setCurrentUser] = useState(mockCurrentUser);
   const [photoURL, setPhotoURL] = useState<string | null>(null);
@@ -29,8 +31,54 @@ export default function MyProfileScreen() {
       { text: t('comun.cancelar'), style: 'cancel' },
       { text: t('miPerfil.editarDatos'), onPress: () => navigation.navigate('ProfileDetails') },
       { text: t('idioma.titulo'), onPress: elegirIdioma },
-      { text: t('miPerfil.salir'), style: 'destructive', onPress: () => logout() },
+      { text: t('cuenta.legal'), onPress: ayudaYLegal },
+      { text: t('miPerfil.salir'), onPress: () => logout() },
+      { text: t('cuenta.borrar'), style: 'destructive', onPress: confirmarBorrado },
     ]);
+  };
+
+  const ayudaYLegal = () => {
+    Alert.alert(t('cuenta.legal'), undefined, [
+      { text: t('cuenta.ayuda'), onPress: () => abrirEnlace(enlaces.soporte()) },
+      { text: t('cuenta.privacidad'), onPress: () => abrirEnlace(enlaces.privacidad()) },
+      { text: t('cuenta.terminos'), onPress: () => abrirEnlace(enlaces.terminos()) },
+      { text: t('comun.cancelar'), style: 'cancel' },
+    ]);
+  };
+
+  /** Borrar la cuenta: aviso, confirmar identidad y borrar. */
+  const confirmarBorrado = () => {
+    Alert.alert(t('cuenta.borrarTitulo'), t('cuenta.borrarTexto'), [
+      { text: t('comun.cancelar'), style: 'cancel' },
+      {
+        text: t('cuenta.borrarBoton'),
+        style: 'destructive',
+        onPress: () => {
+          if (provider === 'password') {
+            // Con email hace falta la contraseña; con Apple o Google, su propio diálogo.
+            Alert.prompt(
+              t('cuenta.confirmarTitulo'),
+              t('cuenta.confirmarTexto'),
+              [
+                { text: t('comun.cancelar'), style: 'cancel' },
+                { text: t('cuenta.borrarBoton'), style: 'destructive', onPress: (clave?: string) => borrar(clave ?? '') },
+              ],
+              'secure-text'
+            );
+          } else {
+            borrar();
+          }
+        },
+      },
+    ]);
+  };
+
+  const borrar = async (password?: string) => {
+    try {
+      if (await deleteAccount(password)) Alert.alert(t('cuenta.borrada'));
+    } catch (e) {
+      Alert.alert(t('cuenta.errorBorrar'), authErrorMessage(e));
+    }
   };
 
   const elegirIdioma = () => {

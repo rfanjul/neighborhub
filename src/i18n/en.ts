@@ -130,6 +130,7 @@ const en = {
     faltaEmail: 'Enter your email.',
   },
   erroresAuth: {
+    reautenticar: 'For security, sign in again and try once more.',
     emailInvalido: 'The email is not valid.',
     faltaContrasena: 'Enter your password.',
     contrasenaDebil: 'The password must be at least 6 characters.',
@@ -352,6 +353,26 @@ const en = {
     por: 'by {nombre}',
     sinAyudas: "{nombre} hasn't completed any helps yet.",
     sinServicios: '{nombre} has no open services right now.',
+  },
+  cuenta: {
+    ayuda: 'Help & contact',
+    privacidad: 'Privacy policy',
+    terminos: 'Terms of use',
+    legal: 'Help & legal',
+    borrar: 'Delete account',
+    borrarTitulo: 'Delete your account?',
+    borrarTexto:
+      "Your account, profile, photos and your open requests and offers will be deleted. This can't be undone.",
+    borrarBoton: 'Delete',
+    confirmarTitulo: 'Confirm it’s you',
+    confirmarTexto: 'Enter your password to delete your account.',
+    borrada: 'Your account has been deleted.',
+    errorBorrar: "Couldn't delete your account",
+    reportarServicio: 'Report this request',
+    reportarUsuario: 'Report this user',
+  },
+  legal: {
+    aceptas: 'By continuing you accept our terms of use and privacy policy.',
   },
   foto: {
     titulo: 'Update photo',

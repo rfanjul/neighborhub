@@ -63,7 +63,8 @@ service cloud.firestore {
         || recibeValoracion()
       );
 
-      allow delete: if false;
+      // Borrar la cuenta desde la app: cada uno borra solo su perfil.
+      allow delete: if signedIn() && request.auth.uid == userId;
     }
 
     match /helpRequests/{requestId} {
@@ -121,7 +122,9 @@ service cloud.firestore {
           && existsAfter(/databases/$(database)/documents/reviews/$(requestId)))
       );
 
-      allow delete: if false;
+      // Al borrar la cuenta se van los servicios propios que aún no tienen a
+      // nadie elegido; los que ya implican a otra persona se conservan.
+      allow delete: if signedIn() && isRequester() && resource.data.status in ['pending', 'approved'];
 
       match /messages/{messageId} {
         function isParticipant() {
@@ -167,7 +170,13 @@ service cloud.firestore {
         && request.resource.data.status in ['selected', 'rejected']
         && changedKeys().hasOnly(['status', 'updatedAt']);
 
-      allow delete: if false;
+      // Retirar una oferta pendiente propia, o las recibidas en un servicio
+      // propio que aún está abierto (al borrar la cuenta).
+      allow delete: if signedIn() && (
+        (resource.data.applicantId == request.auth.uid && resource.data.status == 'pending') ||
+        (resource.data.requesterId == request.auth.uid
+          && servicio(resource.data.serviceId).status in ['pending', 'approved'])
+      );
     }
 
     // Mensajes del formulario de contacto de la web: cualquiera puede

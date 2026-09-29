@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import MyProfileScreen from '../MyProfileScreen';
 import { insignias } from '../../components/insignias';
@@ -176,5 +176,99 @@ describe('MyProfileScreen', () => {
     });
 
     expect(mockedApi.uploadMyPhoto).toHaveBeenCalledWith('file:///nueva.jpg');
+  });
+});
+
+describe('cuenta: ayuda, legal y borrar', () => {
+  type Boton = { text?: string; onPress?: (valor?: string) => void };
+  let alerta: jest.SpyInstance;
+  let abrir: jest.SpyInstance;
+  const botones = (): Boton[] => alerta.mock.calls.at(-1)![2];
+  const pulsar = async (texto: string, valor?: string) => {
+    await act(async () => botones().find((b) => b.text === texto)!.onPress!(valor));
+  };
+
+  beforeEach(() => {
+    alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    abrir = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  });
+  afterEach(() => {
+    alerta.mockRestore();
+    abrir.mockRestore();
+  });
+
+  async function abrirAjustes(cambios: object = {}) {
+    auth = authValue({ user: { uid: 'uid-1' } as never, ...cambios });
+    (useAuth as jest.Mock).mockReturnValue(auth);
+    await render(<MyProfileScreen />);
+    await fireEvent.press(screen.getByLabelText('Settings'));
+  }
+
+  it('ayuda, privacidad y términos abren la web en el idioma de la app', async () => {
+    await abrirAjustes();
+    await pulsar('Help & legal');
+
+    await pulsar('Help & contact');
+    expect(abrir).toHaveBeenLastCalledWith('https://neighborhood-c4dc9.web.app/en/support');
+    await pulsar('Privacy policy');
+    expect(abrir).toHaveBeenLastCalledWith('https://neighborhood-c4dc9.web.app/en/privacy');
+    await pulsar('Terms of use');
+    expect(abrir).toHaveBeenLastCalledWith('https://neighborhood-c4dc9.web.app/en/terms');
+  });
+
+  it('con email: avisa, pide la contraseña y borra la cuenta', async () => {
+    const prompt = jest.spyOn(Alert, 'prompt').mockImplementation(() => {});
+    await abrirAjustes({ provider: 'password' });
+
+    await pulsar('Delete account');
+    expect(alerta).toHaveBeenLastCalledWith('Delete your account?', expect.stringContaining("can't be undone"), expect.any(Array));
+    await pulsar('Delete');
+
+    expect(prompt).toHaveBeenCalledWith('Confirm it’s you', expect.any(String), expect.any(Array), 'secure-text');
+    const confirmar = (prompt.mock.calls[0][2] as Boton[]).find((b) => b.text === 'Delete')!;
+    await act(async () => confirmar.onPress!('secreto'));
+
+    expect(auth.deleteAccount).toHaveBeenCalledWith('secreto');
+    expect(alerta).toHaveBeenLastCalledWith('Your account has been deleted.');
+    prompt.mockRestore();
+  });
+
+  it('con email y el diálogo vacío manda una contraseña vacía (y Firebase la rechaza)', async () => {
+    const prompt = jest.spyOn(Alert, 'prompt').mockImplementation(() => {});
+    await abrirAjustes({ provider: 'password' });
+    await pulsar('Delete account');
+    await pulsar('Delete');
+    await act(async () => (prompt.mock.calls[0][2] as Boton[]).find((b) => b.text === 'Delete')!.onPress!());
+
+    expect(auth.deleteAccount).toHaveBeenCalledWith('');
+    prompt.mockRestore();
+  });
+
+  it('con Apple o Google borra sin pedir contraseña', async () => {
+    const prompt = jest.spyOn(Alert, 'prompt');
+    await abrirAjustes({ provider: 'apple.com' });
+    await pulsar('Delete account');
+    await pulsar('Delete');
+
+    expect(prompt).not.toHaveBeenCalled();
+    expect(auth.deleteAccount).toHaveBeenCalledWith(undefined);
+    prompt.mockRestore();
+  });
+
+  it('si cancela en Apple o Google no dice que se borró', async () => {
+    await abrirAjustes({ provider: 'google.com', deleteAccount: jest.fn().mockResolvedValue(false) });
+    await pulsar('Delete account');
+    await pulsar('Delete');
+
+    expect(alerta).not.toHaveBeenCalledWith('Your account has been deleted.');
+  });
+
+  it('si falla, explica por qué', async () => {
+    const error = Object.assign(new Error('x'), { code: 'auth/requires-recent-login' });
+    await abrirAjustes({ provider: 'apple.com', deleteAccount: jest.fn().mockRejectedValue(error) });
+    await pulsar('Delete account');
+    await pulsar('Delete');
+
+    expect(alerta).toHaveBeenLastCalledWith("Couldn't delete your account", 'For security, sign in again and try once more.');
   });
 });

@@ -115,6 +115,18 @@ describe('NeighborProfileScreen', () => {
     expect(await screen.findByText("We couldn't find this neighbor.")).toBeTruthy();
   });
 
+  it('se puede denunciar al vecino', async () => {
+    const abrir = jest.spyOn(require('react-native').Linking, 'openURL').mockResolvedValue(true);
+    await renderPerfil();
+
+    await fireEvent.press(await screen.findByText(/Report this user/));
+
+    expect(abrir).toHaveBeenCalledWith(
+      'https://neighborhood-c4dc9.web.app/en/support?origen=app&tipo=reportar&ref=user%3Aluis#contacto'
+    );
+    abrir.mockRestore();
+  });
+
   it('vuelve atrás', async () => {
     const navigation = await renderPerfil();
 

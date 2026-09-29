@@ -5,7 +5,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { getBytes, ref, uploadBytes } from 'firebase/storage';
+import { deleteObject, getBytes, ref, uploadBytes } from 'firebase/storage';
 
 let env: RulesTestEnvironment;
 
@@ -95,6 +95,23 @@ describe('fotos de servicios', () => {
     await sembrar('service-photos/ana/1-a.jpg');
 
     await assertFails(getBytes(ref(anonimo(), 'service-photos/ana/1-a.jpg')));
+  });
+});
+
+describe('borrar fotos', () => {
+  it('cada uno borra su foto de perfil, pero no la de otro', async () => {
+    await sembrar('profile-photos/ana.jpg');
+
+    await assertFails(deleteObject(ref(storageDe('luis'), 'profile-photos/ana.jpg')));
+    await assertSucceeds(deleteObject(ref(storageDe('ana'), 'profile-photos/ana.jpg')));
+  });
+
+  it('cada uno borra las fotos de sus servicios, pero no las de otro', async () => {
+    await sembrar('service-photos/ana/1-a.jpg');
+
+    await assertFails(deleteObject(ref(storageDe('luis'), 'service-photos/ana/1-a.jpg')));
+    await assertFails(deleteObject(ref(anonimo(), 'service-photos/ana/1-a.jpg')));
+    await assertSucceeds(deleteObject(ref(storageDe('ana'), 'service-photos/ana/1-a.jpg')));
   });
 });
 

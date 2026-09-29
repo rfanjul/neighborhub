@@ -17,6 +17,7 @@ import {
   serverTimestamp,
   writeBatch,
   runTransaction,
+  deleteDoc,
   onSnapshot,
 } from '@firebase/firestore';
 // Storage has no React Native-specific build, but unlike Firestore it
@@ -467,6 +468,33 @@ export const api = {
   async getReview(serviceId: string): Promise<Review | null> {
     const snap = await getDoc(doc(db, 'reviews', serviceId));
     return snap.exists() ? reviewFromDoc(serviceId, snap.data()) : null;
+  },
+
+  /**
+   * Borra mis datos al borrar la cuenta: mis servicios aún sin nadie elegido
+   * (con sus fotos y las ofertas recibidas), mis ofertas pendientes, mi foto
+   * y mi perfil. Lo que ya implica a otra persona (servicios en curso o
+   * hechos, reseñas, chats) se conserva, como explica la política de privacidad.
+   */
+  async deleteMyData(): Promise<void> {
+    const uid = currentUid();
+    const mios = await getDocs(query(collection(db, 'helpRequests'), where('requesterId', '==', uid)));
+    for (const d of mios.docs) {
+      const servicio = d.data();
+      if (!['pending', 'approved'].includes(servicio.status)) continue;
+      const recibidas = await getDocs(
+        query(collection(db, 'applications'), where('serviceId', '==', d.id), where('requesterId', '==', uid))
+      );
+      for (const o of recibidas.docs) await deleteDoc(doc(db, 'applications', o.id));
+      for (const url of servicio.photos ?? []) await api.deleteServicePhoto(url).catch(() => undefined);
+      await deleteDoc(doc(db, 'helpRequests', d.id));
+    }
+    const hechas = await getDocs(query(collection(db, 'applications'), where('applicantId', '==', uid)));
+    for (const o of hechas.docs) {
+      if (o.data().status === 'pending') await deleteDoc(doc(db, 'applications', o.id));
+    }
+    await deleteObject(ref(storage, `profile-photos/${uid}.jpg`)).catch(() => undefined);
+    await deleteDoc(doc(db, 'users', uid));
   },
 
   /** Las ayudas de un vecino: una reseña por cada una, de la más nueva a la más vieja. */

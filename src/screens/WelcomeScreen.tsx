@@ -25,6 +25,7 @@ import LogoMark from '../components/LogoMark';
 import { fotosBienvenida } from '../data/fotosBienvenida';
 import SelectorIdioma from '../components/SelectorIdioma';
 import { t, type Clave } from '../i18n';
+import AvisoLegal from '../components/AvisoLegal';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Welcome'>;
 
@@ -236,6 +237,7 @@ export default function WelcomeScreen({ navigation }: Props) {
         <Button title={t('bienvenida.email')} onPress={() => navigation.navigate('Login')} disabled={busy !== null} />
         <Button title={t('bienvenida.crearCuenta')} variant="link" onPress={() => navigation.navigate('Register')} />
         <ErrorText message={error} />
+        <AvisoLegal />
       </View>
     </View>
   );

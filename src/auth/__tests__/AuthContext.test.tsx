@@ -11,6 +11,10 @@ import {
   updateProfile,
   GoogleAuthProvider,
   OAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  revokeAccessToken,
+  deleteUser,
 } from 'firebase/auth';
 import { AuthProvider, useAuth } from '../AuthContext';
 import { auth } from '../../firebase';
@@ -33,6 +37,10 @@ jest.mock('firebase/auth', () => ({
   OAuthProvider: jest.fn().mockImplementation((providerId: string) => ({
     credential: jest.fn((params: object) => ({ provider: providerId, ...params })),
   })),
+  EmailAuthProvider: { credential: jest.fn((email: string, password: string) => ({ provider: 'password', email, password })) },
+  reauthenticateWithCredential: jest.fn(),
+  revokeAccessToken: jest.fn(),
+  deleteUser: jest.fn(),
 }));
 
 jest.mock('expo-apple-authentication', () => ({
@@ -451,5 +459,172 @@ describe('cerrar sesión', () => {
     const { result } = await renderAuth();
 
     await expect(result.current.logout()).rejects.toMatchObject({ code: 'auth/network-request-failed' });
+  });
+});
+
+describe('borrar la cuenta', () => {
+  const mockedApi = api as jest.Mocked<typeof api>;
+  const conMetodo = (providerId: string) => {
+    const usuario = fakeUser({ providerData: [{ providerId }] });
+    (auth as unknown as { currentUser: unknown }).currentUser = usuario;
+    return usuario;
+  };
+  afterEach(() => {
+    (auth as unknown as { currentUser: unknown }).currentUser = undefined;
+  });
+
+  it('con email: confirma con la contraseña, borra los datos y luego la cuenta', async () => {
+    const usuario = conMetodo('password');
+    const { result } = await renderAuth();
+
+    let hecho = false;
+    await act(async () => {
+      hecho = await result.current.deleteAccount('secreto');
+    });
+
+    expect(hecho).toBe(true);
+    expect(EmailAuthProvider.credential).toHaveBeenCalledWith('ana@example.com', 'secreto');
+    expect(reauthenticateWithCredential).toHaveBeenCalledWith(usuario, { provider: 'password', email: 'ana@example.com', password: 'secreto' });
+    expect(mockedApi.deleteMyData).toHaveBeenCalled();
+    expect(deleteUser).toHaveBeenCalledWith(usuario);
+    expect((mockedApi.deleteMyData as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (deleteUser as jest.Mock).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('con email y sin contraseña no borra nada', async () => {
+    conMetodo('password');
+    const { result } = await renderAuth();
+
+    await expect(result.current.deleteAccount()).rejects.toMatchObject({ code: 'auth/missing-password' });
+    expect(mockedApi.deleteMyData).not.toHaveBeenCalled();
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('si la contraseña es incorrecta no borra nada', async () => {
+    conMetodo('password');
+    (reauthenticateWithCredential as jest.Mock).mockRejectedValueOnce(firebaseError('auth/invalid-credential'));
+    const { result } = await renderAuth();
+
+    await expect(result.current.deleteAccount('mala')).rejects.toMatchObject({ code: 'auth/invalid-credential' });
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('con Apple: vuelve a pasar por Apple, revoca el acceso y borra', async () => {
+    const usuario = conMetodo('apple.com');
+    (AppleAuthentication.signInAsync as jest.Mock).mockResolvedValue({ identityToken: 'id-apple', authorizationCode: 'codigo' });
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await result.current.deleteAccount();
+    });
+
+    expect(AppleAuthentication.signInAsync).toHaveBeenCalledWith({ requestedScopes: [], nonce: 'nonce-hasheado' });
+    expect(reauthenticateWithCredential).toHaveBeenCalledWith(usuario, expect.objectContaining({ provider: 'apple.com', idToken: 'id-apple' }));
+    expect(revokeAccessToken).toHaveBeenCalledWith(auth, 'codigo');
+    expect(deleteUser).toHaveBeenCalledWith(usuario);
+  });
+
+  it('con Apple, si no se puede revocar se borra igualmente', async () => {
+    conMetodo('apple.com');
+    (AppleAuthentication.signInAsync as jest.Mock).mockResolvedValue({ identityToken: 'id-apple', authorizationCode: 'codigo' });
+    (revokeAccessToken as jest.Mock).mockRejectedValueOnce(new Error('sin clave de Apple'));
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await result.current.deleteAccount();
+    });
+
+    expect(deleteUser).toHaveBeenCalled();
+  });
+
+  it('con Apple sin código de autorización no intenta revocar', async () => {
+    conMetodo('apple.com');
+    (AppleAuthentication.signInAsync as jest.Mock).mockResolvedValue({ identityToken: 'id-apple', authorizationCode: null });
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await result.current.deleteAccount();
+    });
+
+    expect(revokeAccessToken).not.toHaveBeenCalled();
+    expect(deleteUser).toHaveBeenCalled();
+  });
+
+  it('si cancela en Apple no se borra nada', async () => {
+    conMetodo('apple.com');
+    (AppleAuthentication.signInAsync as jest.Mock).mockRejectedValue(Object.assign(new Error('x'), { code: 'ERR_REQUEST_CANCELED' }));
+    const { result } = await renderAuth();
+
+    let hecho = true;
+    await act(async () => {
+      hecho = await result.current.deleteAccount();
+    });
+
+    expect(hecho).toBe(false);
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('con Google: vuelve a pasar por Google y borra', async () => {
+    const usuario = conMetodo('google.com');
+    googleSignInMock.GoogleSignin.signIn.mockResolvedValue(googleSuccess('id-google'));
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await result.current.deleteAccount();
+    });
+
+    expect(reauthenticateWithCredential).toHaveBeenCalledWith(usuario, { provider: 'google', idToken: 'id-google' });
+    expect(deleteUser).toHaveBeenCalledWith(usuario);
+    expect(googleSignInMock.GoogleSignin.signOut).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['cancela', () => googleSignInMock.GoogleSignin.signIn.mockResolvedValue(googleCancelled)],
+    ['cancela con error', () => googleSignInMock.GoogleSignin.signIn.mockRejectedValue(googleCancelledError())],
+  ])('si en Google %s no se borra nada', async (_caso, preparar) => {
+    conMetodo('google.com');
+    preparar();
+    const { result } = await renderAuth();
+
+    let hecho = true;
+    await act(async () => {
+      hecho = await result.current.deleteAccount();
+    });
+
+    expect(hecho).toBe(false);
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('Google sin idToken o con otro error no borra nada', async () => {
+    conMetodo('google.com');
+    googleSignInMock.GoogleSignin.signIn.mockResolvedValueOnce(googleSuccess(null));
+    const { result } = await renderAuth();
+    await expect(result.current.deleteAccount()).rejects.toThrow('idToken');
+
+    googleSignInMock.GoogleSignin.signIn.mockRejectedValueOnce(new Error('play services'));
+    await expect(result.current.deleteAccount()).rejects.toThrow('play services');
+    expect(deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('sin sesión avisa', async () => {
+    const { result } = await renderAuth();
+
+    await expect(result.current.deleteAccount('x')).rejects.toThrow('Not signed in');
+  });
+
+  it('expone el método con el que entró', async () => {
+    const { result } = await renderAuth();
+    expect(result.current.provider).toBeNull();
+
+    await act(async () => {
+      authStateCallback()(fakeUser({ providerData: [{ providerId: 'apple.com' }] }));
+    });
+    expect(result.current.provider).toBe('apple.com');
+
+    await act(async () => {
+      authStateCallback()(fakeUser({ providerData: [] }));
+    });
+    expect(result.current.provider).toBe('password');
   });
 });

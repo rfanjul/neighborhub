@@ -107,10 +107,12 @@ describe('users', () => {
     await assertFails(updateDoc(doc(como('luis'), 'users/ana'), { city: 'Madrid' }));
   });
 
-  it('los perfiles no se borran desde la app', async () => {
+  it('cada uno borra su perfil (al borrar la cuenta), pero no el de otro', async () => {
     await sembrar('users/ana', perfilInicial);
 
-    await assertFails(deleteDoc(doc(como('ana'), 'users/ana')));
+    await assertFails(deleteDoc(doc(como('luis'), 'users/ana')));
+    await assertFails(deleteDoc(doc(anonimo(), 'users/ana')));
+    await assertSucceeds(deleteDoc(doc(como('ana'), 'users/ana')));
   });
 });
 
@@ -252,8 +254,15 @@ describe('helpRequests', () => {
     await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed', helperId: 'marta' }));
   });
 
-  it('los servicios no se borran desde la app', async () => {
-    await sembrar('helpRequests/s1', servicio());
+  it.each(['pending', 'approved'])('quien publica borra su servicio %s, sin nadie elegido', async (status) => {
+    await sembrar('helpRequests/s1', servicio({ status }));
+
+    await assertFails(deleteDoc(doc(como('luis'), 'helpRequests/s1')));
+    await assertSucceeds(deleteDoc(doc(como('ana'), 'helpRequests/s1')));
+  });
+
+  it.each(['accepted', 'completed', 'rated'])('un servicio %s ya implica a otra persona y no se borra', async (status) => {
+    await sembrar('helpRequests/s1', servicio({ status, helperId: 'luis' }));
 
     await assertFails(deleteDoc(doc(como('ana'), 'helpRequests/s1')));
   });
@@ -388,8 +397,20 @@ describe('ofertas', () => {
       await assertFails(updateDoc(doc(como('ana'), 'applications/s1_luis'), { status: 'selected', comment: 'otro' }));
     });
 
-    it('las ofertas no se borran', async () => {
+    it('quien oferta retira su oferta pendiente; un extraño no', async () => {
+      await assertFails(deleteDoc(doc(como('marta'), 'applications/s1_luis')));
+      await assertSucceeds(deleteDoc(doc(como('luis'), 'applications/s1_luis')));
+    });
+
+    it('quien publica borra las ofertas de su servicio mientras sigue abierto', async () => {
+      await assertSucceeds(deleteDoc(doc(como('ana'), 'applications/s1_luis')));
+    });
+
+    it('una vez elegida, las ofertas ya no se borran', async () => {
+      await elegir('ana', 'luis', ['marta']);
+
       await assertFails(deleteDoc(doc(como('luis'), 'applications/s1_luis')));
+      await assertFails(deleteDoc(doc(como('ana'), 'applications/s1_marta')));
     });
   });
 });
