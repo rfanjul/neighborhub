@@ -29,6 +29,23 @@
     "trailingSlash": false,
     "ignore": [
       "**/.*"
+    ],
+    "redirects": [
+      {
+        "source": "/privacidad",
+        "destination": "/es/privacy",
+        "type": 301
+      },
+      {
+        "source": "/terminos",
+        "destination": "/es/terms",
+        "type": 301
+      },
+      {
+        "source": "/soporte",
+        "destination": "/es/support",
+        "type": 301
+      }
     ]
   }
 }

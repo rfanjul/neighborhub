@@ -47,7 +47,10 @@ img { max-width: 100%; display: block; }
 .marca-nombre { font-size: 26px; margin: 0; }
 .nav-enlaces { display: flex; align-items: center; gap: 24px; }
 .nav-enlaces a { color: var(--tinta); text-decoration: none; font-weight: 500; font-size: 16px; }
-@media (max-width: 760px) { .nav-enlaces a:not(.boton) { display: none; } }
+.selector-idioma { display: inline-flex; gap: 2px; padding: 3px; border-radius: 16px; background: var(--tarjeta); border: 1px solid var(--borde); }
+.selector-idioma a { padding: 5px 10px; border-radius: 13px; font-size: 13px !important; font-weight: 600 !important; letter-spacing: .04em; }
+.selector-idioma a.activo { background: var(--terracota); color: #fff !important; }
+@media (max-width: 760px) { .nav-enlaces > a { display: none; } }
 
 /* Botones */
 .boton { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 24px; border-radius: 14px; border: 0; font: 600 17px 'Work Sans', sans-serif; cursor: pointer; text-decoration: none; }

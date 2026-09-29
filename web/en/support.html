@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support · Neighborhub</title>
+  <meta name="description" content="Help, frequently asked questions and contact for Neighborhub.">
+  <meta property="og:title" content="Support · Neighborhub">
+  <meta property="og:description" content="Ask for help, offer yours and meet the people next door.">
+  <meta property="og:image" content="https://images.unsplash.com/photo-1626388787104-2ca553fe510c?w=1200&q=80&auto=format&fit=crop">
+  <meta name="theme-color" content="#DD6B3E">
+  <link rel="canonical" href="https://neighborhood-c4dc9.web.app/en/support">
+  <link rel="alternate" hreflang="en" href="https://neighborhood-c4dc9.web.app/en/support">
+  <link rel="alternate" hreflang="de" href="https://neighborhood-c4dc9.web.app/de/support">
+  <link rel="alternate" hreflang="es" href="https://neighborhood-c4dc9.web.app/es/support">
+  <link rel="alternate" hreflang="x-default" href="https://neighborhood-c4dc9.web.app/">
+  <link rel="icon" href="/img/favicon.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="contenedor">
+      <a class="marca" href="/en/"><img src="/img/icono-512.png" alt=""><span class="marca-nombre">Neighborhub</span></a>
+      <nav class="nav-enlaces">
+        <a href="/en/#como-funciona">How it works</a>
+        <a href="/en/#preguntas">FAQ</a>
+        <a href="/en/support">Support</a>
+        <span class="selector-idioma" role="group" aria-label="Language"><a href="/en/support" data-idioma="en" hreflang="en" aria-current="true" class="activo">EN</a><a href="/de/support" data-idioma="de" hreflang="de">DE</a><a href="/es/support" data-idioma="es" hreflang="es">ES</a></span>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="seccion seccion-blanca">
+      <div class="contenedor">
+        <div class="antetitulo">Support</div>
+        <h1>How can we help?</h1>
+        <p class="intro">Quick answers to the most common questions. If you can’t find yours, write to us below and we’ll reply by email.</p>
+        <div class="preguntas">
+          <details><summary>I can’t sign in to my account</summary><p>On the sign-in screen tap “Forgot your password?” and we’ll send you an email to create a new one. If you signed up with Apple or Google, use the same button as the first time.</p></details>
+          <details><summary>My request says “Pending review”</summary><p>We review every request before publishing it, usually within 24 hours. Meanwhile you can edit it; once approved, neighbors can offer to help.</p></details>
+          <details><summary>I can’t offer to help with a request</summary><p>You can only offer help on approved requests that aren’t yours. If you already offered, you’ll see it in Activity → My offers.</p></details>
+          <details><summary>When does the chat open?</summary><p>When the person who posted the request chooses an offer. From then on, both of you can talk from the request or from Activity.</p></details>
+          <details><summary>How do I rate the person who helped me?</summary><p>On your request, tap “Mark as completed” and choose 1 to 5 stars. You can leave a comment. The rating can’t be changed afterwards.</p></details>
+          <details><summary>How do I change the language?</summary><p>On the welcome screen (EN · DE · ES) or in Profile → ⚙️ → Language.</p></details>
+          <details><summary>I want to report a request or a user</summary><p>From the request details or the neighbor’s profile, or with this form choosing “I want to report a request or a user”. We review it within 24 hours.</p></details>
+          <details><summary>I want to delete my account</summary><p>In the app: Profile → ⚙️ → “Delete account”. If you can’t sign in, ask us with the form, including the email of your account.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <section class="seccion" id="contacto">
+      <div class="contenedor contacto">
+        <div>
+          <div class="antetitulo">Contact</div>
+          <h2>Write to us</h2>
+          <p class="intro">Questions, problems with the app, reports or requests about your data. We reply by email.</p>
+          <ul class="lista-contacto">
+            <li>🛟 <strong>Problems with the app:</strong> what happened, on which screen and your iPhone model.</li>
+            <li>🚩 <strong>Reports:</strong> the request or the profile, and what happened.</li>
+            <li>🗑️ <strong>Deleting data:</strong> the email of your account.</li>
+          </ul>
+        </div>
+        <form class="formulario" id="formulario-contacto" novalidate lang="en"
+          data-idioma="en" data-ok="Thank you! We’ve received your message and will reply by email as soon as possible." data-error-email="Please check your email: we need it to reply to you." data-error-corto="Tell us a bit more (at least 10 characters)."
+          data-error-largo="The message is too long (3000 characters max)." data-error-envio="It couldn’t be sent right now. Please try again in a few minutes." data-enviar="Send message" data-enviando="Sending…">
+          <label>How can we help?
+            <select name="tipo"><option value="pregunta">I have a question</option><option value="problema">I want to report a problem with the app</option><option value="reportar">I want to report a request or a user</option><option value="borrar-cuenta">I want to delete my account or my data</option><option value="otro">Something else</option></select>
+          </label>
+          <label>Name <input name="nombre" autocomplete="name" maxlength="100"></label>
+          <label>Email <input name="email" type="email" autocomplete="email" required maxlength="200"></label>
+          <label>Message <textarea name="mensaje" required maxlength="3000" placeholder="Tell us what you need or what happened"></textarea></label>
+          <input type="hidden" name="referencia">
+          <label class="trampa" aria-hidden="true">Web <input name="web" tabindex="-1" autocomplete="off"></label>
+          <div class="estado" role="status" aria-live="polite"></div>
+          <button class="boton boton-primario" type="submit">Send message</button>
+          <p class="nota">By sending this you agree that we use this data to reply to you, as described in the <a href="/en/privacy">privacy policy</a>.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pie">
+    <div class="contenedor">
+      <span>© 2026 Neighborhub · Zurich</span>
+      <nav><a href="/en/support">Support</a><a href="/en/privacy">Privacy</a><a href="/en/terms">Terms of use</a><a href="/en/support#contacto">Contact</a></nav>
+    </div>
+  </footer>
+  <script src="/idioma.js"></script>
+  <script defer src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="/__/firebase/10.12.2/firebase-firestore-compat.js"></script>
+  <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+  <script defer src="/contacto.js"></script>
+</body>
+</html>

@@ -13,6 +13,7 @@ const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
 const { cert } = require('firebase-admin/app');
+const { construir } = require('./build-web');
 
 const raiz = path.join(__dirname, '..');
 const API = 'https://firebasehosting.googleapis.com/v1beta1/';
@@ -48,6 +49,8 @@ async function main() {
     return json;
   };
 
+  // Siempre con la web recién generada en los tres idiomas.
+  construir();
   const lista = ficheros(path.join(raiz, 'web'));
   console.log(`📦 ${lista.length} ficheros en web/ → ${sitio}`);
   if (soloComprobar) {
@@ -55,10 +58,16 @@ async function main() {
     return;
   }
 
-  // Misma configuración que firebase.json (cleanUrls y sin barra final).
+  // Misma configuración que firebase.json: cleanUrls, sin barra final y sus redirecciones.
+  const hosting = JSON.parse(fs.readFileSync(path.join(raiz, 'firebase.json'), 'utf8')).hosting ?? {};
+  const redirects = (hosting.redirects ?? []).map((r) => ({
+    glob: r.source,
+    statusCode: r.type ?? 301,
+    location: r.destination,
+  }));
   const version = await pedir(`${sitio}/versions`, {
     method: 'POST',
-    body: JSON.stringify({ config: { cleanUrls: true, trailingSlashBehavior: 'REMOVE' } }),
+    body: JSON.stringify({ config: { cleanUrls: true, trailingSlashBehavior: 'REMOVE', redirects } }),
   });
   const { uploadRequiredHashes = [], uploadUrl } = await pedir(`${version.name}:populateFiles`, {
     method: 'POST',

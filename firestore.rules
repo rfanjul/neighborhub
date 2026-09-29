@@ -174,7 +174,8 @@ service cloud.firestore {
     // escribir uno bien formado; nadie los lee desde fuera (se revisan en
     // la consola de Firebase).
     match /contactMessages/{id} {
-      allow create: if request.resource.data.keys().hasOnly(['tipo', 'nombre', 'email', 'mensaje', 'referencia', 'origen', 'createdAt'])
+      allow create: if request.resource.data.keys().hasOnly(['tipo', 'nombre', 'email', 'mensaje', 'referencia', 'origen', 'idioma', 'createdAt'])
+        && request.resource.data.get('idioma', 'en') in ['en', 'de', 'es']
         && request.resource.data.tipo in ['pregunta', 'problema', 'reportar', 'borrar-cuenta', 'otro']
         && request.resource.data.email is string
         && request.resource.data.email.size() <= 200

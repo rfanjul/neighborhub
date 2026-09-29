@@ -211,14 +211,21 @@ contra el proyecto real. Los datos se pierden al parar los emuladores.
 
 ## Web (Firebase Hosting)
 
-`web/` es la web pública: portada, cómo funciona, preguntas, soporte con
-formulario de contacto, política de privacidad y términos de uso. Está en
-https://neighborhood-c4dc9.web.app (privacidad: `/privacidad`, términos:
-`/terminos`, soporte: `/soporte`, que son las URL que pide App Store Connect).
+La web pública (portada, cómo funciona, preguntas, soporte con formulario
+de contacto, privacidad y términos) está en inglés, alemán y español en
+https://neighborhood-c4dc9.web.app: `/en/`, `/de/` y `/es/`, cada una con
+`/privacy`, `/terms` y `/support` (las URL que pide App Store Connect para
+cada idioma). La raíz lleva a cada cual a su idioma.
+
+Los textos están en `web-src/textos-{en,de,es}.js` (un test comprueba que
+tienen las mismas claves) y las plantillas en `scripts/build-web.js`, que
+genera `web/{en,de,es}/`. Lo estático (`styles.css`, `contacto.js`,
+`idioma.js`, `img/`) vive directamente en `web/`.
 
 ```bash
+npm run web:build                   # genera las páginas
 npm run hosting:deploy -- --check   # lista lo que subiría
-npm run hosting:deploy              # publica web/ con service-account.json
+npm run hosting:deploy              # genera y publica con service-account.json
 ```
 
 Los mensajes del formulario se guardan en Firestore (`contactMessages`) y se

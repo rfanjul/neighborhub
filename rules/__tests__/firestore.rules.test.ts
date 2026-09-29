@@ -594,11 +594,16 @@ describe('mensajes de contacto', () => {
     await assertSucceeds(addDoc(collection(anonimo(), 'contactMessages'), mensaje()));
   });
 
+  it.each(['en', 'de', 'es'])('con el idioma de la página (%s)', async (idioma) => {
+    await assertSucceeds(addDoc(collection(anonimo(), 'contactMessages'), mensaje({ idioma })));
+  });
+
   it.each([
     ['sin email válido', { email: 'no-es-un-email' }],
     ['demasiado corto', { mensaje: 'hola' }],
     ['de un tipo que no existe', { tipo: 'spam' }],
     ['con campos de más', { admin: true }],
+    ['en un idioma que no tenemos', { idioma: 'fr' }],
   ])('rechaza un mensaje %s', async (_caso, cambios) => {
     await assertFails(addDoc(collection(anonimo(), 'contactMessages'), mensaje(cambios)));
   });
