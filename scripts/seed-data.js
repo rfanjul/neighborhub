@@ -185,6 +185,31 @@ const vecinos = [
   },
 ];
 
+// Ayudas pasadas de cada vecino: una reseña por ayuda.
+const ayudasPasadas = [
+  'Carried boxes up to the 4th floor', 'Fed the cat for a weekend', 'Fixed a dripping kitchen tap',
+  'Walked Bella every morning', 'Assembled a bookshelf', 'Painted a bedroom wall', 'Grocery run during a cold',
+  'Helped move a washing machine', 'Watered the balcony plants', 'Set up a new Wi-Fi router',
+  'Hung curtains and rails', 'Picked up a parcel from the post office', 'Taught video calls on a new phone',
+  'Repaired a bike puncture', 'Carried a mattress downstairs', 'Changed a light fitting',
+  'Cleared snow from the entrance', 'Built a raised garden bed', 'Translated a letter from the Kreisbüro',
+  'Moved a fridge to the cellar', 'Sanded and oiled a dining table', 'Helped fill in a tax form',
+  'Took old furniture to the recycling centre', 'Put up shelves in the kids\u2019 room', 'Looked after a puppy for an afternoon',
+];
+const comentarios = {
+  5: [
+    'Super helpful and on time. Thank you!', 'Went above and beyond, highly recommended.',
+    'Friendly, careful and very quick.', 'Couldn\u2019t have done it without them!',
+    'Brought the right tools and left everything tidy.', 'A real neighbor. Will ask again.',
+    'Patient and kind, exactly what I needed.', 'Arrived early and did a great job.',
+  ],
+  4: [
+    'Good help, a little late but very nice.', 'Did the job well, thanks!', 'Solid work and good company.',
+    'Very kind, it just took a bit longer than planned.', 'Reliable and friendly.',
+  ],
+  3: ['Okay overall, a couple of things left to finish.', 'Helpful, but communication could be better.'],
+};
+
 const niveles = { 1: 'New neighbor', 2: 'Helpful neighbor', 3: 'Trusted neighbor', 4: 'Neighborhood hero' };
 
 /** Desplazamiento pequeño y determinista alrededor de casa (cientos de metros). */
@@ -201,6 +226,7 @@ function cerca([lat, lng], n) {
 function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
   const usuarios = [];
   const servicios = [];
+  const resenas = [];
   vecinos.forEach((v, i) => {
     const uid = `seed-user-${String(i + 1).padStart(2, '0')}`;
     const email = `${v.nombre.toLowerCase().replace(/[^a-z]+/g, '.')}@example.com`;
@@ -235,6 +261,32 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
         createdAt: fecha(new Date(ahora.getTime() - (60 + i * 7) * 86400000)),
       },
     });
+    // Reseñas que suman exactamente ratingSum: las primeras con una estrella más.
+    const base = Math.floor(ratingSum / ratingCount);
+    const conMas = ratingSum - base * ratingCount;
+    const diasComoVecino = 60 + i * 7;
+    for (let k = 0; k < ratingCount; k++) {
+      const nota = k < conMas ? base + 1 : base;
+      const autor = vecinos[(i + 1 + (k % 9)) % vecinos.length];
+      const id = `seed-review-${String(i + 1).padStart(2, '0')}-${String(k + 1).padStart(2, '0')}`;
+      const textos = comentarios[nota] ?? comentarios[5];
+      resenas.push({
+        id,
+        data: {
+          serviceId: id,
+          serviceTitle: ayudasPasadas[(i * 7 + k) % ayudasPasadas.length],
+          reviewerId: `seed-user-${String(vecinos.indexOf(autor) + 1).padStart(2, '0')}`,
+          reviewerName: autor.nombre,
+          reviewerPhotoURL: avatar(autor.nombre),
+          revieweeId: uid,
+          rating: nota,
+          // Una de cada seis sin comentario: en la app es opcional.
+          comment: k % 6 === 5 ? '' : textos[(i + k) % textos.length],
+          seed: true,
+          createdAt: fecha(new Date(ahora.getTime() - ((k + 1) * (diasComoVecino - 2) * 86400000) / (ratingCount + 1))),
+        },
+      });
+    }
     v.servicios.forEach((s, j) => {
       const n = i * 3 + j;
       servicios.push({
@@ -268,7 +320,7 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
       });
     });
   });
-  return { usuarios, servicios };
+  return { usuarios, servicios, resenas };
 }
 
 module.exports = { construir, vecinos };

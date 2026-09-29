@@ -15,6 +15,8 @@ import CreateServiceScreen from '../screens/CreateServiceScreen';
 import ApplyScreen from '../screens/ApplyScreen';
 import ServiceOffersScreen from '../screens/ServiceOffersScreen';
 import RateHelperScreen from '../screens/RateHelperScreen';
+import NeighborProfileScreen from '../screens/NeighborProfileScreen';
+import NeighborListScreen from '../screens/NeighborListScreen';
 import ChatScreen from '../screens/ChatScreen';
 import MainTabs from './MainTabs';
 
@@ -53,6 +55,8 @@ export default function RootNavigator() {
           <AppStack.Screen name="Apply" component={ApplyScreen} options={{ presentation: 'modal' }} />
           <AppStack.Screen name="ServiceOffers" component={ServiceOffersScreen} />
           <AppStack.Screen name="RateHelper" component={RateHelperScreen} options={{ presentation: 'modal' }} />
+          <AppStack.Screen name="NeighborProfile" component={NeighborProfileScreen} />
+          <AppStack.Screen name="NeighborList" component={NeighborListScreen} />
           <AppStack.Screen name="Chat" component={ChatScreen} />
           <AppStack.Screen
             name="CreateService"

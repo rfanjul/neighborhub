@@ -2,8 +2,9 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import ServiceOffersScreen from '../ServiceOffersScreen';
-import { api, type Application, type ApiUserProfile } from '../../firebase/data';
+import { api, type Application } from '../../firebase/data';
 import { servicio } from '../../test-utils/servicio';
+import { perfil, resena } from '../../test-utils/perfil';
 
 jest.mock('@react-navigation/native', () => ({
   ...jest.requireActual('@react-navigation/native'),
@@ -21,30 +22,6 @@ const oferta = (id: string, nombre: string, status: Application['status'] = 'pen
   requesterId: 'ana',
   comment: `Soy ${nombre}`,
   status,
-});
-
-const perfil = (cambios: Partial<ApiUserProfile> = {}): ApiUserProfile => ({
-  id: 'luis',
-  name: 'Luis',
-  email: 'luis@example.com',
-  bio: 'Carpintero jubilado, tengo de todo en el taller.',
-  dateOfBirth: null,
-  city: 'Zürich',
-  postalCode: null,
-  country: null,
-  languages: 'German, Spanish',
-  credits: 0,
-  level: 3,
-  levelLabel: 'Trusted neighbor',
-  servicesCompleted: 27,
-  rating: 4.8,
-  ratingCount: 21,
-  responseLabel: '< 1h',
-  identityVerified: true,
-  onboardingCompleted: true,
-  hasPhoto: false,
-  photoURL: null,
-  ...cambios,
 });
 
 async function renderOfertas() {
@@ -91,6 +68,20 @@ describe('ServiceOffersScreen', () => {
     expect(screen.getByText('Speaks German, Spanish')).toBeTruthy();
     expect(screen.getByText('Their offer')).toBeTruthy();
     expect(screen.getByText('“Soy Luis”')).toBeTruthy();
+  });
+
+  it('tocar a quien oferta abre su perfil, también sin perfil cargado', async () => {
+    mockedApi.listApplicationsForService.mockResolvedValue([
+      { ...oferta('luis', 'Luis'), applicant: perfil() },
+      { ...oferta('marta', 'Marta'), applicant: null },
+    ]);
+    const navigation = await renderOfertas();
+
+    await fireEvent.press(await screen.findByLabelText("See Luis's profile"));
+    expect(navigation.navigate).toHaveBeenLastCalledWith('NeighborProfile', { userId: 'luis' });
+
+    await fireEvent.press(screen.getByLabelText("See Marta's profile"));
+    expect(navigation.navigate).toHaveBeenLastCalledWith('NeighborProfile', { userId: 'marta' });
   });
 
   it('un vecino nuevo sale sin valoraciones, sin insignias ni bio', async () => {
@@ -179,9 +170,7 @@ describe('ServiceOffersScreen', () => {
 
   it('ya valorado enseña mi valoración y no deja repetirla', async () => {
     mockedApi.getService.mockResolvedValue(servicio({ status: 'rated', helperId: 'luis', helperName: 'Luis' }));
-    mockedApi.getReview.mockResolvedValue({
-      serviceId: 's1', reviewerId: 'ana', reviewerName: 'Ana', revieweeId: 'luis', rating: 4, comment: 'Muy puntual',
-    });
+    mockedApi.getReview.mockResolvedValue(resena({ rating: 4, comment: 'Muy puntual' }));
     await renderOfertas();
 
     expect(await screen.findByText('Your rating')).toBeTruthy();
@@ -193,9 +182,7 @@ describe('ServiceOffersScreen', () => {
 
   it('valorado sin comentario, o si la reseña no se puede leer, no rompe', async () => {
     mockedApi.getService.mockResolvedValue(servicio({ status: 'rated', helperId: 'luis', helperName: 'Luis' }));
-    mockedApi.getReview.mockResolvedValueOnce({
-      serviceId: 's1', reviewerId: 'ana', reviewerName: 'Ana', revieweeId: 'luis', rating: 5, comment: '',
-    });
+    mockedApi.getReview.mockResolvedValueOnce(resena({ rating: 5, comment: '' }));
     await renderOfertas();
     expect(await screen.findByText('Your rating')).toBeTruthy();
 

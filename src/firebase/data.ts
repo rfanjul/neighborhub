@@ -47,12 +47,30 @@ export type Application = {
 /** Valoración de quien publicó a quien le ayudó; una por servicio. */
 export type Review = {
   serviceId: string;
+  serviceTitle: string;
   reviewerId: string;
   reviewerName: string;
+  reviewerPhotoURL: string | null;
   revieweeId: string;
   rating: number;
   comment: string;
+  /** Milisegundos; 0 si el servidor aún no la ha fechado. */
+  createdAt: number;
 };
+
+function reviewFromDoc(id: string, d: any): Review {
+  return {
+    serviceId: d.serviceId ?? id,
+    serviceTitle: d.serviceTitle ?? '',
+    reviewerId: d.reviewerId,
+    reviewerName: d.reviewerName ?? 'Neighbor',
+    reviewerPhotoURL: d.reviewerPhotoURL ?? null,
+    revieweeId: d.revieweeId,
+    rating: d.rating,
+    comment: d.comment ?? '',
+    createdAt: milisegundos(d.createdAt),
+  };
+}
 
 export type ChatMessage = {
   id: string;
@@ -103,6 +121,8 @@ export type ApiUserProfile = {
   onboardingCompleted: boolean;
   hasPhoto: boolean;
   photoURL: string | null;
+  /** Cuándo se unió, en milisegundos; null si no consta. */
+  memberSince: number | null;
 };
 
 function currentUid(): string {
@@ -169,6 +189,7 @@ function profileFromDoc(id: string, d: any): ApiUserProfile {
     onboardingCompleted: d.onboardingCompleted ?? false,
     hasPhoto: !!d.photoURL,
     photoURL: d.photoURL ?? null,
+    memberSince: milisegundos(d.createdAt) || null,
   };
 }
 
@@ -444,16 +465,25 @@ export const api = {
   /** La reseña de un servicio, si ya se valoró. */
   async getReview(serviceId: string): Promise<Review | null> {
     const snap = await getDoc(doc(db, 'reviews', serviceId));
-    if (!snap.exists()) return null;
-    const d = snap.data();
-    return {
-      serviceId,
-      reviewerId: d.reviewerId,
-      reviewerName: d.reviewerName ?? 'Neighbor',
-      revieweeId: d.revieweeId,
-      rating: d.rating,
-      comment: d.comment ?? '',
-    };
+    return snap.exists() ? reviewFromDoc(serviceId, snap.data()) : null;
+  },
+
+  /** Las ayudas de un vecino: una reseña por cada una, de la más nueva a la más vieja. */
+  async listReviewsFor(uid: string): Promise<Review[]> {
+    const snap = await getDocs(query(collection(db, 'reviews'), where('revieweeId', '==', uid)));
+    return masNuevosPrimero(snap.docs).map((d) => reviewFromDoc(d.id, d.data()));
+  },
+
+  /**
+   * Servicios abiertos de un vecino. De otro solo se pueden leer los
+   * aprobados (las reglas no dejan ver el resto); de uno mismo, todos.
+   */
+  async listServicesBy(uid: string): Promise<ServiceRequest[]> {
+    if (uid === currentUid()) return api.listMyServices();
+    const snap = await getDocs(
+      query(collection(db, 'helpRequests'), where('requesterId', '==', uid), where('status', '==', 'approved'))
+    );
+    return conAutores(masNuevosPrimero(snap.docs).map((d) => serviceFromDoc(d.id, d.data())));
   },
 
   /** Ofrecerse para un servicio aprobado, con un comentario para quien lo publicó. */

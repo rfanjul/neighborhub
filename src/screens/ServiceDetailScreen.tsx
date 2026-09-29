@@ -103,6 +103,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
   );
 
   const accion = accionPrincipal(service, user?.uid ?? null, miOferta);
+  const verAutor = !!service.requesterId && service.requesterId !== user?.uid;
   const ubicacion = useUbicacion();
   const distancia =
     service.coords && ubicacion
@@ -162,13 +163,21 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
 
         <Text style={styles.title}>{service.title}</Text>
 
-        <View style={styles.requesterCard}>
+        {/* El autor lleva a su perfil, salvo que sea uno mismo. */}
+        <Pressable
+          style={styles.requesterCard}
+          disabled={!verAutor}
+          onPress={() => service.requesterId && navigation.navigate('NeighborProfile', { userId: service.requesterId })}
+          accessibilityRole={verAutor ? 'button' : undefined}
+          accessibilityLabel={verAutor ? `See ${service.requester.name}'s profile` : undefined}
+        >
           <Avatar name={service.requester.name} photoURL={service.requester.photoURL} size={44} color={service.requester.avatarColor} />
           <View style={{ flex: 1 }}>
             <Text style={styles.requesterName}>{service.requester.name}</Text>
             <Text style={styles.requesterMeta}>{resumenAutor(service.requester)}</Text>
           </View>
-        </View>
+          {verAutor && <Text style={styles.chevron}>›</Text>}
+        </Pressable>
 
         <Text style={styles.description}>{service.description}</Text>
 
@@ -240,6 +249,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
   },
   requesterName: { fontFamily: fonts.bodySemiBold, fontSize: 13.5, color: colors.ink },
+  chevron: { fontFamily: fonts.bodySemiBold, fontSize: 24, color: colors.mutedLight },
   requesterMeta: { marginTop: 2, fontFamily: fonts.body, fontSize: 11.5, color: colors.muted },
   description: { fontFamily: fonts.body, fontSize: 14, lineHeight: 22, color: colors.muted },
   infoList: { gap: 10 },

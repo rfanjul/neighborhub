@@ -496,14 +496,55 @@ describe('ofertas', () => {
 
         expect(await api.getReview('mio')).toEqual({
           serviceId: 'mio',
+          serviceTitle: 'Pintar pared',
           reviewerId: 'uid-1',
           reviewerName: 'Luis',
+          reviewerPhotoURL: null,
           revieweeId: 'luis',
           rating: 4,
           comment: 'Genial',
+          createdAt: expect.any(Number),
         });
       });
     });
+  });
+
+  it('las ayudas de un vecino: sus reseñas, de la más nueva a la más vieja', async () => {
+    mockStore.set('reviews/a', { serviceId: 'a', serviceTitle: 'Vieja', revieweeId: 'luis', reviewerId: 'ana', rating: 5, createdAt: 1 });
+    mockStore.set('reviews/b', { serviceId: 'b', serviceTitle: 'Nueva', revieweeId: 'luis', reviewerId: 'eva', rating: 4, createdAt: 9 });
+    mockStore.set('reviews/c', { serviceId: 'c', serviceTitle: 'De otro', revieweeId: 'marta', reviewerId: 'ana', rating: 3 });
+
+    const suyas = await api.listReviewsFor('luis');
+
+    expect(suyas.map((r) => r.serviceTitle)).toEqual(['Nueva', 'Vieja']);
+    expect(suyas[1]).toMatchObject({ reviewerName: 'Neighbor', reviewerPhotoURL: null, comment: '', createdAt: 1 });
+  });
+
+  it('los servicios de otro vecino: solo los abiertos, con su perfil', async () => {
+    mockStore.set('users/marta', { name: 'Marta Nueva', rating: 4.2 });
+    mockStore.set('helpRequests/m1', { ...servicioBase, title: 'Abierto', status: 'approved', requesterId: 'marta', createdAt: 2 });
+    mockStore.set('helpRequests/m2', { ...servicioBase, title: 'Cerrado', status: 'rated', requesterId: 'marta' });
+    mockStore.set('helpRequests/m3', { ...servicioBase, title: 'Ajeno', status: 'approved', requesterId: 'otro' });
+
+    const suyos = await api.listServicesBy('marta');
+
+    expect(suyos.map((s) => s.title)).toEqual(['Abierto']);
+    expect(suyos[0].requester.name).toBe('Marta Nueva');
+  });
+
+  it('los míos, todos, estén como estén', async () => {
+    mockStore.set('helpRequests/p', { ...servicioBase, status: 'pending', requesterId: 'uid-1', createdAt: 1 });
+    mockStore.set('helpRequests/r', { ...servicioBase, status: 'rated', requesterId: 'uid-1', createdAt: 2 });
+
+    expect((await api.listServicesBy('uid-1')).map((s) => s.id)).toEqual(['r', 'p']);
+  });
+
+  it('el perfil dice desde cuándo es vecino', async () => {
+    mockStore.set('users/marta', { name: 'Marta', createdAt: { toMillis: () => 1_700_000_000_000 } });
+    mockStore.set('users/eva', { name: 'Eva' });
+
+    expect((await api.getUserProfile('marta'))?.memberSince).toBe(1_700_000_000_000);
+    expect((await api.getUserProfile('eva'))?.memberSince).toBeNull();
   });
 
   it('el perfil de otro vecino, o null si no existe', async () => {

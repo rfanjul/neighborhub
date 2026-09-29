@@ -10,6 +10,10 @@ import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
 const { sembrar, limpiar, ofertar } = require('../../scripts/seed');
+const { construir } = require('../../scripts/seed-data');
+
+const { resenas } = construir({ fecha: (d: Date) => d });
+const sembrados = 10 + 30 + resenas.length;
 
 // Proyecto propio: los otros tests limpian demo-neighborhub en paralelo.
 const projectId = 'demo-seed';
@@ -35,7 +39,7 @@ const vecino = () => env.authenticatedContext('ruben').firestore();
 
 test('crea 10 vecinos y 30 servicios aprobados, visibles en el muro', async () => {
   const r = await sembrar(getFirestore(admin), { Timestamp });
-  expect(r).toEqual({ usuarios: 10, servicios: 30 });
+  expect(r).toEqual({ usuarios: 10, servicios: 30, resenas: resenas.length });
 
   const muro = await getDocs(query(collection(vecino(), 'helpRequests'), where('status', '==', 'approved')));
   expect(muro.size).toBe(30);
@@ -61,6 +65,37 @@ test('crea 10 vecinos y 30 servicios aprobados, visibles en el muro', async () =
   expect(rating).toBe(Math.round((ratingSum / ratingCount) * 10) / 10);
 });
 
+test('cada vecino tiene tantas reseñas como ayudas, y suman su valoración', async () => {
+  await sembrar(getFirestore(admin), { Timestamp });
+
+  for (let n = 1; n <= 10; n++) {
+    const uid = `seed-user-${String(n).padStart(2, '0')}`;
+    const p = (await getDoc(doc(vecino(), 'users', uid))).data()!;
+    // Lo que lee la app en "Helps", con las reglas activas.
+    const suyas = await getDocs(query(collection(vecino(), 'reviews'), where('revieweeId', '==', uid)));
+    const notas = suyas.docs.map((d) => d.data().rating);
+
+    expect(suyas.size).toBe(p.servicesCompleted);
+    expect(suyas.size).toBe(p.ratingCount);
+    expect(notas.reduce((a, b) => a + b, 0)).toBe(p.ratingSum);
+    notas.forEach((nota) => expect(nota).toBeGreaterThanOrEqual(1));
+    notas.forEach((nota) => expect(nota).toBeLessThanOrEqual(5));
+    suyas.forEach((d) => {
+      expect(d.data().reviewerId).not.toBe(uid);
+      expect(d.data().serviceTitle).toBeTruthy();
+    });
+  }
+});
+
+test('se ven los servicios abiertos de un vecino', async () => {
+  await sembrar(getFirestore(admin), { Timestamp });
+
+  const suyos = await getDocs(
+    query(collection(vecino(), 'helpRequests'), where('requesterId', '==', 'seed-user-01'), where('status', '==', 'approved'))
+  );
+  expect(suyos.size).toBe(3);
+});
+
 test('se puede sembrar dos veces sin duplicar', async () => {
   await sembrar(getFirestore(admin), { Timestamp });
   await sembrar(getFirestore(admin), { Timestamp });
@@ -75,7 +110,7 @@ test('limpiar borra lo sembrado y respeta los datos reales', async () => {
   await db.doc('helpRequests/real').set({ title: 'Real', status: 'approved', requesterId: 'ruben' });
   await db.doc('applications/seed-service-01-1_ruben').set({ serviceId: 'seed-service-01-1', applicantId: 'ruben' });
 
-  expect(await limpiar(db)).toBe(40);
+  expect(await limpiar(db)).toBe(sembrados);
 
   expect((await db.collection('helpRequests').get()).docs.map((d) => d.id)).toEqual(['real']);
   expect((await db.collection('users').get()).docs.map((d) => d.id)).toEqual(['ruben']);
@@ -114,7 +149,7 @@ describe('ofertar', () => {
     await db.doc('helpRequests/mesa').set(mio);
     await ofertar(db, 'mesa', { Timestamp });
 
-    expect(await limpiar(db)).toBe(43);
+    expect(await limpiar(db)).toBe(sembrados + 3);
     expect((await db.collection('applications').get()).size).toBe(0);
     expect((await db.doc('helpRequests/mesa').get()).exists).toBe(true);
   });

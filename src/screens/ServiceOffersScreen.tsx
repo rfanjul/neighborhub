@@ -16,21 +16,38 @@ import { insignias } from '../components/insignias';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceOffers'>;
 
-/** Quién es quien oferta: foto, valoración, ayudas, insignias, idiomas y bio. */
-function Ofertante({ nombre, perfil }: { nombre: string; perfil: ApiUserProfile | null | undefined }) {
+/**
+ * Quién es quien oferta: foto, valoración, ayudas, insignias, idiomas y bio.
+ * La cabecera lleva a su perfil completo.
+ */
+function Ofertante({
+  nombre,
+  perfil,
+  onVerPerfil,
+}: {
+  nombre: string;
+  perfil: ApiUserProfile | null | undefined;
+  onVerPerfil: () => void;
+}) {
   if (!perfil) {
     return (
-      <View style={styles.fila}>
+      <Pressable style={styles.fila} onPress={onVerPerfil} accessibilityRole="button" accessibilityLabel={`See ${nombre}'s profile`}>
         <Avatar name={nombre} photoURL={null} size={48} />
-        <Text style={styles.nombre}>{nombre}</Text>
-      </View>
+        <Text style={[styles.nombre, { flex: 1 }]}>{nombre}</Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
     );
   }
   const ayudas = perfil.servicesCompleted;
   const logradas = insignias(ayudas).filter((i) => i.clave !== 'ayudas' && i.conseguida);
   return (
     <View style={{ gap: 10 }}>
-      <View style={styles.fila}>
+      <Pressable
+        style={styles.fila}
+        onPress={onVerPerfil}
+        accessibilityRole="button"
+        accessibilityLabel={`See ${perfil.name}'s profile`}
+      >
         <Avatar name={perfil.name} photoURL={perfil.photoURL} size={48} />
         <View style={{ flex: 1, gap: 3 }}>
           <View style={styles.filaNombre}>
@@ -52,7 +69,8 @@ function Ofertante({ nombre, perfil }: { nombre: string; perfil: ApiUserProfile 
             {ayudas === 1 ? '1 help' : `${ayudas} helps`} · {perfil.levelLabel}
           </Text>
         </View>
-      </View>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
       {logradas.length > 0 && (
         <View style={styles.insignias}>
           {logradas.map((i) => (
@@ -203,7 +221,11 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
         }
         renderItem={({ item }) => (
           <View style={[styles.tarjeta, item.status === 'rejected' && { opacity: 0.55 }]}>
-            <Ofertante nombre={item.applicantName} perfil={item.applicant} />
+            <Ofertante
+              nombre={item.applicantName}
+              perfil={item.applicant}
+              onVerPerfil={() => navigation.navigate('NeighborProfile', { userId: item.applicantId })}
+            />
             {item.comment ? (
               <View style={styles.oferta}>
                 <Text style={styles.etiquetaOferta}>Their offer</Text>
@@ -252,6 +274,7 @@ const styles = StyleSheet.create({
   filaNombre: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   nombre: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
   verificado: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.green },
+  chevron: { fontFamily: fonts.bodySemiBold, fontSize: 24, color: colors.mutedLight },
   meta: { fontFamily: fonts.body, fontSize: 12, color: colors.muted },
   insignias: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   insignia: {

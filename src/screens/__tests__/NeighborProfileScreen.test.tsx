@@ -1,0 +1,125 @@
+import React from 'react';
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import NeighborProfileScreen from '../NeighborProfileScreen';
+import { api } from '../../firebase/data';
+import { servicio } from '../../test-utils/servicio';
+import { perfil } from '../../test-utils/perfil';
+
+jest.mock('@react-navigation/native', () => ({
+  ...jest.requireActual('@react-navigation/native'),
+  useFocusEffect: (efecto: () => void) => require('react').useEffect(efecto, []),
+}));
+
+const mockedApi = api as jest.Mocked<typeof api>;
+
+async function renderPerfil() {
+  const navigation = { goBack: jest.fn(), navigate: jest.fn() };
+  await render(<NeighborProfileScreen navigation={navigation as never} route={{ params: { userId: 'luis' } } as never} />);
+  return navigation;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockedApi.getUserProfile.mockResolvedValue(perfil());
+  mockedApi.listServicesBy.mockResolvedValue([servicio({ id: 'a' }), servicio({ id: 'b' })]);
+});
+
+describe('NeighborProfileScreen', () => {
+  it('enseña todos sus datos, cada uno con su valor', async () => {
+    await renderPerfil();
+
+    expect(await screen.findByText('Luis')).toBeTruthy();
+    expect(mockedApi.getUserProfile).toHaveBeenCalledWith('luis');
+    expect(screen.getByText('✓ Verified')).toBeTruthy();
+    expect(screen.getByText('Trusted neighbor')).toBeTruthy();
+    expect(screen.getByText('4.8 · 21 ratings')).toBeTruthy();
+    expect(screen.getByText('27')).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('4.8 ★')).toBeTruthy();
+    expect(screen.getByText('Carpintero jubilado, tengo de todo en el taller.')).toBeTruthy();
+    expect(screen.getByText('German, Spanish')).toBeTruthy();
+    expect(screen.getByText('8003 Zürich')).toBeTruthy();
+    expect(screen.getByText('< 1h')).toBeTruthy();
+    expect(screen.getByText('Jul 2026')).toBeTruthy();
+    expect(screen.getByText('Verified')).toBeTruthy();
+    expect(screen.getByLabelText('Amateur')).toBeTruthy();
+    expect(screen.getByLabelText('Veterano')).toBeTruthy();
+    expect(screen.getByLabelText('Ejemplar, locked: Más de 50 ayudas')).toBeTruthy();
+  });
+
+  it('un vecino recién llegado no deja huecos: cada campo dice algo', async () => {
+    mockedApi.getUserProfile.mockResolvedValue(
+      perfil({
+        bio: null, languages: null, city: null, postalCode: null, responseLabel: '—', memberSince: null,
+        identityVerified: false, rating: 0, ratingCount: 0, servicesCompleted: 0, levelLabel: 'New neighbor',
+      })
+    );
+    mockedApi.listServicesBy.mockResolvedValue([]);
+    await renderPerfil();
+
+    expect(await screen.findByText("Luis hasn't written a bio yet.")).toBeTruthy();
+    expect(screen.getAllByText('Not specified')).toHaveLength(3);
+    expect(screen.getByText('No data yet')).toBeTruthy();
+    expect(screen.getByText('Not verified yet')).toBeTruthy();
+    expect(screen.getByText('No ratings yet')).toBeTruthy();
+    expect(screen.getByText('New')).toBeTruthy();
+    expect(screen.getAllByText('0')).toHaveLength(2);
+    expect(screen.queryByText('✓ Verified')).toBeNull();
+  });
+
+  it('solo la ciudad, sin código postal', async () => {
+    mockedApi.getUserProfile.mockResolvedValue(perfil({ postalCode: null, ratingCount: 1, rating: 5 }));
+    await renderPerfil();
+
+    expect(await screen.findByText('Zürich')).toBeTruthy();
+    expect(screen.getByText('5.0 · 1 rating')).toBeTruthy();
+  });
+
+  it('ayudas y valoraciones llevan a sus ayudas con reseñas; servicios, a sus servicios', async () => {
+    const navigation = await renderPerfil();
+
+    await fireEvent.press(await screen.findByLabelText("See Luis's helps"));
+    expect(navigation.navigate).toHaveBeenLastCalledWith('NeighborList', { userId: 'luis', lista: 'helps', nombre: 'Luis' });
+
+    await fireEvent.press(screen.getByLabelText("See Luis's reviews"));
+    expect(navigation.navigate).toHaveBeenLastCalledWith('NeighborList', { userId: 'luis', lista: 'helps', nombre: 'Luis' });
+
+    await fireEvent.press(screen.getByLabelText("See Luis's services"));
+    expect(navigation.navigate).toHaveBeenLastCalledWith('NeighborList', { userId: 'luis', lista: 'services', nombre: 'Luis' });
+  });
+
+  it('si no se pueden contar los servicios, cuenta cero', async () => {
+    mockedApi.listServicesBy.mockRejectedValue(new Error('sin red'));
+    await renderPerfil();
+
+    await screen.findByText('Luis');
+    expect(screen.getByText('0')).toBeTruthy();
+  });
+
+  it('mientras carga no enseña nada a medias', async () => {
+    mockedApi.getUserProfile.mockReturnValue(new Promise(() => {}));
+    mockedApi.listServicesBy.mockReturnValue(new Promise(() => {}));
+    await renderPerfil();
+
+    expect(screen.queryByText('Luis')).toBeNull();
+    expect(screen.queryByText("We couldn't find this neighbor.")).toBeNull();
+  });
+
+  it.each([
+    ['no existe', () => mockedApi.getUserProfile.mockResolvedValue(null)],
+    ['no se puede leer', () => mockedApi.getUserProfile.mockRejectedValue(new Error('x'))],
+  ])('si el perfil %s lo dice', async (_caso, preparar) => {
+    preparar();
+    await renderPerfil();
+
+    expect(await screen.findByText("We couldn't find this neighbor.")).toBeTruthy();
+  });
+
+  it('vuelve atrás', async () => {
+    const navigation = await renderPerfil();
+
+    await fireEvent.press(screen.getByLabelText('Back'));
+
+    expect(navigation.goBack).toHaveBeenCalled();
+  });
+});

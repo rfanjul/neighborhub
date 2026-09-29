@@ -187,3 +187,22 @@ describe('ServiceDetailScreen', () => {
     expect(navigation.goBack).toHaveBeenCalled();
   });
 });
+
+describe('autor del servicio', () => {
+  it('tocarlo abre su perfil', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ requesterId: 'ana' }));
+    const navigation = await renderDetalle('luis');
+
+    await fireEvent.press(await screen.findByLabelText(/'s profile$/));
+
+    expect(navigation.navigate).toHaveBeenCalledWith('NeighborProfile', { userId: 'ana' });
+  });
+
+  it('si soy yo, no es un enlace', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ requesterId: 'ana' }));
+    await renderDetalle('ana');
+
+    await waitFor(() => expect(mockedApi.getService).toHaveBeenCalled());
+    expect(screen.queryByLabelText(/'s profile$/)).toBeNull();
+  });
+});

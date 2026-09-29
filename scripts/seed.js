@@ -4,7 +4,7 @@
  * que se salta las reglas de seguridad: desde la app no se podría crear
  * perfiles ajenos ni servicios ya aprobados.
  *
- *   npm run seed          → crea/actualiza 10 vecinos y 30 servicios
+ *   npm run seed          → crea/actualiza 10 vecinos, sus reseñas y 30 servicios
  *   npm run seed:clean    → borra todo lo que lleve `seed: true`
  *   npm run seed -- --ofertas "Move table"
  *                         → 3 vecinos de prueba ofertan en ese servicio
@@ -22,12 +22,13 @@ const { construir } = require('./seed-data');
 /** Crea o sobrescribe los documentos de prueba. Idempotente. */
 async function sembrar(db, { Timestamp } = {}) {
   const fecha = Timestamp ? (d) => Timestamp.fromDate(d) : (d) => d;
-  const { usuarios, servicios } = construir({ fecha });
+  const { usuarios, servicios, resenas } = construir({ fecha });
   const batch = db.batch();
   for (const u of usuarios) batch.set(db.collection('users').doc(u.id), u.data);
   for (const s of servicios) batch.set(db.collection('helpRequests').doc(s.id), s.data);
+  for (const r of resenas) batch.set(db.collection('reviews').doc(r.id), r.data);
   await batch.commit();
-  return { usuarios: usuarios.length, servicios: servicios.length };
+  return { usuarios: usuarios.length, servicios: servicios.length, resenas: resenas.length };
 }
 
 // Quién oferta y qué dice: vecinos con mano para mover y montar cosas.
@@ -90,7 +91,7 @@ async function limpiar(db) {
     await o.ref.delete();
     borrados++;
   }
-  for (const coleccion of ['helpRequests', 'users']) {
+  for (const coleccion of ['reviews', 'helpRequests', 'users']) {
     const snap = await db.collection(coleccion).where('seed', '==', true).get();
     for (const d of snap.docs) {
       // Las ofertas y mensajes que otros hayan hecho sobre servicios de prueba.
@@ -142,7 +143,7 @@ async function main() {
     console.log(`🧹 ${destino}: borrados ${n} documentos de prueba`);
   } else {
     const r = await sembrar(db, { Timestamp });
-    console.log(`🌱 ${destino}: ${r.usuarios} vecinos y ${r.servicios} servicios aprobados`);
+    console.log(`🌱 ${destino}: ${r.usuarios} vecinos, ${r.resenas} reseñas y ${r.servicios} servicios aprobados`);
   }
 }
 

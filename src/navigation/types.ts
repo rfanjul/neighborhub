@@ -28,6 +28,10 @@ export type RootStackParamList = {
   ServiceOffers: { serviceId: string };
   /** Dar por hecha la ayuda valorando a quien ayudó (1 a 5 y comentario). */
   RateHelper: { serviceId: string };
+  /** Perfil público de otro vecino. */
+  NeighborProfile: { userId: string };
+  /** Sus ayudas (con las reseñas) o sus servicios abiertos. */
+  NeighborList: { userId: string; lista: 'helps' | 'services'; nombre: string };
   Chat: { serviceId: string };
   /** Sin serviceId crea uno nuevo; con él, edita ese servicio. */
   CreateService: { serviceId?: string } | undefined;
