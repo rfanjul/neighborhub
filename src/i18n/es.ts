@@ -303,7 +303,6 @@ const es: Diccionario = {
     resenas: 'Valoraciones ›',
     respuesta: 'Respuesta',
     creditos: 'Tus créditos',
-    anadirCreditos: '+ Añadir créditos',
     insignias: 'Insignias',
   },
   datos: {

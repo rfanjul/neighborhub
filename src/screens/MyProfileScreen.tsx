@@ -194,9 +194,6 @@ export default function MyProfileScreen() {
             <Text style={styles.creditsCaption}>{t('miPerfil.creditos')}</Text>
             <Text style={styles.creditsValue}>{currentUser.credits}</Text>
           </View>
-          <Pressable style={styles.addCreditsButton}>
-            <Text style={styles.addCreditsLabel}>{t('miPerfil.anadirCreditos')}</Text>
-          </Pressable>
         </View>
 
         <View style={styles.section}>
@@ -266,8 +263,6 @@ const styles = StyleSheet.create({
   },
   creditsCaption: { fontFamily: fonts.body, fontSize: 14, color: 'rgba(255,255,255,0.85)' },
   creditsValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, color: colors.white },
-  addCreditsButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.18)' },
-  addCreditsLabel: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.white },
   section: { marginHorizontal: 20, marginTop: 20 },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.muted },
   badgesRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },

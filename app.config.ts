@@ -24,6 +24,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       // de lo nativo (botón de Apple, permisos) y deja cambiarlo en Ajustes.
       CFBundleDevelopmentRegion: 'en',
       CFBundleLocalizations: ['en', 'de', 'es'],
+      // Solo HTTPS estándar (Firebase): exenta de la declaración de
+      // exportación, así App Store Connect no la pregunta en cada build.
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   // Textos nativos (permisos y nombre) en cada idioma.

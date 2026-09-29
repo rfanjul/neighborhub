@@ -305,7 +305,6 @@ const en = {
     resenas: 'Reviews ›',
     respuesta: 'Response',
     creditos: 'Your credits',
-    anadirCreditos: '+ Add credits',
     insignias: 'Badges',
   },
   datos: {

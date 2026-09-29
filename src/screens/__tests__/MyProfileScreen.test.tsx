@@ -70,6 +70,13 @@ describe('insignias', () => {
 });
 
 describe('MyProfileScreen', () => {
+  it('enseña los créditos, pero no ofrece comprarlos (la app no vende nada)', async () => {
+    await render(<MyProfileScreen />);
+
+    expect(await screen.findByText('Your credits')).toBeTruthy();
+    expect(screen.queryByText(/Add credits/)).toBeNull();
+  });
+
   it('en ajustes se puede cambiar el idioma de la app', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await render(<MyProfileScreen />);

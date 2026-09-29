@@ -303,7 +303,6 @@ const de: Diccionario = {
     resenas: 'Bewertungen ›',
     respuesta: 'Antwortzeit',
     creditos: 'Dein Guthaben',
-    anadirCreditos: '+ Guthaben aufladen',
     insignias: 'Abzeichen',
   },
   datos: {
