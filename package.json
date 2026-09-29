@@ -59,7 +59,7 @@
     "demo:emulators": "firebase emulators:start --only auth,firestore,storage --project demo-neighborhub",
     "demo:seed": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8180 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-neighborhub node scripts/seed.js --demo",
     "demo:app": "node scripts/demo-app.js",
-    "hosting:deploy": "firebase deploy --only hosting --project neighborhood-c4dc9"
+    "hosting:deploy": "node scripts/deploy-hosting.js"
   },
   "private": true
 }

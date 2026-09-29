@@ -209,6 +209,23 @@ y en "Entrar con email" pulsa **Entrar con la cuenta demo** (solo aparece en
 este modo). La cuenta vive solo en el emulador: `demo:seed` se niega a crearla
 contra el proyecto real. Los datos se pierden al parar los emuladores.
 
+## Web (Firebase Hosting)
+
+`web/` es la web pública: portada, cómo funciona, preguntas, soporte con
+formulario de contacto, política de privacidad y términos de uso. Está en
+https://neighborhood-c4dc9.web.app (privacidad: `/privacidad`, términos:
+`/terminos`, soporte: `/soporte`, que son las URL que pide App Store Connect).
+
+```bash
+npm run hosting:deploy -- --check   # lista lo que subiría
+npm run hosting:deploy              # publica web/ con service-account.json
+```
+
+Los mensajes del formulario se guardan en Firestore (`contactMessages`) y se
+leen en la consola de Firebase; las reglas solo dejan crear mensajes bien
+formados. Para probarla en local: `npx firebase emulators:start --only
+hosting,firestore --project demo-neighborhub` y abre http://127.0.0.1:5050.
+
 ## Reglas de seguridad
 
 `firestore.rules` y `storage.rules` son las que tienen que estar publicadas
