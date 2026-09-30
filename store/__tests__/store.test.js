@@ -17,6 +17,14 @@ describe('store.config.json', () => {
     expect(config.apple.version).toBe(app.expo.version);
   });
 
+  it('la clasificación por edad es 16+, como piden los términos, y declara contenido de usuarios y chat', () => {
+    const edad = config.apple.advisory;
+    expect(edad.ageRatingOverrideV2).toBe('SIXTEEN_PLUS');
+    expect(edad.userGeneratedContent).toBe(true);
+    expect(edad.messagingAndChat).toBe(true);
+    expect(edad.advertising).toBe(false);
+  });
+
   it('tiene inglés, alemán y español', () => {
     expect(Object.keys(config.apple.info).sort()).toEqual(['de-DE', 'en-US', 'es-ES']);
   });

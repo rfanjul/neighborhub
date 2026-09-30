@@ -17,7 +17,7 @@ let md = `# Neighborhub en App Store Connect
 Generado desde \`store.config.json\` con \`npm run store:md\`: edita allí y
 vuelve a generar. Se sube con \`npx eas-cli metadata:push\`.
 
-Categorías: ${config.apple.categories.join(', ')} · Copyright: ${config.apple.copyright}
+Versión: ${config.apple.version} · Categorías: ${config.apple.categories.join(', ')} · Copyright: ${config.apple.copyright}\nEdad: ${config.apple.advisory.ageRatingOverrideV2} (contenido de usuarios y chat; sin anuncios ni navegador web)
 `;
 for (const [locale, i] of Object.entries(config.apple.info)) {
   const keywords = i.keywords.join(',');

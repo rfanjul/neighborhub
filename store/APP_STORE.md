@@ -3,7 +3,8 @@
 Generado desde `store.config.json` con `npm run store:md`: edita allí y
 vuelve a generar. Se sube con `npx eas-cli metadata:push`.
 
-Categorías: LIFESTYLE, SOCIAL_NETWORKING · Copyright: 2026 Ruben Fanjul Estrada
+Versión: 1.0.0 · Categorías: LIFESTYLE, SOCIAL_NETWORKING · Copyright: 2026 Ruben Fanjul Estrada
+Edad: SIXTEEN_PLUS (contenido de usuarios y chat; sin anuncios ni navegador web)
 
 ## English (U.S.)
 
