@@ -233,6 +233,33 @@ leen en la consola de Firebase; las reglas solo dejan crear mensajes bien
 formados. Para probarla en local: `npx firebase emulators:start --only
 hosting,firestore --project demo-neighborhub` y abre http://127.0.0.1:5050.
 
+## Pagos (Stripe Connect)
+
+Servicios con precio: quien pide paga el precio más un 8 % de gestión (mínimo
+CHF 1) en Stripe Checkout al elegir la oferta; el dinero queda retenido y, al
+marcarlo como hecho, el precio entero se transfiere a quien ayudó. La gestión
+se queda en la plataforma. Quien ayuda activa antes los cobros (Perfil →
+Activar cobros): una cuenta conectada de Stripe (Accounts v2, «recipient»).
+
+- Servidor: `functions/` (Cloud Functions en europe-west6): `activarCobros`,
+  `estadoCobros`, `pagarOferta`, `stripeWebhook` y `liberarPago` (al pasar a
+  completado o valorado). La lógica está en `functions/pagos.js`.
+- Solo el servidor lee y escribe `pagos/` y `cuentasCobro/`; la app no puede
+  elegir oferta en servicios con precio (lo hace el webhook al cobrar).
+- Claves: la publicable en `.env`; la secreta y la del webhook en
+  `functions/.secret.local` (fuera de git) en local, y como secretos de
+  Firebase en producción. Nunca claves `sk_live` en desarrollo.
+- Requisitos de Stripe: Connect activo y, en *Settings → Connect → Platform
+  profile*, aceptar que la plataforma responde de las pérdidas (si no, Stripe
+  no deja crear las cuentas).
+
+En local: `npm run demo:emulators` (ya incluye functions), y los avisos de
+Stripe al emulador con `stripe listen --forward-to
+http://127.0.0.1:5001/demo-neighborhub/europe-west6/stripeWebhook
+--forward-connect-to …/stripeWebhook`. Tests: `npm run test:functions`.
+
+Para publicarlo hace falta el plan Blaze de Firebase.
+
 ## Administración (web /admin)
 
 https://neighborhood-c4dc9.web.app/admin — ver, corregir y aprobar

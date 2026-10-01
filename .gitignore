@@ -63,3 +63,6 @@ __pycache__/
 # Secretos de Cloud Functions (clave secreta de Stripe, webhooks)
 functions/.secret.local
 *.secret.local
+
+# Cloud Functions
+functions/node_modules/

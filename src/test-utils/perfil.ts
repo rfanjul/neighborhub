@@ -19,6 +19,7 @@ export const perfil = (cambios: Partial<ApiUserProfile> = {}): ApiUserProfile =>
   ratingCount: 21,
   responseLabel: '< 1h',
   identityVerified: true,
+  cobrosActivos: false,
   onboardingCompleted: true,
   hasPhoto: false,
   photoURL: null,

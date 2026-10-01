@@ -310,6 +310,51 @@ describe('helpRequests', () => {
   });
 });
 
+describe('pagos con Stripe (los escribe solo el servidor)', () => {
+  it('con precio, la app no puede elegir oferta: lo acepta el servidor al cobrar', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+    await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+    await assertFails(
+      updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+    );
+  });
+
+  it('gratis se sigue eligiendo desde la app', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: null }));
+    await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+    await assertSucceeds(
+      updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+    );
+  });
+
+  it('nadie se apunta un pago desde la app, ni quien publica ni la administración', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { pago: { estado: 'pagado' } }));
+    await assertFails(
+      updateDoc(doc(env.authenticatedContext('jefa', { admin: true }).firestore(), 'helpRequests/s1'), { pago: { estado: 'pagado' } })
+    );
+  });
+
+  it('pagos y cuentas de cobro no se leen ni se escriben desde fuera, ni siendo el dueño', async () => {
+    await sembrar('pagos/s1', { requesterId: 'ana', helperId: 'luis', estado: 'retenido' });
+    await sembrar('cuentasCobro/luis', { stripeAccountId: 'acct_luis', cobrosActivos: true });
+
+    await assertFails(getDoc(doc(como('ana'), 'pagos/s1')));
+    await assertFails(getDoc(doc(como('luis'), 'cuentasCobro/luis')));
+    await assertFails(setDoc(doc(como('luis'), 'cuentasCobro/luis'), { stripeAccountId: 'acct_otra', cobrosActivos: true }));
+    await assertFails(setDoc(doc(como('ana'), 'pagos/s2'), { estado: 'pagado' }));
+  });
+
+  it('nadie se pone los cobros como activos en su perfil', async () => {
+    await sembrar('users/luis', { ...perfilInicial, name: 'Luis' });
+
+    await assertFails(updateDoc(doc(como('luis'), 'users/luis'), { cobrosActivos: true }));
+  });
+});
+
 describe('administración', () => {
   const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
 

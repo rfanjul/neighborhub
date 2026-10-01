@@ -16,6 +16,18 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 - Reglas de Firestore: la administración lee todos los servicios y los
   aprueba, despublica o corrige mientras nadie está ayudando; no cambia
   quién pide ni quién ayuda.
+- Pagos con Stripe Connect (pendientes de probar contra el Sandbox: falta
+  aceptar la responsabilidad de pérdidas en el perfil de plataforma de
+  Stripe, y publicar las Functions requiere el plan Blaze):
+  - Perfil → **Activar cobros**: formulario de Stripe para quien ayuda
+    (cuenta conectada, Accounts v2), y su estado al volver a la app.
+  - En servicios con precio, ofrecerse exige tener los cobros activos, y
+    elegir oferta es **pagar** en Stripe Checkout (precio + 8 %); el
+    servidor acepta el servicio al confirmarse y el dinero queda retenido.
+  - Al marcarlo como hecho, el precio se transfiere a quien ayudó.
+  - Cloud Functions en `functions/` (22 tests contra el emulador), reglas
+    que dejan pagos y cuentas solo al servidor, y páginas de vuelta
+    `/pago` y `/cobros` en la web.
 
 ## [1.1.0 (5)] — 2026-10-01 · TestFlight, prueba interna
 

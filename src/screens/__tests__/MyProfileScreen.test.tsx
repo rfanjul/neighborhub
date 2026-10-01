@@ -78,6 +78,15 @@ describe('MyProfileScreen', () => {
     expect(screen.queryByText('30')).toBeNull();
   });
 
+  it('ofrece activar los cobros y, si ya están, lo dice', async () => {
+    await render(<MyProfileScreen />);
+    expect(await screen.findByText('Set up payouts')).toBeTruthy();
+
+    mockedApi.getMe.mockResolvedValue({ ...perfil, cobrosActivos: true } as never);
+    await render(<MyProfileScreen />);
+    expect(await screen.findByText('✓ Payouts set up')).toBeTruthy();
+  });
+
   it('en ajustes se puede cambiar el idioma de la app', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await render(<MyProfileScreen />);

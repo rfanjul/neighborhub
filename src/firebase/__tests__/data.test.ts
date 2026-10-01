@@ -9,7 +9,19 @@ const mockBorrados: string[] = [];
 let mockReloj = 0;
 let mockSecuencia = 0;
 
-jest.mock('../index', () => ({ auth: { currentUser: { uid: 'uid-1' } }, db: {} }));
+jest.mock('../index', () => ({ auth: { currentUser: { uid: 'uid-1' } }, db: {}, functions: {} }));
+
+// Cloud Functions de pagos: se apunta qué se llama y con qué, y se responde lo preparado.
+const mockLlamadas: Array<[string, unknown]> = [];
+const mockRespuestas: Record<string, unknown> = {};
+jest.mock('firebase/functions', () => ({
+  httpsCallable: (_functions: unknown, nombre: string) => async (datos?: unknown) => {
+    mockLlamadas.push([nombre, datos]);
+    const respuesta = mockRespuestas[nombre];
+    if (respuesta instanceof Error) throw respuesta;
+    return { data: respuesta };
+  },
+}));
 
 jest.mock('@firebase/firestore', () => {
   const ruta = (segmentos: string[]) => segmentos.join('/');
@@ -684,5 +696,53 @@ describe('borrar mis datos', () => {
     expect(mockBorrados).toEqual(
       expect.arrayContaining(['https://storage.example/service-photos/uid-1/a.jpg', 'profile-photos/uid-1.jpg'])
     );
+  });
+});
+
+describe('pagos con Stripe (Cloud Functions)', () => {
+  beforeEach(() => {
+    mockLlamadas.length = 0;
+  });
+
+  it('activar cobros devuelve el enlace al formulario de Stripe', async () => {
+    mockRespuestas.activarCobros = { url: 'https://accounts.stripe.com/r/acct_1' };
+
+    expect(await api.activarCobros()).toBe('https://accounts.stripe.com/r/acct_1');
+    expect(mockLlamadas).toEqual([['activarCobros', undefined]]);
+  });
+
+  it('el estado de los cobros llega tal cual', async () => {
+    mockRespuestas.estadoCobros = { conCuenta: true, activos: false, pendiente: true };
+
+    expect(await api.estadoCobros()).toEqual({ conCuenta: true, activos: false, pendiente: true });
+  });
+
+  it('pagar una oferta manda el servicio y quién ayuda, y devuelve Stripe Checkout', async () => {
+    mockRespuestas.pagarOferta = { url: 'https://checkout.stripe.com/c/pay/cs_1' };
+
+    expect(await api.pagarOferta('s1', 'luis')).toBe('https://checkout.stripe.com/c/pay/cs_1');
+    expect(mockLlamadas).toEqual([['pagarOferta', { serviceId: 's1', applicantId: 'luis' }]]);
+  });
+
+  it('los errores del servidor llegan con su motivo', async () => {
+    mockRespuestas.pagarOferta = Object.assign(new Error('sin cobros'), { code: 'functions/failed-precondition', details: { motivo: 'sinCobros' } });
+
+    await expect(api.pagarOferta('s1', 'luis')).rejects.toMatchObject({ details: { motivo: 'sinCobros' } });
+  });
+
+  it('el servicio trae el resumen del pago, y el perfil si puede cobrar', async () => {
+    mockStore.set('helpRequests/pagado', { title: 'Subir un sofá', status: 'accepted', priceCents: 4000, pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 } });
+    mockStore.set('users/uid-1', { name: 'Ana', cobrosActivos: true });
+
+    expect((await api.getService('pagado')).pago).toEqual({ estado: 'retenido', precio: 4000, comision: 320, total: 4320 });
+    expect((await api.getMe()).cobrosActivos).toBe(true);
+  });
+
+  it('sin pago ni cobros, null y false', async () => {
+    mockStore.set('helpRequests/gratis', { title: 'Regar', status: 'approved', priceCents: null });
+    mockStore.set('users/uid-1', { name: 'Ana' });
+
+    expect((await api.getService('gratis')).pago).toBeNull();
+    expect((await api.getMe()).cobrosActivos).toBe(false);
   });
 });

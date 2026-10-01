@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState, Linking } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import ServiceOffersScreen from '../ServiceOffersScreen';
 import { api, type Application } from '../../firebase/data';
@@ -40,7 +40,8 @@ async function confirmar(alerta: jest.SpyInstance, boton: string) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockedApi.getService.mockResolvedValue(servicio({ title: 'Pintar pared', status: 'approved' }));
+  // Por defecto un favor gratis: se elige sin pagar. Los de pago, en su describe.
+  mockedApi.getService.mockResolvedValue(servicio({ title: 'Pintar pared', status: 'approved', priceCents: null }));
   mockedApi.listApplicationsForService.mockResolvedValue([oferta('luis', 'Luis'), oferta('marta', 'Marta')]);
 });
 
@@ -241,5 +242,91 @@ describe('ServiceOffersScreen', () => {
     await fireEvent.press(screen.getByLabelText('Back'));
 
     expect(navigation.goBack).toHaveBeenCalled();
+  });
+});
+
+describe('servicios con precio: se paga en Stripe al elegir', () => {
+  let abrir: jest.SpyInstance;
+  beforeEach(() => {
+    mockedApi.getService.mockResolvedValue(servicio({ title: 'Subir un sofá', status: 'approved', priceCents: 4000 }));
+    abrir = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  });
+  afterEach(() => abrir.mockRestore());
+
+  it('quien aún no ha activado los cobros no se puede elegir', async () => {
+    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: false }) }]);
+    await renderOfertas();
+
+    expect(await screen.findByText("Can't receive payments yet")).toBeTruthy();
+    expect(screen.queryByText(/^Pay /)).toBeNull();
+  });
+
+  it('pagar explica el total, abre Stripe Checkout y espera; elegir lo hará el servidor', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: true }) }]);
+    await renderOfertas();
+
+    await fireEvent.press(await screen.findByText(/^Pay CHF\s43\.20$/));
+    expect(alerta).toHaveBeenCalledWith(
+      'Pay and choose Luis?',
+      expect.stringMatching(/You'll pay CHF\s43\.20 \(CHF\s40\.00 \+ CHF\s3\.20 service fee\)/),
+      expect.any(Array)
+    );
+    await confirmar(alerta, 'Pay CHF\u00a043.20');
+
+    expect(mockedApi.pagarOferta).toHaveBeenCalledWith('s1', 'luis');
+    expect(abrir).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_test');
+    expect(mockedApi.selectApplicant).not.toHaveBeenCalled();
+    expect(screen.getByText(/Waiting for your payment on Stripe/)).toBeTruthy();
+    alerta.mockRestore();
+  });
+
+  it('al volver de Stripe recarga y, ya aceptado, enseña el pago retenido', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    let alCambiar: (estado: string) => void = () => {};
+    const suscribir = jest.spyOn(AppState, 'addEventListener').mockImplementation((_e, f) => {
+      alCambiar = f as never;
+      return { remove: jest.fn() } as never;
+    });
+    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: true }) }]);
+    await renderOfertas();
+    await fireEvent.press(await screen.findByText(/^Pay CHF/));
+    await confirmar(alerta, 'Pay CHF\u00a043.20');
+
+    mockedApi.getService.mockResolvedValue(
+      servicio({
+        status: 'accepted', priceCents: 4000, helperId: 'luis', helperName: 'Luis',
+        pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 },
+      })
+    );
+    await act(async () => alCambiar('active'));
+
+    expect(await screen.findByText(/CHF\s43\.20 paid and held: Luis gets CHF\s40\.00 when you mark it as done/)).toBeTruthy();
+    expect(screen.queryByText(/Waiting for your payment/)).toBeNull();
+    suscribir.mockRestore();
+    alerta.mockRestore();
+  });
+
+  it('si el servidor no deja pagar, lo explica en el idioma de la app', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: true }) }]);
+    mockedApi.pagarOferta.mockRejectedValueOnce(Object.assign(new Error('x'), { details: { motivo: 'sinCobros' } }));
+    await renderOfertas();
+
+    await fireEvent.press(await screen.findByText(/^Pay CHF/));
+    await confirmar(alerta, 'Pay CHF\u00a043.20');
+
+    expect(alerta).toHaveBeenLastCalledWith("Couldn't start the payment", "This person hasn't set up payouts yet, so they can't be paid.");
+    expect(abrir).not.toHaveBeenCalled();
+    alerta.mockRestore();
+  });
+
+  it('ya terminado dice que se pagó a quien ayudó', async () => {
+    mockedApi.getService.mockResolvedValue(
+      servicio({ status: 'rated', priceCents: 4000, helperId: 'luis', helperName: 'Luis', pago: { estado: 'pagado', precio: 4000, comision: 320, total: 4320 } })
+    );
+    await renderOfertas();
+
+    expect(await screen.findByText(/CHF\s40\.00 paid to Luis\./)).toBeTruthy();
   });
 });

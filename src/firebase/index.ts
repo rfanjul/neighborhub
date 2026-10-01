@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp } from 'firebase/app';
 import { connectFirestoreEmulator, getFirestore, initializeFirestore, type Firestore } from '@firebase/firestore';
 import { connectAuthEmulator, getAuth, initializeAuth, type Auth } from 'firebase/auth';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // `firebase/auth` resuelve al build de navegador en tsc; el build de React
@@ -42,6 +43,9 @@ try {
   db = getFirestore(app);
 }
 
+// Los pagos (Stripe) viven en Cloud Functions en Zúrich: functions/index.js.
+const functions = getFunctions(app, 'europe-west6');
+
 /**
  * Modo demo (npm run demo:app): con EXPO_PUBLIC_USE_EMULATORS=1 la app
  * habla con los emuladores locales de Firebase, con datos de prueba, en vez
@@ -54,9 +58,10 @@ if (usandoEmuladores) {
     connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
     connectFirestoreEmulator(db, host, 8180);
     connectStorageEmulator(getStorage(app), host, 9199);
+    connectFunctionsEmulator(functions, host, 5001);
   } catch {
     // Fast Refresh: ya estaban conectados.
   }
 }
 
-export { auth, db };
+export { auth, db, functions };

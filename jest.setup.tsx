@@ -37,6 +37,9 @@ jest.mock('./src/firebase/data', () => ({
     uploadMyPhoto: jest.fn(async () => null),
     uploadServicePhoto: jest.fn(async () => ''),
     deleteServicePhoto: jest.fn(async () => undefined),
+    activarCobros: jest.fn(async () => 'https://accounts.stripe.com/r/acct_test'),
+    estadoCobros: jest.fn(async () => ({ conCuenta: true, activos: true, pendiente: false })),
+    pagarOferta: jest.fn(async () => 'https://checkout.stripe.com/c/pay/cs_test'),
   },
 }));
 

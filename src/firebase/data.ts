@@ -24,7 +24,8 @@ import {
 // doesn't need one — it's just fetch()/Blob under the hood, which works
 // fine via the regular browser build in React Native.
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { auth, db } from './index';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from './index';
 import type { ServiceCategory, ServiceRequest } from '../data/mock';
 import { t } from '../i18n';
 
@@ -120,6 +121,8 @@ export type ApiUserProfile = {
   ratingCount: number;
   responseLabel: string;
   identityVerified: boolean;
+  /** Ha activado los cobros con Stripe: se le puede pagar en servicios con precio. */
+  cobrosActivos: boolean;
   onboardingCompleted: boolean;
   hasPhoto: boolean;
   photoURL: string | null;
@@ -171,6 +174,7 @@ export function valoracionMedia(d: any): number {
 
 function profileFromDoc(id: string, d: any): ApiUserProfile {
   return {
+    cobrosActivos: d.cobrosActivos === true,
     id,
     name: d.name,
     email: d.email,
@@ -244,6 +248,7 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
     description: d.description ?? '',
     distanceKm: parseFloat(d.locationLabel) || 0,
     priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
+    pago: d.pago?.estado ? { estado: d.pago.estado, precio: d.pago.precio, comision: d.pago.comision, total: d.pago.total } : null,
     postedLabel: d.availableLabel ?? '',
     status: d.status ?? 'pending',
     durationLabel: d.durationLabel ?? '',
@@ -591,6 +596,33 @@ export const api = {
       });
     }
     await lote.commit();
+  },
+
+  /**
+   * Cobros con Stripe (functions/pagos.js): crea la cuenta de cobro si hace
+   * falta y devuelve el enlace al formulario de Stripe.
+   */
+  async activarCobros(): Promise<string> {
+    const r = await httpsCallable<void, { url: string }>(functions, 'activarCobros')();
+    return r.data.url;
+  },
+
+  /** Pregunta a Stripe si ya puede cobrar (y lo apunta en el perfil). */
+  async estadoCobros(): Promise<{ conCuenta: boolean; activos: boolean; pendiente: boolean }> {
+    const r = await httpsCallable<void, { conCuenta: boolean; activos: boolean; pendiente: boolean }>(functions, 'estadoCobros')();
+    return r.data;
+  },
+
+  /**
+   * Elegir una oferta de un servicio con precio: devuelve el enlace a Stripe
+   * Checkout. El servicio pasa a aceptado cuando Stripe confirma el pago.
+   */
+  async pagarOferta(serviceId: string, applicantId: string): Promise<string> {
+    const r = await httpsCallable<{ serviceId: string; applicantId: string }, { url: string }>(functions, 'pagarOferta')({
+      serviceId,
+      applicantId,
+    });
+    return r.data.url;
   },
 
   /** Mensajes del chat de un servicio en tiempo real. Devuelve cómo dejar de escuchar. */

@@ -2,6 +2,14 @@ export type ServiceCategory = 'painting' | 'dog' | 'groceries' | 'moving' | 'oth
 
 export type ServiceStatus = 'pending' | 'approved' | 'accepted' | 'in_progress' | 'completed' | 'rated';
 
+/** Lo que la app ve del pago (el detalle de Stripe solo lo tiene el servidor). */
+export type PagoResumen = {
+  estado: 'retenido' | 'pagado';
+  precio: number;
+  comision: number;
+  total: number;
+};
+
 export type ServiceRequest = {
   id: string;
   title: string;
@@ -10,6 +18,8 @@ export type ServiceRequest = {
   distanceKm: number;
   /** Precio en céntimos de franco que recibe quien ayuda; null si es un favor gratis. */
   priceCents: number | null;
+  /** Solo en servicios con precio ya pagados. */
+  pago?: PagoResumen | null;
   postedLabel: string;
   status: ServiceStatus;
   durationLabel: string;

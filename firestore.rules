@@ -109,15 +109,17 @@ service cloud.firestore {
         (isAdmin()
           && resource.data.status in ['pending', 'approved']
           && request.resource.data.status in ['pending', 'approved']
-          && !changedKeys().hasAny(['requesterId', 'requesterName', 'helperId', 'helperName'])
+          && !changedKeys().hasAny(['requesterId', 'requesterName', 'helperId', 'helperName', 'pago'])
           && precioValido(request.resource.data))
         ||
         // Quien publica elige a una de las personas que han ofertado. Solo
-        // mientras está aprobado (así solo se elige una vez) y solo a alguien
-        // con una oferta registrada.
+        // mientras está aprobado (así solo se elige una vez), solo a alguien
+        // con una oferta registrada y solo si es gratis: con precio lo acepta
+        // el servidor cuando Stripe confirma el pago (functions/pagos.js).
         (isRequester()
           && resource.data.status == 'approved'
           && request.resource.data.status == 'accepted'
+          && resource.data.get('priceCents', null) == null
           && exists(/databases/$(database)/documents/applications/$(requestId + '_' + request.resource.data.helperId))
           && changedKeys().hasOnly(['status', 'helperId', 'helperName', 'updatedAt']))
         ||
@@ -127,7 +129,7 @@ service cloud.firestore {
         // publicarse: después puede haber ofertas hechas con ese precio.
         (isRequester()
           && resource.data.status in ['pending', 'approved']
-          && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId'])
+          && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId', 'pago'])
           && precioValido(request.resource.data)
           && (resource.data.status == 'pending' || !changedKeys().hasAny(['priceCents'])))
         ||

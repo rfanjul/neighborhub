@@ -22,6 +22,8 @@ type Mocks = {
   connectAuthEmulator: jest.Mock;
   connectFirestoreEmulator: jest.Mock;
   connectStorageEmulator: jest.Mock;
+  getFunctions: jest.Mock;
+  connectFunctionsEmulator: jest.Mock;
 };
 
 /** Carga src/firebase con mocks frescos y devuelve el módulo y sus espías. */
@@ -44,6 +46,8 @@ function loadFirebase(
     }),
     connectFirestoreEmulator: jest.fn(),
     connectStorageEmulator: jest.fn(),
+    getFunctions: jest.fn(() => ({ id: 'functions' })),
+    connectFunctionsEmulator: jest.fn(),
   };
 
   jest.resetModules();
@@ -65,6 +69,10 @@ function loadFirebase(
   jest.doMock('firebase/storage', () => ({
     getStorage: jest.fn(() => ({ id: 'storage' })),
     connectStorageEmulator: mocks.connectStorageEmulator,
+  }));
+  jest.doMock('firebase/functions', () => ({
+    getFunctions: mocks.getFunctions,
+    connectFunctionsEmulator: mocks.connectFunctionsEmulator,
   }));
   jest.doMock('@firebase/auth', () => ({ getReactNativePersistence: mocks.getReactNativePersistence }));
   jest.doMock('@react-native-async-storage/async-storage', () => ({ __esModule: true, default: { almacen: true } }));
@@ -155,6 +163,14 @@ describe('modo demo con emuladores', () => {
     expect(mocks.connectAuthEmulator).not.toHaveBeenCalled();
     expect(mocks.connectFirestoreEmulator).not.toHaveBeenCalled();
     expect(mocks.connectStorageEmulator).not.toHaveBeenCalled();
+    expect(mocks.connectFunctionsEmulator).not.toHaveBeenCalled();
+  });
+
+  it('los pagos van a las Functions de Zúrich', () => {
+    const { firebase, mocks } = loadFirebase();
+
+    expect(mocks.getFunctions).toHaveBeenCalledWith({ name: 'nueva-app' }, 'europe-west6');
+    expect(firebase.functions).toEqual({ id: 'functions' });
   });
 
   it('con EXPO_PUBLIC_USE_EMULATORS=1 conecta auth, Firestore y Storage a los emuladores locales', () => {
@@ -165,6 +181,7 @@ describe('modo demo con emuladores', () => {
     expect(mocks.connectAuthEmulator).toHaveBeenCalledWith({ id: 'auth-nuevo' }, 'http://127.0.0.1:9099', { disableWarnings: true });
     expect(mocks.connectFirestoreEmulator).toHaveBeenCalledWith({ id: 'firestore' }, '127.0.0.1', 8180);
     expect(mocks.connectStorageEmulator).toHaveBeenCalledWith({ id: 'storage' }, '127.0.0.1', 9199);
+    expect(mocks.connectFunctionsEmulator).toHaveBeenCalledWith({ id: 'functions' }, '127.0.0.1', 5001);
   });
 
   it('el host se puede cambiar, p. ej. para un móvil en la misma red', () => {

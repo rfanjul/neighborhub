@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, AppState, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,7 +11,8 @@ import Avatar from '../components/Avatar';
 import Stars from '../components/Stars';
 import type { ServiceRequest } from '../data/mock';
 import { api, type Application, type ApiUserProfile, type Review } from '../firebase/data';
-import { dataErrorMessage } from '../firebase/errors';
+import { dataErrorMessage, pagoErrorMessage } from '../firebase/errors';
+import { comision, formatearPrecio, totalAPagar } from '../pagos/precio';
 import { insignias } from '../components/insignias';
 import { decimal, idiomasTexto, nivelTexto, t, tp } from '../i18n';
 
@@ -98,6 +99,8 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
   const [ofertas, setOfertas] = useState<Application[]>([]);
   const [resena, setResena] = useState<Review | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const [esperandoPago, setEsperandoPago] = useState(false);
+  const pagando = useRef(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -116,7 +119,59 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     }, [cargar])
   );
 
+  // Al volver de Stripe Checkout, el servicio ya estará aceptado (lo hace el servidor).
+  useEffect(() => {
+    const suscripcion = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active' && pagando.current) cargar();
+    });
+    return () => suscripcion?.remove();
+  }, [cargar]);
+  useEffect(() => {
+    if (servicio && servicio.status !== 'approved') {
+      pagando.current = false;
+      setEsperandoPago(false);
+    }
+  }, [servicio]);
+
+  /** Con precio: se paga en Stripe y el servidor acepta el servicio al confirmarse. */
+  const pagarYElegir = (oferta: Application, precio: number) => {
+    const exacto = { exacto: true };
+    const total = formatearPrecio(totalAPagar(precio), exacto);
+    Alert.alert(
+      t('pagos.confirmarTitulo', { nombre: oferta.applicantName }),
+      t('pagos.confirmarTexto', {
+        total,
+        precio: formatearPrecio(precio, exacto),
+        gestion: formatearPrecio(comision(precio), exacto),
+        nombre: oferta.applicantName,
+      }),
+      [
+        { text: t('comun.cancelar'), style: 'cancel' },
+        {
+          text: t('pagos.pagar', { total }),
+          onPress: async () => {
+            setOcupado(true);
+            try {
+              const url = await api.pagarOferta(serviceId, oferta.applicantId);
+              pagando.current = true;
+              setEsperandoPago(true);
+              await Linking.openURL(url);
+            } catch (e) {
+              Alert.alert(t('pagos.errorPagar'), pagoErrorMessage(e));
+            } finally {
+              setOcupado(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const elegir = (oferta: Application) => {
+    if (servicio?.priceCents != null) {
+      pagarYElegir(oferta, servicio.priceCents);
+      return;
+    }
     Alert.alert(t('ofertas.elegirTitulo', { nombre: oferta.applicantName }), t('ofertas.elegirTexto'), [
       { text: t('comun.cancelar'), style: 'cancel' },
       {
@@ -179,6 +234,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
       {servicio?.status === 'pending' && (
         <Text style={styles.aviso}>{t('ofertas.enRevision')}</Text>
       )}
+      {esperandoPago && abierto && <Text style={styles.aviso}>{t('pagos.esperando')}</Text>}
 
       {(enCurso || terminado) && servicio?.helperName && (
         <View style={styles.elegido}>
@@ -187,6 +243,17 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
               ? t('ofertas.completadoCon', { nombre: servicio.helperName })
               : t('ofertas.teAyuda', { nombre: servicio.helperName })}
           </Text>
+          {servicio.pago && (
+            <Text style={styles.pagoTexto}>
+              {servicio.pago.estado === 'pagado'
+                ? t('pagos.pagado', { precio: formatearPrecio(servicio.pago.precio, { exacto: true }), nombre: servicio.helperName })
+                : t('pagos.retenido', {
+                    total: formatearPrecio(servicio.pago.total, { exacto: true }),
+                    precio: formatearPrecio(servicio.pago.precio, { exacto: true }),
+                    nombre: servicio.helperName,
+                  })}
+            </Text>
+          )}
           {resena && (
             <View style={{ gap: 4 }}>
               <View style={styles.filaNombre}>
@@ -231,8 +298,15 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
                 <Text style={styles.comentario}>“{item.comment}”</Text>
               </View>
             ) : null}
-            {abierto ? (
-              <PillButton label={t('ofertas.elegir')} onPress={() => elegir(item)} disabled={ocupado} />
+            {abierto && servicio?.priceCents != null && !item.applicant?.cobrosActivos ? (
+              // Sin cobros activos no se le puede pagar: primero tiene que activarlos.
+              <Text style={styles.estado}>{t('pagos.sinCobrosOferta')}</Text>
+            ) : abierto ? (
+              <PillButton
+                label={servicio?.priceCents != null ? t('pagos.pagar', { total: formatearPrecio(totalAPagar(servicio.priceCents), { exacto: true }) }) : t('ofertas.elegir')}
+                onPress={() => elegir(item)}
+                disabled={ocupado}
+              />
             ) : (
               <Text style={[styles.estado, item.status === 'selected' && { color: colors.green }]}>
                 {item.status === 'selected'
@@ -251,6 +325,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  pagoTexto: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.green },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 8 },
   back: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },

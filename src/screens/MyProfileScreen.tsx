@@ -11,6 +11,7 @@ import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
+import CobrosTarjeta from '../components/CobrosTarjeta';
 import { cambiarIdioma, decimal, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 import { authErrorMessage } from '../auth/errors';
@@ -25,6 +26,7 @@ export default function MyProfileScreen() {
   // Servicios completados en los que he ayudado: la cifra de "Services" y
   // la base de las insignias. Se calcula, no se guarda en el perfil.
   const [ayudas, setAyudas] = useState(0);
+  const [cobros, setCobros] = useState(false);
 
   const handleSettingsPress = () => {
     Alert.alert(t('miPerfil.cuenta'), undefined, [
@@ -111,6 +113,7 @@ export default function MyProfileScreen() {
         .getMe()
         .then((me) => {
           setPhotoURL(me.photoURL);
+          setCobros(me.cobrosActivos);
           setCurrentUser({
             name: me.name,
             level: me.level,
@@ -187,6 +190,10 @@ export default function MyProfileScreen() {
             <Text style={styles.statValue}>{currentUser.responseLabel}</Text>
             <Text style={styles.statLabel}>{t('miPerfil.respuesta')}</Text>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <CobrosTarjeta activos={cobros} onCambio={setCobros} />
         </View>
 
         <View style={styles.section}>
