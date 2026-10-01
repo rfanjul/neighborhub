@@ -192,7 +192,7 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
       const id = `demo-review-${i + 1}`;
       const serviceTitle = i ? 'Pumped and oiled two bikes' : 'Set up a printer';
       b.set(db.doc(`helpRequests/${id}`), {
-        title: serviceTitle, category: 'other', description: serviceTitle, credits: 0, photos: [], coords: null,
+        title: serviceTitle, category: 'other', description: serviceTitle, priceCents: null, photos: [], coords: null,
         durationLabel: '1 hour', availableLabel: '', locationLabel: '', travelRadiusKm: 5, status: 'rated',
         requesterId: autor, requesterName: autorNombre, requesterPhotoURL: avatar(autorNombre),
         helperId: uid, helperName: nombre, seed: true, createdAt: hace(24 * (11 + i * 12)), updatedAt: hace(24 * (10 + i * 12)),
@@ -205,16 +205,16 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
 
   const servicio = (id, datos) =>
     b.set(db.doc(`helpRequests/${id}`), {
-      category: 'moving', credits: 0, locationLabel: '', travelRadiusKm: 5, durationLabel: '1 hour', availableLabel: 'This week',
+      category: 'moving', priceCents: null, locationLabel: '', travelRadiusKm: 5, durationLabel: '1 hour', availableLabel: 'This week',
       coords: { latitude: 47.3785, longitude: 8.5262 }, helperId: null, helperName: null, seed: true,
       createdAt: hace(26), updatedAt: hace(26), ...yo, ...datos,
     });
   servicio('demo-move-table', {
-    title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)],
+    title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)], priceCents: 3000,
     description: 'Solid oak table, about 40 kg. It needs to go from the living room to the balcony, through one door. Two people will do.',
   });
   servicio('demo-mirror', {
-    title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)],
+    title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)], priceCents: 4500,
     // Cada uno en su sitio: con chinchetas superpuestas el mapa elige mal.
     coords: { latitude: 47.3773, longitude: 8.5243 },
     helperId: 'seed-user-08', helperName: 'Elias Huber', createdAt: hace(30),

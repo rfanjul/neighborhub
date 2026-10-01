@@ -3,6 +3,7 @@ import type { Diccionario } from './en';
 /** Texte auf Deutsch (Schweizer Schreibweise: «ss» statt «ß»). */
 const de: Diccionario = {
   comun: {
+    gratis: 'Gratis',
     atras: 'Zurück',
     cerrar: 'Schliessen',
     cancelar: 'Abbrechen',
@@ -70,7 +71,7 @@ const de: Diccionario = {
     perfil: 'Profil',
   },
   bienvenida: {
-    lema: 'Die Plattform, auf der sich Nachbarn gegenseitig helfen und statt mit Geld mit Guthaben bezahlen.',
+    lema: 'Die Plattform, auf der sich Nachbarn gegenseitig helfen: als Gefallen oder zu einem fairen, vorab vereinbarten Preis.',
     desliza: 'Wische, um zu sehen, wie es funktioniert →',
     diapositiva: 'Folie {n} von {total}',
     pedirEtiqueta: '1 · Um Hilfe bitten',
@@ -168,6 +169,14 @@ const de: Diccionario = {
     vacio: 'Noch keine Anfragen mit Ort.',
   },
   crear: {
+    precio: 'Preis',
+    gratis: 'Gratis-Gefallen',
+    conPrecio: 'Bezahlt',
+    gratisPista: 'Ein Gefallen unter Nachbarn: Niemand bezahlt etwas.',
+    resumenPrecio: 'Du zahlst {total}: {precio} für die Person, die hilft, plus {gestion} Servicegebühr (8 %, mind. CHF 1). Sie erhält den vollen Preis.',
+    precioRango: 'Zwischen {min} und {max}.',
+    precioInvalido: 'Preis prüfen',
+    precioBloqueado: 'Nach der Veröffentlichung lässt sich der Preis nicht mehr ändern: Vielleicht gibt es schon Angebote.',
     tituloNuevo: 'Neue Anfrage',
     tituloEditar: 'Anfrage bearbeiten',
     titulo: 'Titel',
@@ -199,6 +208,9 @@ const de: Diccionario = {
     errorEnviar: 'Deine Anfrage konnte nicht eingereicht werden',
   },
   detalle: {
+    precio: 'Preis',
+    recibesEntero: 'Wenn du hilfst, erhältst du den vollen Preis: Die Servicegebühr zahlt, wer anfragt.',
+    pagarasTotal: 'Du zahlst {total}, inklusive {gestion} Servicegebühr.',
     editar: 'Anfrage bearbeiten',
     verOfertas: 'Angebote ansehen',
     ofertaEnviada: 'Angebot gesendet',
@@ -211,7 +223,6 @@ const de: Diccionario = {
     cerrado: 'Nimmt keine Angebote mehr an',
     responde: 'antwortet in {tiempo}',
     duracion: 'Dauer',
-    creditos: 'Gewünschtes Guthaben',
     ubicacion: 'Ort',
     disponible: 'Verfügbar',
   },
@@ -302,7 +313,6 @@ const de: Diccionario = {
     ayudas: 'Hilfen ›',
     resenas: 'Bewertungen ›',
     respuesta: 'Antwortzeit',
-    creditos: 'Dein Guthaben',
     insignias: 'Abzeichen',
   },
   datos: {

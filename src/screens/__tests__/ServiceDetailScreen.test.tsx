@@ -135,12 +135,28 @@ describe('ServiceDetailScreen', () => {
     expect(screen.getAllByLabelText('Photo of Montar un armario')).toHaveLength(2);
   });
 
-  it('sin créditos no enseña la fila de créditos', async () => {
-    mockedApi.getService.mockResolvedValue(servicio({ credits: 0 }));
+  it('quien puede ayudar ve el precio y que se lo lleva entero', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ priceCents: 4000, requesterId: 'otra' }));
+    await renderDetalle();
+
+    expect(await screen.findByText(/^CHF\s40\.00$/)).toBeTruthy();
+    expect(screen.getByText(/you get the full price/)).toBeTruthy();
+  });
+
+  it('quien lo pide ve lo que pagará con la gestión', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ priceCents: 4000, requesterId: 'luis' }));
+    await renderDetalle('luis');
+
+    expect(await screen.findByText(/You'll pay CHF\s43\.20, including a CHF\s3\.20 service fee/)).toBeTruthy();
+  });
+
+  it('un favor gratis lo dice, sin notas de pago', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ priceCents: null }));
     await renderDetalle();
 
     await screen.findByText('Pintar una pared');
-    expect(screen.queryByText('Credits requested')).toBeNull();
+    expect(screen.getByText('Free')).toBeTruthy();
+    expect(screen.queryByText(/service fee|full price/)).toBeNull();
   });
 
   it('en uno aprobado lleva a la pantalla de oferta', async () => {

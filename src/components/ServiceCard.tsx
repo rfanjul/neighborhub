@@ -6,6 +6,7 @@ import Avatar from './Avatar';
 import type { ServiceRequest } from '../data/mock';
 import { distanciaKm, formatearDistancia, type Coordenadas } from '../geo/distancia';
 import { t } from '../i18n';
+import { formatearPrecio } from '../pagos/precio';
 
 /** Distancia real si hay coordenadas y ubicación; si no, la guardada; si tampoco, nada. */
 function textoDistancia(service: ServiceRequest, ubicacion?: Coordenadas | null): string | null {
@@ -58,17 +59,22 @@ export default function ServiceCard({
             />
             <Text style={styles.requester}>{service.requester.name}</Text>
           </View>
-          {service.status === 'pending' && (
-            <View style={styles.pendingChip}>
-              <Text style={styles.pendingLabel}>{t('estados.pending')}</Text>
-            </View>
-          )}
-          {/* Quien publica ya no fija créditos: sin cifra no se enseña "0 cr". */}
-          {service.credits > 0 && (
-            <View style={styles.creditsChip}>
-              <Text style={styles.creditsLabel}>{service.credits} cr</Text>
-            </View>
-          )}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {service.status === 'pending' && (
+              <View style={styles.pendingChip}>
+                <Text style={styles.pendingLabel}>{t('estados.pending')}</Text>
+              </View>
+            )}
+            {service.priceCents == null ? (
+              <View style={[styles.precioChip, styles.gratisChip]}>
+                <Text style={[styles.precioLabel, styles.gratisLabel]}>{t('comun.gratis')}</Text>
+              </View>
+            ) : (
+              <View style={styles.precioChip}>
+                <Text style={styles.precioLabel}>{formatearPrecio(service.priceCents)}</Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -118,15 +124,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.amberDark,
   },
-  creditsChip: {
+  precioChip: {
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,
     backgroundColor: colors.accentTint,
   },
-  creditsLabel: {
+  precioLabel: {
     fontFamily: fonts.bodySemiBold,
     fontSize: 14,
     color: colors.accentDark,
   },
+  gratisChip: { backgroundColor: colors.greenTint },
+  gratisLabel: { color: colors.green },
 });

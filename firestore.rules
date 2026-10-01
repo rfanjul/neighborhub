@@ -74,6 +74,11 @@ service cloud.firestore {
       function isHelper() {
         return resource.data.helperId == request.auth.uid;
       }
+      /** Gratis (sin precio), o de CHF 5 a CHF 1000 en céntimos enteros. */
+      function precioValido(d) {
+        return d.get('priceCents', null) == null
+          || (d.priceCents is int && d.priceCents >= 500 && d.priceCents <= 100000);
+      }
       /** Transiciones permitidas una vez elegida la persona que ayuda. */
       function avanza(desde, hasta) {
         return (desde == 'accepted' && hasta in ['in_progress', 'completed'])
@@ -87,7 +92,8 @@ service cloud.firestore {
       // Se publica siempre pendiente de revisión y a nombre propio.
       allow create: if signedIn()
         && request.resource.data.requesterId == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && precioValido(request.resource.data);
 
       allow update: if signedIn() && (
         // Quien publica elige a una de las personas que han ofertado. Solo
@@ -101,10 +107,13 @@ service cloud.firestore {
         ||
         // Quien publica edita el contenido mientras no haya elegido a nadie
         // (pendiente o aprobado), pero nunca el estado (aprobar es cosa del
-        // admin) ni quién pide o quién ayuda.
+        // admin) ni quién pide o quién ayuda. El precio, solo antes de
+        // publicarse: después puede haber ofertas hechas con ese precio.
         (isRequester()
           && resource.data.status in ['pending', 'approved']
-          && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId']))
+          && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId'])
+          && precioValido(request.resource.data)
+          && (resource.data.status == 'pending' || !changedKeys().hasAny(['priceCents'])))
         ||
         // Una vez aceptado, las dos partes avanzan el trabajo hacia delante,
         // tocando solo el estado.

@@ -51,10 +51,48 @@ beforeEach(() => {
 });
 
 describe('CreateServiceScreen', () => {
-  it('ya no pide créditos', async () => {
+  it('ya no pide créditos y por defecto es un favor gratis', async () => {
     await renderScreen();
 
     expect(screen.queryByText('Credits')).toBeNull();
+    expect(screen.getByText('A favor between neighbors: nobody pays anything.')).toBeTruthy();
+  });
+
+  it('con precio enseña lo que se pagará y lo publica en céntimos', async () => {
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Subir un sofá');
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '40');
+
+    expect(screen.getByText(/You'll pay CHF\s43\.20: CHF\s40\.00 for your neighbor plus a CHF\s3\.20 service fee/)).toBeTruthy();
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    await waitFor(() => expect(mockedApi.createService).toHaveBeenCalledWith(expect.objectContaining({ priceCents: 4000 })));
+    expect(navigation.goBack).toHaveBeenCalled();
+  });
+
+  it('acepta coma decimal y la gestión mínima es CHF 1', async () => {
+    await renderScreen();
+
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '12,50');
+
+    expect(screen.getByText(/You'll pay CHF\s13\.50: CHF\s12\.50 for your neighbor plus a CHF\s1\.00 service fee/)).toBeTruthy();
+  });
+
+  it.each(['', '3', '2000', 'abc'])('con precio "%s" no publica y explica el rango', async (texto) => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Subir un sofá');
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), texto);
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    expect(alerta).toHaveBeenCalledWith('Check the price', expect.stringMatching(/Between CHF\s5 and CHF\s1,000/));
+    expect(mockedApi.createService).not.toHaveBeenCalled();
+    alerta.mockRestore();
   });
 
   it('pide título antes de enviar', async () => {
@@ -68,7 +106,7 @@ describe('CreateServiceScreen', () => {
     alerta.mockRestore();
   });
 
-  it('publica con fotos, coordenadas y créditos a cero', async () => {
+  it('publica con fotos, coordenadas y gratis', async () => {
     (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'foto-1.jpg' }] });
     const navigation = await renderScreen();
 
@@ -80,7 +118,7 @@ describe('CreateServiceScreen', () => {
     expect(mockedApi.createService).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Pintar pared',
-        credits: 0,
+        priceCents: null,
         photos: ['https://storage/foto-1.jpg'],
         coords: { latitude: 47.37, longitude: 8.54 },
       })
@@ -203,6 +241,8 @@ describe('editar un servicio', () => {
     description: 'Del salón',
     durationLabel: '—',
     photos: ['https://storage/vieja-1.jpg', 'https://storage/vieja-2.jpg'],
+    status: 'pending',
+    priceCents: null,
   };
 
   beforeEach(() => {
@@ -237,7 +277,34 @@ describe('editar un servicio', () => {
       description: 'Del salón',
       durationLabel: '—',
       photos: ['https://storage/vieja-1.jpg', 'https://storage/vieja-2.jpg'],
+      priceCents: null,
     });
+  });
+
+  it('mientras está pendiente se le puede poner o cambiar el precio', async () => {
+    const navigation = await renderScreen('s1');
+    await screen.findByDisplayValue('Pintar pared');
+
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '55');
+    await fireEvent.press(screen.getByText('Save changes'));
+
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
+    expect(mockedApi.updateService.mock.calls[0][1].priceCents).toBe(5500);
+  });
+
+  it('publicado ya no deja tocar el precio, y al guardar no lo envía', async () => {
+    mockedApi.getService.mockResolvedValue({ ...existente, status: 'approved', priceCents: 3000 } as never);
+    const navigation = await renderScreen('s1');
+
+    expect(await screen.findByDisplayValue('30')).toBeTruthy();
+    expect(screen.getByLabelText('Price').props.editable).toBe(false);
+    expect(screen.getByText(/can't change once the request is published/)).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Save changes'));
+
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
+    expect(mockedApi.updateService.mock.calls[0][1]).not.toHaveProperty('priceCents');
   });
 
   it('sube solo las fotos nuevas y borra de Storage las que se quitaron', async () => {

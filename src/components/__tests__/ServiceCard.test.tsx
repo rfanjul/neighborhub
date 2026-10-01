@@ -10,7 +10,7 @@ const servicio = (overrides: Partial<ServiceRequest> = {}): ServiceRequest =>
     category: 'painting',
     description: 'Media pared del salón',
     distanceKm: 1.2,
-    credits: 15,
+    priceCents: 4000,
     postedLabel: 'hace 2 h',
     status: 'approved',
     durationLabel: '2 horas',
@@ -28,7 +28,7 @@ describe('ServiceCard', () => {
     expect(screen.getByText('Pintar una pared')).toBeTruthy();
     expect(screen.getByText('1.2 km away · hace 2 h')).toBeTruthy();
     expect(screen.getByText('Ana')).toBeTruthy();
-    expect(screen.getByText('15 cr')).toBeTruthy();
+    expect(screen.getByText(/^CHF\s40$/)).toBeTruthy();
   });
 
   it('enseña la primera foto cuando el servicio tiene', async () => {
@@ -44,10 +44,17 @@ describe('ServiceCard', () => {
     expect(screen.queryByLabelText('Photo of Pintar una pared')).toBeNull();
   });
 
-  it('no enseña "0 cr" en servicios sin créditos', async () => {
-    await render(<ServiceCard service={servicio({ credits: 0 })} />);
+  it('enseña el precio, sin decimales si es redondo', async () => {
+    await render(<ServiceCard service={servicio({ priceCents: 4000 })} />);
 
-    expect(screen.queryByText('0 cr')).toBeNull();
+    expect(screen.getByText(/^CHF\s40$/)).toBeTruthy();
+  });
+
+  it('un favor sin precio se ve como gratis', async () => {
+    await render(<ServiceCard service={servicio({ priceCents: null })} />);
+
+    expect(screen.getByText('Free')).toBeTruthy();
+    expect(screen.queryByText(/CHF/)).toBeNull();
   });
 
   it('calcula la distancia real con la ubicación del usuario', async () => {

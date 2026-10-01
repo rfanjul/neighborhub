@@ -129,6 +129,48 @@ describe('helpRequests', () => {
     await assertFails(addDoc(collection(como('luis'), 'helpRequests'), servicio()));
   });
 
+  describe('precio', () => {
+    it.each([
+      ['sin precio (favor gratis)', {}],
+      ['con precio null', { priceCents: null }],
+      ['con CHF 5', { priceCents: 500 }],
+      ['con CHF 40', { priceCents: 4000 }],
+      ['con CHF 1000', { priceCents: 100000 }],
+    ])('se publica %s', async (_caso, precio) => {
+      await assertSucceeds(addDoc(collection(como('ana'), 'helpRequests'), servicio(precio)));
+    });
+
+    it.each([
+      ['por debajo de CHF 5', 499],
+      ['por encima de CHF 1000', 100001],
+      ['con medio céntimo', 4000.5],
+      ['como texto', '4000'],
+      ['negativo', -4000],
+    ])('no se publica %s', async (_caso, priceCents) => {
+      await assertFails(addDoc(collection(como('ana'), 'helpRequests'), servicio({ priceCents })));
+    });
+
+    it('mientras está pendiente se puede poner, cambiar o quitar', async () => {
+      await sembrar('helpRequests/s1', servicio());
+      const ana = doc(como('ana'), 'helpRequests/s1');
+
+      await assertSucceeds(updateDoc(ana, { priceCents: 4000 }));
+      await assertSucceeds(updateDoc(ana, { priceCents: 5500 }));
+      await assertSucceeds(updateDoc(ana, { priceCents: null }));
+      await assertFails(updateDoc(ana, { priceCents: 300 }));
+    });
+
+    it('publicado ya no cambia: puede haber ofertas con ese precio', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+      const ana = doc(como('ana'), 'helpRequests/s1');
+
+      await assertFails(updateDoc(ana, { priceCents: 3000 }));
+      await assertFails(updateDoc(ana, { priceCents: null }));
+      // El resto del contenido sí se puede seguir corrigiendo.
+      await assertSucceeds(updateDoc(ana, { title: 'Pintar dos paredes' }));
+    });
+  });
+
   it('los aprobados los ve cualquier vecino', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
 

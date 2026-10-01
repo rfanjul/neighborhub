@@ -10,8 +10,17 @@ import { CloseIcon, PlusIcon } from '../icons';
 import PillButton from '../components/PillButton';
 import { api } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
-import type { ServiceCategory } from '../data/mock';
+import type { ServiceCategory, ServiceStatus } from '../data/mock';
 import { t } from '../i18n';
+import {
+  PRECIO_MAXIMO,
+  PRECIO_MINIMO,
+  comision,
+  formatearPrecio,
+  leerPrecio,
+  precioValido,
+  totalAPagar,
+} from '../pagos/precio';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateService'>;
 
@@ -30,7 +39,15 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   const [duration, setDuration] = useState('');
   const [radius, setRadius] = useState(55);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [gratis, setGratis] = useState(true);
+  const [precioTexto, setPrecioTexto] = useState('');
+  const [estado, setEstado] = useState<ServiceStatus | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Una vez publicado puede tener ofertas: el precio ya no se toca.
+  const precioBloqueado = !!editandoId && estado !== null && estado !== 'pending';
+  const precio = gratis ? null : leerPrecio(precioTexto);
+  const rango = { min: formatearPrecio(PRECIO_MINIMO), max: formatearPrecio(PRECIO_MAXIMO) };
 
   useEffect(() => {
     if (!editandoId) return;
@@ -43,6 +60,9 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         setDuration(s.durationLabel === '—' ? '' : s.durationLabel);
         setPhotos(s.photos);
         setOriginales(s.photos);
+        setGratis(s.priceCents == null);
+        setPrecioTexto(s.priceCents == null ? '' : String(s.priceCents / 100));
+        setEstado(s.status ?? null);
       })
       .catch((e) => Alert.alert(t('crear.errorCargar'), dataErrorMessage(e)));
   }, [editandoId]);
@@ -62,6 +82,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         description: description.trim(),
         durationLabel: duration.trim() || '—',
         photos: finales,
+        ...(precioBloqueado ? {} : { priceCents: precio }),
       });
       // Las fotos que se quitaron ya no las usa nadie: fuera de Storage.
       const quitadas = originales.filter((url) => !finales.includes(url));
@@ -122,6 +143,10 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
       Alert.alert(t('crear.faltaTitulo'), t('crear.faltaTituloTexto'));
       return;
     }
+    if (!precioBloqueado && !gratis && (precio === null || !precioValido(precio))) {
+      Alert.alert(t('crear.precioInvalido'), t('crear.precioRango', rango));
+      return;
+    }
     if (editandoId) {
       await guardarCambios();
       return;
@@ -141,7 +166,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         title: title.trim(),
         category,
         description: description.trim(),
-        credits: 0,
+        priceCents: precio,
         photos: subidas,
         coords,
         durationLabel: duration.trim() || '—',
@@ -202,6 +227,54 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <Text style={styles.label}>{t('crear.precio')}</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
+            {[true, false].map((opcion) => (
+              <Pressable
+                key={String(opcion)}
+                style={[styles.categoryChip, gratis === opcion && styles.categoryChipActive, precioBloqueado && styles.bloqueado]}
+                onPress={() => setGratis(opcion)}
+                disabled={precioBloqueado}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: gratis === opcion, disabled: precioBloqueado }}
+              >
+                <Text style={[styles.categoryLabel, gratis === opcion && styles.categoryLabelActive]}>
+                  {opcion ? t('crear.gratis') : t('crear.conPrecio')}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {!gratis && (
+            <View style={styles.precioFila}>
+              <Text style={styles.moneda}>CHF</Text>
+              <TextInput
+                style={[styles.input, { flex: 1 }, precioBloqueado && styles.bloqueado]}
+                placeholder="40"
+                placeholderTextColor={colors.mutedLight}
+                keyboardType="decimal-pad"
+                value={precioTexto}
+                onChangeText={setPrecioTexto}
+                editable={!precioBloqueado}
+                accessibilityLabel={t('crear.precio')}
+              />
+            </View>
+          )}
+          <Text style={styles.photoHint}>
+            {precioBloqueado
+              ? t('crear.precioBloqueado')
+              : gratis
+                ? t('crear.gratisPista')
+                : precio !== null && precioValido(precio)
+                  ? t('crear.resumenPrecio', {
+                      total: formatearPrecio(totalAPagar(precio), { exacto: true }),
+                      precio: formatearPrecio(precio, { exacto: true }),
+                      gestion: formatearPrecio(comision(precio), { exacto: true }),
+                    })
+                  : t('crear.precioRango', rango)}
+          </Text>
         </View>
 
         <View style={{ gap: 6 }}>
@@ -301,6 +374,9 @@ const styles = StyleSheet.create({
   categoryChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   categoryLabel: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
   categoryLabelActive: { fontFamily: fonts.bodySemiBold, color: colors.white },
+  bloqueado: { opacity: 0.55 },
+  precioFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  moneda: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.muted },
   addPhoto: {
     width: 64,
     height: 64,

@@ -8,7 +8,7 @@ export function servicio(overrides: Partial<ServiceRequest> = {}): ServiceReques
     category: 'painting',
     description: 'Media pared del salón',
     distanceKm: 1.2,
-    credits: 15,
+    priceCents: 4000,
     postedLabel: 'hace 2 h',
     status: 'approved',
     durationLabel: '2 horas',

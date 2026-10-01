@@ -15,6 +15,7 @@ import { mockServices, type ServiceRequest } from '../data/mock';
 import { api, type Application } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import { decimal, t } from '../i18n';
+import { comision, formatearPrecio, totalAPagar } from '../pagos/precio';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
@@ -182,11 +183,22 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
               <Text style={styles.infoValue}>{service.durationLabel}</Text>
             </View>
           ) : null}
-          {service.credits > 0 && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>{t('detalle.creditos')}</Text>
-              <Text style={[styles.infoValue, { color: colors.accentDark }]}>{service.credits} cr</Text>
-            </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>{t('detalle.precio')}</Text>
+            <Text style={[styles.infoValue, { color: service.priceCents == null ? colors.green : colors.accentDark }]}>
+              {service.priceCents == null ? t('comun.gratis') : formatearPrecio(service.priceCents, { exacto: true })}
+            </Text>
+          </View>
+          {/* Quien lo pide ve lo que pagará; quien ayuda, que se lleva el precio entero. */}
+          {service.priceCents != null && (
+            <Text style={styles.notaPrecio}>
+              {verAutor
+                ? t('detalle.recibesEntero')
+                : t('detalle.pagarasTotal', {
+                    total: formatearPrecio(totalAPagar(service.priceCents), { exacto: true }),
+                    gestion: formatearPrecio(comision(service.priceCents), { exacto: true }),
+                  })}
+            </Text>
           )}
           {distancia ? (
             <View style={styles.infoRow}>
@@ -248,6 +260,7 @@ const styles = StyleSheet.create({
   requesterMeta: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   description: { fontFamily: fonts.body, fontSize: 16, lineHeight: 25, color: colors.muted },
   infoList: { gap: 10 },
+  notaPrecio: { marginTop: -4, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: colors.muted },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between' },
   infoLabel: { fontFamily: fonts.body, fontSize: 16, color: colors.muted },
   infoValue: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.ink },

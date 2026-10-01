@@ -243,7 +243,7 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
     category: (d.category as ServiceCategory) ?? 'other',
     description: d.description ?? '',
     distanceKm: parseFloat(d.locationLabel) || 0,
-    credits: d.credits ?? 0,
+    priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
     postedLabel: d.availableLabel ?? '',
     status: d.status ?? 'pending',
     durationLabel: d.durationLabel ?? '',
@@ -361,7 +361,8 @@ export const api = {
     title: string;
     category: ServiceCategory;
     description: string;
-    credits: number;
+    /** Céntimos que recibe quien ayuda; null si es gratis. */
+    priceCents: number | null;
     photos?: string[];
     coords?: { latitude: number; longitude: number } | null;
     durationLabel: string;
@@ -402,6 +403,8 @@ export const api = {
       durationLabel: string;
       travelRadiusKm: number;
       photos: string[];
+      // Solo mientras está pendiente: publicado ya puede tener ofertas.
+      priceCents: number | null;
     }>
   ): Promise<ServiceRequest> {
     const limpios = Object.fromEntries(Object.entries(cambios).filter(([, v]) => v !== undefined));

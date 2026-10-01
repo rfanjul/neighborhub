@@ -70,11 +70,12 @@ describe('insignias', () => {
 });
 
 describe('MyProfileScreen', () => {
-  it('enseña los créditos, pero no ofrece comprarlos (la app no vende nada)', async () => {
+  it('ya no enseña créditos: se paga en francos o es gratis', async () => {
     await render(<MyProfileScreen />);
 
-    expect(await screen.findByText('Your credits')).toBeTruthy();
-    expect(screen.queryByText(/Add credits/)).toBeNull();
+    expect(await screen.findByText('Ruben')).toBeTruthy();
+    expect(screen.queryByText(/credits/i)).toBeNull();
+    expect(screen.queryByText('30')).toBeNull();
   });
 
   it('en ajustes se puede cambiar el idioma de la app', async () => {
@@ -138,7 +139,6 @@ describe('MyProfileScreen', () => {
 
     expect(await screen.findByText('Ruben')).toBeTruthy();
     expect(screen.getByText('Level 2 · Helpful neighbor')).toBeTruthy();
-    expect(screen.getByText('30')).toBeTruthy();
     expect(screen.getByText('4.9 ★')).toBeTruthy();
   });
 

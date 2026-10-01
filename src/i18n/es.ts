@@ -3,6 +3,7 @@ import type { Diccionario } from './en';
 /** Textos en español. */
 const es: Diccionario = {
   comun: {
+    gratis: 'Gratis',
     atras: 'Atrás',
     cerrar: 'Cerrar',
     cancelar: 'Cancelar',
@@ -71,7 +72,7 @@ const es: Diccionario = {
     perfil: 'Perfil',
   },
   bienvenida: {
-    lema: 'La plataforma donde los vecinos se ayudan entre sí y, en lugar de pagarse en dinero, acumulan créditos.',
+    lema: 'La plataforma donde los vecinos se ayudan: como favor o por un precio justo acordado de antemano.',
     desliza: 'Desliza para ver cómo funciona →',
     diapositiva: 'Diapositiva {n} de {total}',
     pedirEtiqueta: '1 · Pide ayuda',
@@ -169,6 +170,14 @@ const es: Diccionario = {
     vacio: 'Todavía no hay servicios con ubicación.',
   },
   crear: {
+    precio: 'Precio',
+    gratis: 'Favor gratis',
+    conPrecio: 'Con precio',
+    gratisPista: 'Un favor entre vecinos: nadie paga nada.',
+    resumenPrecio: 'Pagarás {total}: {precio} para quien te ayude más {gestion} de gestión (8 %, mínimo CHF 1). Esa persona recibe el precio entero.',
+    precioRango: 'Entre {min} y {max}.',
+    precioInvalido: 'Revisa el precio',
+    precioBloqueado: 'El precio no se puede cambiar una vez publicado: puede que ya haya ofertas.',
     tituloNuevo: 'Nuevo servicio',
     tituloEditar: 'Editar servicio',
     titulo: 'Título',
@@ -200,6 +209,9 @@ const es: Diccionario = {
     errorEnviar: 'No se pudo enviar tu servicio',
   },
   detalle: {
+    precio: 'Precio',
+    recibesEntero: 'Si ayudas, recibes el precio entero: la gestión la paga quien lo pide.',
+    pagarasTotal: 'Pagarás {total}, con {gestion} de gestión incluidos.',
     editar: 'Editar servicio',
     verOfertas: 'Ver ofertas',
     ofertaEnviada: 'Oferta enviada',
@@ -212,7 +224,6 @@ const es: Diccionario = {
     cerrado: 'Ya no admite ofertas',
     responde: 'responde en {tiempo}',
     duracion: 'Duración',
-    creditos: 'Créditos pedidos',
     ubicacion: 'Ubicación',
     disponible: 'Disponible',
   },
@@ -303,7 +314,6 @@ const es: Diccionario = {
     ayudas: 'Ayudas ›',
     resenas: 'Valoraciones ›',
     respuesta: 'Respuesta',
-    creditos: 'Tus créditos',
     insignias: 'Insignias',
   },
   datos: {

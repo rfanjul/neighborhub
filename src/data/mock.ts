@@ -8,7 +8,8 @@ export type ServiceRequest = {
   category: ServiceCategory;
   description: string;
   distanceKm: number;
-  credits: number;
+  /** Precio en céntimos de franco que recibe quien ayuda; null si es un favor gratis. */
+  priceCents: number | null;
   postedLabel: string;
   status: ServiceStatus;
   durationLabel: string;
@@ -51,7 +52,7 @@ export const mockServices: ServiceRequest[] = [
     category: 'groceries',
     description: 'Just need someone to help carry bags up two flights of stairs, about 30 minutes.',
     distanceKm: 0.8,
-    credits: 10,
+    priceCents: null,
     postedLabel: '2h ago',
     status: 'approved',
     durationLabel: '~30 min',
@@ -70,7 +71,7 @@ export const mockServices: ServiceRequest[] = [
     description:
       'One wall in the bedroom needs a fresh coat of light grey paint. I have all the paint and supplies ready — just need an extra pair of hands for a couple of hours.',
     distanceKm: 1.4,
-    credits: 25,
+    priceCents: 4000,
     postedLabel: '5h ago',
     status: 'approved',
     durationLabel: '~2 hours',
@@ -88,7 +89,7 @@ export const mockServices: ServiceRequest[] = [
     category: 'dog',
     description: 'My dog Bruno needs a 20-minute walk around the block while I recover from surgery.',
     distanceKm: 2.1,
-    credits: 8,
+    priceCents: null,
     postedLabel: 'yesterday',
     status: 'approved',
     durationLabel: '~20 min',

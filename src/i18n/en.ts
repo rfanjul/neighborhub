@@ -5,6 +5,7 @@
  */
 const en = {
   comun: {
+    gratis: 'Free',
     atras: 'Back',
     cerrar: 'Close',
     cancelar: 'Cancel',
@@ -72,7 +73,7 @@ const en = {
     perfil: 'Profile',
   },
   bienvenida: {
-    lema: 'The platform where neighbors help each other and, instead of paying with money, earn credits.',
+    lema: 'The platform where neighbors help each other: as a favor, or for a fair price agreed upfront.',
     desliza: 'Swipe to see how it works →',
     diapositiva: 'Slide {n} of {total}',
     pedirEtiqueta: '1 · Ask for help',
@@ -170,6 +171,14 @@ const en = {
     vacio: 'No services with a location yet.',
   },
   crear: {
+    precio: 'Price',
+    gratis: 'Free favor',
+    conPrecio: 'Paid',
+    gratisPista: 'A favor between neighbors: nobody pays anything.',
+    resumenPrecio: "You'll pay {total}: {precio} for your neighbor plus a {gestion} service fee (8%, at least CHF 1). They get the full price.",
+    precioRango: 'Between {min} and {max}.',
+    precioInvalido: 'Check the price',
+    precioBloqueado: "The price can't change once the request is published: neighbors may have offered already.",
     tituloNuevo: 'New service',
     tituloEditar: 'Edit service',
     titulo: 'Title',
@@ -201,6 +210,9 @@ const en = {
     errorEnviar: "Couldn't submit your service",
   },
   detalle: {
+    precio: 'Price',
+    recibesEntero: 'If you help, you get the full price: the service fee is paid by whoever asks.',
+    pagarasTotal: "You'll pay {total}, including a {gestion} service fee.",
     editar: 'Edit service',
     verOfertas: 'View offers',
     ofertaEnviada: 'Offer sent',
@@ -213,7 +225,6 @@ const en = {
     cerrado: 'No longer taking offers',
     responde: 'replies in {tiempo}',
     duracion: 'Duration',
-    creditos: 'Credits requested',
     ubicacion: 'Location',
     disponible: 'Available',
   },
@@ -304,7 +315,6 @@ const en = {
     ayudas: 'Helps ›',
     resenas: 'Reviews ›',
     respuesta: 'Response',
-    creditos: 'Your credits',
     insignias: 'Badges',
   },
   datos: {

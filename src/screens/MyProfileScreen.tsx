@@ -189,13 +189,6 @@ export default function MyProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.creditsCard}>
-          <View>
-            <Text style={styles.creditsCaption}>{t('miPerfil.creditos')}</Text>
-            <Text style={styles.creditsValue}>{currentUser.credits}</Text>
-          </View>
-        </View>
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('miPerfil.insignias')}</Text>
           <View style={styles.badgesRow}>
@@ -250,19 +243,6 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22, color: colors.ink },
   statLink: { marginTop: 2, fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accentDark },
   statLabel: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-  creditsCard: {
-    marginHorizontal: 20,
-    marginTop: 14,
-    backgroundColor: colors.accent,
-    borderRadius: radii.md,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  creditsCaption: { fontFamily: fonts.body, fontSize: 14, color: 'rgba(255,255,255,0.85)' },
-  creditsValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, color: colors.white },
   section: { marginHorizontal: 20, marginTop: 20 },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.muted },
   badgesRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
