@@ -1,5 +1,6 @@
 /**
- * Cloud Functions de Neighborhub (Zúrich, europe-west6): los pagos con
+ * Cloud Functions de Neighborhub (Zúrich, europe-west6; el disparador de
+ * Firestore en europe-west1, dentro de eur3 como la base de datos): los pagos con
  * Stripe Connect. La lógica está en pagos.js; aquí solo se conecta con
  * Firebase. La clave secreta y la del webhook son secretos de Firebase
  * (en local, functions/.secret.local, fuera de git).
@@ -47,12 +48,28 @@ exports.activarCobros = llamable((p, auth) => p.activarCobros(auth.uid, auth.tok
 exports.estadoCobros = llamable((p, auth) => p.estadoCobros(auth.uid));
 exports.pagarOferta = llamable((p, auth, datos) => p.pagarOferta(auth.uid, auth.token.email, datos));
 
-/** Avisos de Stripe: solo se aceptan si vienen firmados con el secreto del webhook. */
+/**
+ * Comprueba la firma con cualquiera de los secretos (separados por comas):
+ * Stripe firma con uno el endpoint de pagos y con otro el de Connect.
+ */
+function verificar(cuerpo, firma) {
+  const secretos = STRIPE_WEBHOOK_SECRET.value().split(',').map((x) => x.trim()).filter(Boolean);
+  for (const secreto of secretos) {
+    try {
+      return stripe.webhooks.constructEvent(cuerpo, firma, secreto);
+    } catch {
+      // Se prueba con el siguiente.
+    }
+  }
+  throw new Error('Firma no válida');
+}
+
+/** Avisos de Stripe: solo se aceptan si vienen firmados con un secreto del webhook. */
 exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] }, async (req, res) => {
   let evento;
   try {
     const p = pagos();
-    evento = stripe.webhooks.constructEvent(req.rawBody, req.headers['stripe-signature'], STRIPE_WEBHOOK_SECRET.value());
+    evento = verificar(req.rawBody, req.headers['stripe-signature']);
     let resultado = 'ignorado';
     if (evento.type === 'checkout.session.completed') resultado = await p.alCompletarCheckout(evento.data.object);
     if (evento.type === 'account.updated') resultado = await p.alActualizarCuenta(evento.data.object);
@@ -70,7 +87,10 @@ exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_
 });
 
 /** Dado por hecho: el precio va a quien ayudó. */
-exports.liberarPago = onDocumentUpdated({ document: 'helpRequests/{serviceId}', secrets: [STRIPE_SECRET_KEY] }, async (evento) => {
-  const resultado = await pagos().liberarPago(evento.params.serviceId, evento.data?.before.data(), evento.data?.after.data());
-  if (resultado !== 'nada') logger.info(`liberarPago ${evento.params.serviceId}: ${resultado}`);
-});
+exports.liberarPago = onDocumentUpdated(
+  { document: 'helpRequests/{serviceId}', region: 'europe-west1', secrets: [STRIPE_SECRET_KEY] },
+  async (evento) => {
+    const resultado = await pagos().liberarPago(evento.params.serviceId, evento.data?.before.data(), evento.data?.after.data());
+    if (resultado !== 'nada') logger.info(`liberarPago ${evento.params.serviceId}: ${resultado}`);
+  }
+);
