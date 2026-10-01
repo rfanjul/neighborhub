@@ -9,7 +9,7 @@ import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firesto
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 
-const { sembrar, limpiar, ofertar, demo } = require('../../scripts/seed');
+const { sembrar, limpiar, ofertar, demo, revision } = require('../../scripts/seed');
 const { construir } = require('../../scripts/seed-data');
 
 const { resenas } = construir({ fecha: (d: Date) => d });
@@ -169,4 +169,84 @@ test('el modo demo se niega a crear cuentas fuera de los emuladores', async () =
   const auth = { createUser: jest.fn(), deleteUser: jest.fn() };
   await expect(demo(getFirestore(admin), auth, { Timestamp })).rejects.toThrow('solo va contra los emuladores');
   expect(auth.createUser).not.toHaveBeenCalled();
+});
+
+describe('cuenta para la revisión de Apple', () => {
+  const formatoClave = /^[a-km-zA-HJ-NP-Z2-9]{4}-[a-km-zA-HJ-NP-Z2-9]{4}-[a-km-zA-HJ-NP-Z2-9]{4}$/;
+  const authFalsa = (existente: { uid: string } | null = null) => ({
+    getUserByEmail: jest.fn(async () => {
+      if (existente) return existente;
+      throw Object.assign(new Error('no existe'), { code: 'auth/user-not-found' });
+    }),
+    createUser: jest.fn(async (u: { uid: string }) => ({ uid: u.uid })),
+    updateUser: jest.fn(async () => ({})),
+  });
+
+  test('crea la cuenta con una contraseña nueva y le deja datos en cada pantalla', async () => {
+    const db = getFirestore(admin);
+    const auth = authFalsa();
+
+    const r = await revision(db, auth, { Timestamp });
+
+    expect(r).toEqual({ uid: 'app-review', email: 'appreview@neighborhub.test', password: expect.stringMatching(formatoClave) });
+    expect(auth.createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ uid: 'app-review', email: r.email, password: r.password, emailVerified: true })
+    );
+    expect((await db.doc('users/app-review').get()).data()).toMatchObject({ name: 'Alex Demo', onboardingCompleted: true });
+    expect((await db.doc('helpRequests/demo-move-table').get()).data()).toMatchObject({ status: 'approved', requesterId: 'app-review' });
+    const ofertas = await db.collection('applications').where('serviceId', '==', 'demo-move-table').get();
+    expect(ofertas.size).toBe(3);
+    expect((await db.doc('helpRequests/demo-mirror').get()).data()).toMatchObject({ status: 'accepted', helperId: 'seed-user-08' });
+
+    // Y quien revisa, con las reglas activas, ve su perfil y el chat.
+    const suya = env.authenticatedContext('app-review').firestore();
+    expect((await getDoc(doc(suya, 'users/app-review'))).exists()).toBe(true);
+    expect((await getDocs(collection(suya, 'helpRequests/demo-mirror/messages'))).size).toBe(3);
+  });
+
+  test('cada vez sale una contraseña distinta', async () => {
+    const db = getFirestore(admin);
+    const a = await revision(db, authFalsa(), { Timestamp });
+    const b = await revision(db, authFalsa(), { Timestamp });
+    expect(a.password).not.toBe(b.password);
+  });
+
+  test('si la cuenta ya existe respeta su contraseña y rehace los datos', async () => {
+    const db = getFirestore(admin);
+    const auth = authFalsa({ uid: 'otra-uid' });
+
+    const r = await revision(db, auth, { email: 'revisor@ejemplo.test', Timestamp });
+
+    expect(r).toEqual({ uid: 'otra-uid', email: 'revisor@ejemplo.test', password: null });
+    expect(auth.createUser).not.toHaveBeenCalled();
+    expect(auth.updateUser).not.toHaveBeenCalled();
+    expect((await db.doc('helpRequests/demo-move-table').get()).data()?.requesterId).toBe('otra-uid');
+  });
+
+  test('con nuevaClave le pone una contraseña nueva', async () => {
+    const auth = authFalsa({ uid: 'app-review' });
+
+    const r = await revision(getFirestore(admin), auth, { nuevaClave: true, Timestamp });
+
+    expect(r.password).toMatch(formatoClave);
+    expect(auth.updateUser).toHaveBeenCalledWith('app-review', { password: r.password });
+  });
+
+  test('otros errores de Auth no se tapan', async () => {
+    const auth = authFalsa();
+    auth.getUserByEmail.mockRejectedValueOnce(Object.assign(new Error('sin permiso'), { code: 'auth/insufficient-permission' }));
+
+    await expect(revision(getFirestore(admin), auth, { Timestamp })).rejects.toThrow('sin permiso');
+    expect(auth.createUser).not.toHaveBeenCalled();
+  });
+
+  test('seed:clean se lleva sus datos', async () => {
+    const db = getFirestore(admin);
+    await revision(db, authFalsa(), { Timestamp });
+
+    await limpiar(db);
+
+    expect((await db.doc('users/app-review').get()).exists).toBe(false);
+    expect((await db.collection('applications').get()).size).toBe(0);
+  });
 });

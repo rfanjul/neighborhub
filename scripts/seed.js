@@ -10,6 +10,10 @@
  *                         → 3 vecinos de prueba ofertan en ese servicio
  *   npm run demo:seed     → todo lo anterior más una cuenta demo con
  *                           servicios y ofertas en cada estado (solo emulador)
+ *   npm run seed:revision → lo mismo en el proyecto real, con la cuenta para
+ *                           la revisión de Apple y una contraseña nueva que
+ *                           solo se muestra en el terminal
+ *                           (-- --email otro@correo, -- --nueva-clave)
  *
  * Credenciales, por orden:
  *   1. FIRESTORE_EMULATOR_HOST  → contra el emulador, sin credenciales.
@@ -17,9 +21,10 @@
  *      (clave de cuenta de servicio; está en .gitignore).
  *   3. Application Default Credentials (gcloud auth application-default login).
  */
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { construir, cuentaDemo, avatar, foto } = require('./seed-data');
+const { construir, cuentaDemo, cuentaRevision, avatar, foto } = require('./seed-data');
 
 /** Crea o sobrescribe los documentos de prueba. Idempotente. */
 async function sembrar(db, { Timestamp } = {}) {
@@ -112,22 +117,64 @@ async function limpiar(db) {
 }
 
 /**
- * Modo demo: siembra y añade una cuenta con la que entrar en la app y ver
- * cada pantalla con datos: un servicio abierto con ofertas, otro en curso
- * con chat, otro pendiente de revisión, una oferta enviada y otra elegida.
- * Solo contra los emuladores: nunca crea cuentas en el proyecto real.
+ * Modo demo: siembra y añade una cuenta con datos en cada pantalla (ver
+ * prepararCuenta). Solo contra los emuladores: su contraseña está en
+ * seed-data.js, así que nunca va al proyecto real.
  */
 async function demo(db, auth, { Timestamp } = {}) {
   if (!process.env.FIRESTORE_EMULATOR_HOST || !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
     throw new Error('El modo demo solo va contra los emuladores (npm run demo:seed)');
   }
-  const fecha = Timestamp ? (d) => Timestamp.fromDate(d) : (d) => d;
-  const hace = (horas) => fecha(new Date(Date.now() - horas * 3600000));
   await sembrar(db, { Timestamp });
-
   const { uid, email, password, nombre } = cuentaDemo;
   await auth.deleteUser(uid).catch(() => {});
   await auth.createUser({ uid, email, password, displayName: nombre });
+  await prepararCuenta(db, { uid, email, nombre }, { Timestamp });
+  return { email };
+}
+
+/**
+ * La cuenta para la revisión de Apple, en el proyecto real: siembra los
+ * vecinos y le deja los mismos datos que a la demo. La contraseña se genera
+ * aquí y solo se devuelve (no queda en ningún fichero); si la cuenta ya
+ * existe se respeta la suya, salvo con nuevaClave.
+ */
+async function revision(db, auth, { email = cuentaRevision.email, nuevaClave = false, Timestamp } = {}) {
+  await sembrar(db, { Timestamp });
+  let usuario = await auth.getUserByEmail(email).catch((e) => {
+    if (e.code === 'auth/user-not-found') return null;
+    throw e;
+  });
+  let password = null;
+  if (!usuario) {
+    password = generarClave();
+    usuario = await auth.createUser({
+      uid: cuentaRevision.uid, email, password, emailVerified: true, displayName: cuentaRevision.nombre,
+    });
+  } else if (nuevaClave) {
+    password = generarClave();
+    await auth.updateUser(usuario.uid, { password });
+  }
+  await prepararCuenta(db, { uid: usuario.uid, email, nombre: cuentaRevision.nombre }, { Timestamp });
+  return { uid: usuario.uid, email, password };
+}
+
+/** Fácil de teclear para quien revisa: sin 0/O ni 1/l/I, en tres grupos de cuatro. */
+function generarClave() {
+  const letras = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const grupo = () => Array.from({ length: 4 }, () => letras[crypto.randomInt(letras.length)]).join('');
+  return `${grupo()}-${grupo()}-${grupo()}`;
+}
+
+/**
+ * Deja una cuenta con algo que ver en cada pantalla: un servicio abierto
+ * con tres ofertas, otro en curso con chat, otro pendiente de revisión, una
+ * oferta enviada y otra elegida, y dos ayudas ya valoradas. Todo lleva
+ * seed: true, así que npm run seed:clean lo borra (la cuenta de Auth no).
+ */
+async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
+  const fecha = Timestamp ? (d) => Timestamp.fromDate(d) : (d) => d;
+  const hace = (horas) => fecha(new Date(Date.now() - horas * 3600000));
 
   const photoURL = avatar(nombre);
   const b = db.batch();
@@ -202,7 +249,6 @@ async function demo(db, auth, { Timestamp } = {}) {
   await b.commit();
 
   await ofertar(db, 'demo-move-table', { Timestamp });
-  return { email };
 }
 
 function proyecto() {
@@ -229,6 +275,23 @@ async function main() {
   const db = getFirestore(initializeApp({ projectId, ...(credential && { credential }) }));
 
   const destino = process.env.FIRESTORE_EMULATOR_HOST ? `emulador ${process.env.FIRESTORE_EMULATOR_HOST}` : projectId;
+  if (process.argv.includes('--revision')) {
+    const { getAuth } = require('firebase-admin/auth');
+    const iEmail = process.argv.indexOf('--email');
+    const r = await revision(db, getAuth(), {
+      email: iEmail !== -1 ? process.argv[iEmail + 1] : undefined,
+      nuevaClave: process.argv.includes('--nueva-clave'),
+      Timestamp,
+    });
+    console.log(`🍏 ${destino}: cuenta para la revisión de Apple lista, con datos en cada pantalla\n`);
+    console.log(`   Usuario:     ${r.email}`);
+    console.log(
+      r.password
+        ? `   Contraseña:  ${r.password}\n\n   Cópiala ahora en App Store Connect > App Review Information: no se guarda en ningún sitio.`
+        : '   Contraseña:  la que ya tenía (para generar otra: npm run seed:revision -- --nueva-clave)'
+    );
+    return;
+  }
   if (process.argv.includes('--demo')) {
     const { getAuth } = require('firebase-admin/auth');
     const { email } = await demo(db, getAuth(), { Timestamp });
@@ -257,4 +320,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { sembrar, limpiar, ofertar, demo };
+module.exports = { sembrar, limpiar, ofertar, demo, revision, generarClave };

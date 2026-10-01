@@ -349,4 +349,13 @@ const cuentaDemo = {
   nombre: 'Alex Demo',
 };
 
-module.exports = { construir, vecinos, cuentaDemo, avatar, foto };
+// La de la revisión de Apple va al proyecto real: su contraseña la genera
+// `npm run seed:revision` y no se guarda aquí. Se llama como la demo para que
+// coincida con las capturas de la tienda.
+const cuentaRevision = {
+  uid: 'app-review',
+  email: 'appreview@neighborhub.test',
+  nombre: 'Alex Demo',
+};
+
+module.exports = { construir, vecinos, cuentaDemo, cuentaRevision, avatar, foto };
