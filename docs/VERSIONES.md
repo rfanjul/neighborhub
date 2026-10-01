@@ -48,6 +48,7 @@ v<versión>-build.<build>        p. ej. v1.1.0-build.5
 
 | Versión | Build | Etiqueta | Destino |
 |---|---|---|---|
+| 1.1.0 | 6 | `v1.1.0-build.6` | TestFlight (pagos con Stripe en modo test, administración) |
 | 1.1.0 | 5 | `v1.1.0-build.5` | TestFlight (prueba interna de pagos, fase 1) |
 | 1.0.0 | 4 | `v1.0.0-build.4` | Revisión de App Store |
 | 1.0.0 | 3 | — | TestFlight |

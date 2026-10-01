@@ -6,6 +6,19 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
+Nada todavía.
+
+## [1.1.0 (6)] — 2026-10-01 · TestFlight, prueba interna de pagos
+
+Rama `feature/pagos`. Build EAS `5f270eb4` desde el commit `390eab0`.
+Usa los pagos **en modo test**: tarjetas de prueba de Stripe, sin dinero real.
+
+Publicado a la vez en Firebase (`neighborhood-c4dc9`): Cloud Functions de
+pagos (europe-west6, y `liberarPago` en europe-west1), secretos de Stripe en
+Secret Manager, reglas de Firestore y las páginas `/pago`, `/cobros` y
+`/admin`. En Stripe (Sandbox), dos webhooks hacia `stripeWebhook`: pagos
+(`checkout.session.completed`) y Connect (`account.updated`).
+
 ### Añadido
 - Web de administración en `/admin` (Firebase Hosting): lista de servicios
   por estado con buscador, y editor para corregir título, categoría,
@@ -16,11 +29,10 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 - Reglas de Firestore: la administración lee todos los servicios y los
   aprueba, despublica o corrige mientras nadie está ayudando; no cambia
   quién pide ni quién ayuda.
-- Pagos con Stripe Connect, probados de extremo a extremo contra el Sandbox
-  con los emuladores (cobros activados, pago de CHF 32.40 con tarjeta de
-  prueba, CHF 30 transferidos a quien ayudó y CHF 1.05 netos para la
-  plataforma tras la comisión de Stripe). Publicar las Functions requiere el
-  plan Blaze:
+- Pagos con Stripe Connect (modo test, Sandbox de Stripe), probados de
+  extremo a extremo con los emuladores: cobros activados, pago de CHF 32.40
+  con tarjeta de prueba, CHF 30 transferidos a quien ayudó y CHF 1.05 netos
+  para la plataforma tras la comisión de Stripe:
   - Perfil → **Activar cobros**: formulario de Stripe para quien ayuda
     (cuenta conectada, Accounts v2), y su estado al volver a la app.
   - En servicios con precio, ofrecerse exige tener los cobros activos, y
@@ -30,6 +42,13 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
   - Cloud Functions en `functions/` (22 tests contra el emulador), reglas
     que dejan pagos y cuentas solo al servidor, y páginas de vuelta
     `/pago` y `/cobros` en la web.
+
+### Para probarla
+- Tarjeta de prueba `4242 4242 4242 4242`, cualquier fecha futura y CVC.
+- Quien ayuda activa los cobros con los datos de prueba que ofrece Stripe
+  («Testtelefonnummer», «Testcode», «Testkonto»).
+- Los movimientos se ven en el Dashboard del Sandbox (Payments y Connect →
+  Transfers).
 
 ## [1.1.0 (5)] — 2026-10-01 · TestFlight, prueba interna
 

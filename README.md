@@ -258,7 +258,15 @@ Stripe al emulador con `stripe listen --forward-to
 http://127.0.0.1:5001/demo-neighborhub/europe-west6/stripeWebhook
 --forward-connect-to …/stripeWebhook`. Tests: `npm run test:functions`.
 
-Para publicarlo hace falta el plan Blaze de Firebase.
+Producción (plan Blaze): las funciones se publican con la CLI 15
+(`npx firebase-tools@15 deploy --only functions --project neighborhood-c4dc9`;
+la 13 del proyecto ya no consigue iniciar sesión). Los secretos están en
+Secret Manager (`STRIPE_SECRET_KEY`, y `STRIPE_WEBHOOK_SECRET` con los dos
+secretos de los webhooks de Stripe separados por comas). Webhooks en Stripe
+hacia https://europe-west6-neighborhood-c4dc9.cloudfunctions.net/stripeWebhook:
+uno de pagos (`checkout.session.completed`) y otro de Connect
+(`account.updated`). Ahora todo en modo test; para cobrar de verdad, cambiar
+las claves por las live y crear los webhooks en modo live.
 
 ## Administración (web /admin)
 
