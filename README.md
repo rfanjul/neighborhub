@@ -268,6 +268,19 @@ uno de pagos (`checkout.session.completed`) y otro de Connect
 (`account.updated`). Ahora todo en modo test; para cobrar de verdad, cambiar
 las claves por las live y crear los webhooks en modo live.
 
+## Notificaciones push
+
+`expo-notifications` en la app y el servicio de push de Expo desde Cloud
+Functions (`functions/avisos.js`, disparadores en europe-west1). La app pide
+permiso al entrar y guarda su token y su idioma en `dispositivos/{uid}`
+(privado: solo su dueño y el servidor). Avisos: oferta nueva, mensaje,
+servicio aprobado, te han elegido, pago confirmado, hecho, valorado, pago
+transferido y cobros activados; cada uno abre su pantalla.
+
+Requisitos: capacidad Push Notifications en el App ID y una clave APNs en
+EAS (la build los configura si se le deja entrar en la cuenta de Apple). En
+el simulador no hay token: se prueba en un iPhone.
+
 ## Administración (web /admin)
 
 https://neighborhood-c4dc9.web.app/admin — ver, corregir y aprobar

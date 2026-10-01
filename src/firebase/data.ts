@@ -518,6 +518,7 @@ export const api = {
       if (o.data().status === 'pending') await deleteDoc(doc(db, 'applications', o.id));
     }
     await deleteObject(ref(storage, `profile-photos/${uid}.jpg`)).catch(() => undefined);
+    await deleteDoc(doc(db, 'dispositivos', uid)).catch(() => undefined);
     await deleteDoc(doc(db, 'users', uid));
   },
 
@@ -627,6 +628,31 @@ export const api = {
   async estadoCobros(): Promise<{ conCuenta: boolean; activos: boolean; pendiente: boolean }> {
     const r = await httpsCallable<void, { conCuenta: boolean; activos: boolean; pendiente: boolean }>(functions, 'estadoCobros')();
     return r.data;
+  },
+
+  /**
+   * Apunta este dispositivo para los avisos push (el más nuevo primero, como
+   * mucho 10), con el idioma de la app. Es un documento privado: los
+   * perfiles los ve cualquiera.
+   */
+  async guardarDispositivo(token: string, idioma: string): Promise<void> {
+    const ref = doc(db, 'dispositivos', currentUid());
+    const actual = await getDoc(ref);
+    const otros = ((actual.exists() ? actual.data().tokens : null) ?? []).filter((t: string) => t !== token);
+    await setDoc(ref, { tokens: [token, ...otros].slice(0, 10), idioma, actualizado: serverTimestamp() });
+  },
+
+  /** Este dispositivo deja de recibir avisos de la cuenta (al cerrar sesión). */
+  async olvidarDispositivo(token: string): Promise<void> {
+    const ref = doc(db, 'dispositivos', currentUid());
+    const actual = await getDoc(ref);
+    if (!actual.exists()) return;
+    const datos = actual.data();
+    await setDoc(ref, {
+      tokens: (datos.tokens ?? []).filter((t: string) => t !== token),
+      idioma: datos.idioma ?? 'en',
+      actualizado: serverTimestamp(),
+    });
   },
 
   /** Mis pagos y cobros, los más recientes primero. */

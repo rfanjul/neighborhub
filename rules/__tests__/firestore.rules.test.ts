@@ -355,6 +355,34 @@ describe('pagos con Stripe (los escribe solo el servidor)', () => {
   });
 });
 
+describe('dispositivos (avisos push)', () => {
+  const datos = { tokens: ['ExponentPushToken[abc]'], idioma: 'es', actualizado: serverTimestamp() };
+
+  it('cada uno guarda, lee y borra los suyos', async () => {
+    const ref = doc(como('ana'), 'dispositivos/ana');
+    await assertSucceeds(setDoc(ref, datos));
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(updateDoc(ref, { idioma: 'de' }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('nadie lee ni toca los de otro', async () => {
+    await sembrar('dispositivos/ana', { tokens: ['ExponentPushToken[abc]'], idioma: 'es' });
+
+    await assertFails(getDoc(doc(como('luis'), 'dispositivos/ana')));
+    await assertFails(setDoc(doc(como('luis'), 'dispositivos/ana'), datos));
+    await assertFails(getDoc(doc(anonimo(), 'dispositivos/ana')));
+  });
+
+  it('solo tokens en lista (como mucho 10), un idioma conocido y nada más', async () => {
+    const ref = doc(como('ana'), 'dispositivos/ana');
+    await assertFails(setDoc(ref, { ...datos, tokens: 'ExponentPushToken[abc]' }));
+    await assertFails(setDoc(ref, { ...datos, tokens: Array.from({ length: 11 }, (_, i) => `t${i}`) }));
+    await assertFails(setDoc(ref, { ...datos, idioma: 'fr' }));
+    await assertFails(setDoc(ref, { ...datos, admin: true }));
+  });
+});
+
 describe('administración', () => {
   const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
 

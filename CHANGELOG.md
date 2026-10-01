@@ -6,7 +6,18 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+### Añadido
+- Perfil → **Pagos**: lo que has pagado y lo que cobras, con su estado
+  (sin completar, retenido, pagado/cobrado) y «Ver todos». Función
+  `misPagos` (sin datos de Stripe). *Publicado; funciona con la app de la
+  build 6.*
+- **Notificaciones push** (`expo-notifications` + servicio de Expo), en el
+  idioma de cada uno: oferta nueva, mensaje nuevo, servicio aprobado, te
+  han elegido (con el pago asegurado), pago confirmado, marcado como hecho,
+  te han valorado, pago transferido/cobrado y cobros activados. Tocar una
+  abre su pantalla. Los tokens van en `dispositivos/{uid}`, privado; se
+  borran al cerrar sesión o si Expo los da por caducados. *Necesita build
+  nueva (módulo nativo y capacidad Push en iOS).*
 
 ## [1.1.0 (6)] — 2026-10-01 · TestFlight, prueba interna de pagos
 

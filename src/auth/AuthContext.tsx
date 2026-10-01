@@ -20,6 +20,7 @@ import * as Crypto from 'expo-crypto';
 import { auth } from '../firebase';
 import { api, ensureUserDocument, type ApiUserProfile } from '../firebase/data';
 import { isExpoGo } from './environment';
+import { olvidarEsteDispositivo } from '../notificaciones';
 
 // El módulo de Google es nativo y no existe en Expo Go: importarlo ahí rompe
 // la app al arrancar, así que se carga solo en el development build.
@@ -244,6 +245,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    // Antes de salir, mientras aún hay sesión para poder escribir.
+    await olvidarEsteDispositivo();
     await signOut(auth);
     // Si no se cierra también en Google, la próxima vez no deja elegir cuenta.
     try {

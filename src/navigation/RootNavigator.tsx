@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { NavigationContainer, type NavigationState } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef, type NavigationState } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../auth/AuthContext';
 import { colors } from '../theme';
@@ -21,8 +21,23 @@ import ChatScreen from '../screens/ChatScreen';
 import PaymentsScreen from '../screens/PaymentsScreen';
 import MainTabs from './MainTabs';
 import { t, useIdioma } from '../i18n';
+import { activarAvisos, alTocarAviso, type Destino } from '../notificaciones';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+export const navegacion = createNavigationContainerRef<RootStackParamList>();
+
+/** Abre la pantalla de un aviso tocado. */
+export function irAlAviso({ pantalla, serviceId }: Destino) {
+  if (!navegacion.isReady()) return false;
+  if (serviceId && (pantalla === 'Chat' || pantalla === 'ServiceOffers' || pantalla === 'ServiceDetail')) {
+    navegacion.navigate(pantalla, { serviceId });
+  } else if (pantalla === 'Payments') {
+    navegacion.navigate('Payments');
+  } else {
+    navegacion.navigate('Main', { screen: 'ProfileTab' });
+  }
+  return true;
+}
 const AppStack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
@@ -31,6 +46,20 @@ export default function RootNavigator() {
   // pinte en el nuevo, pero en la misma pantalla en la que estaba.
   const idioma = useIdioma();
   const estado = useRef<NavigationState | undefined>(undefined);
+  // Un aviso tocado antes de que la navegación esté lista (app cerrada).
+  const pendiente = useRef<Destino | null>(null);
+
+  // Con sesión: apuntar el dispositivo (y su idioma, que cambia el de los avisos)…
+  useEffect(() => {
+    if (user) activarAvisos(idioma);
+  }, [user?.uid, idioma]);
+  // …y al tocar un aviso, ir a su pantalla.
+  useEffect(() => {
+    if (!user) return;
+    return alTocarAviso((destino) => {
+      if (!irAlAviso(destino)) pendiente.current = destino;
+    });
+  }, [user?.uid]);
 
   if (initializing) {
     // Splash mientras Firebase restaura la sesión de AsyncStorage.
@@ -42,7 +71,15 @@ export default function RootNavigator() {
   }
 
   return (
-    <NavigationContainer key={idioma} initialState={estado.current} onStateChange={(s) => (estado.current = s)}>
+    <NavigationContainer
+      key={idioma}
+      ref={navegacion}
+      initialState={estado.current}
+      onStateChange={(s) => (estado.current = s)}
+      onReady={() => {
+        if (pendiente.current && user && irAlAviso(pendiente.current)) pendiente.current = null;
+      }}
+    >
       {!user ? (
         <AuthStack.Navigator screenOptions={{ headerShown: false }}>
           <AuthStack.Screen name="Welcome" component={WelcomeScreen} />

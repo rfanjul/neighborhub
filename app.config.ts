@@ -71,5 +71,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-apple-authentication',
     ['@react-native-google-signin/google-signin', { iosUrlScheme: googleIosUrlScheme }],
     ['react-native-maps', googleMapsIosApiKey ? { iosGoogleMapsApiKey: googleMapsIosApiKey } : {}],
+    // Avisos push: las builds de desarrollo usan el entorno de pruebas de APNs.
+    ['expo-notifications', { mode: process.env.EAS_BUILD_PROFILE === 'development' ? 'development' : 'production' }],
   ],
 });

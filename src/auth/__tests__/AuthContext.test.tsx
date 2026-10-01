@@ -23,6 +23,7 @@ import { googleCancelled, googleCancelledError, googleSignInMock, googleSuccess 
 import { firebaseError } from '../../test-utils/firebaseError';
 
 jest.mock('../environment', () => ({ isExpoGo: false }));
+jest.mock('../../notificaciones', () => ({ olvidarEsteDispositivo: jest.fn(async () => undefined) }));
 jest.mock('@react-native-google-signin/google-signin', () => require('../../test-utils/mocks').googleSignInMock);
 
 jest.mock('firebase/auth', () => ({
@@ -443,6 +444,20 @@ describe('cerrar sesión', () => {
 
     expect(signOut).toHaveBeenCalledWith(auth);
     expect(googleSignInMock.GoogleSignin.signOut).toHaveBeenCalled();
+  });
+
+  it('antes de salir, este dispositivo deja de recibir los avisos de la cuenta', async () => {
+    const { olvidarEsteDispositivo } = require('../../notificaciones');
+    const orden: string[] = [];
+    olvidarEsteDispositivo.mockImplementationOnce(async () => void orden.push('olvidar'));
+    (signOut as jest.Mock).mockImplementationOnce(async () => void orden.push('salir'));
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await result.current.logout();
+    });
+
+    expect(orden).toEqual(['olvidar', 'salir']);
   });
 
   it('cierra igual aunque no hubiera sesión de Google', async () => {

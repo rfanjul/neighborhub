@@ -41,6 +41,8 @@ jest.mock('./src/firebase/data', () => ({
     estadoCobros: jest.fn(async () => ({ conCuenta: true, activos: true, pendiente: false })),
     pagarOferta: jest.fn(async () => 'https://checkout.stripe.com/c/pay/cs_test'),
     misPagos: jest.fn(async () => []),
+    guardarDispositivo: jest.fn(async () => undefined),
+    olvidarDispositivo: jest.fn(async () => undefined),
   },
 }));
 
@@ -76,4 +78,14 @@ jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(async () => ({ granted: false })),
   getCurrentPositionAsync: jest.fn(),
   Accuracy: { Balanced: 3 },
+}));
+
+// Avisos push: módulo nativo. Cada test ajusta permisos y respuestas.
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  requestPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[test]' })),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
 }));

@@ -7,13 +7,14 @@
  */
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
-const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const StripeModulo = require('stripe');
 const { crearPagos, ErrorPago } = require('./pagos');
+const { crearAvisos } = require('./avisos');
 
 const Stripe = StripeModulo.default || StripeModulo;
 setGlobalOptions({ region: 'europe-west6', maxInstances: 5 });
@@ -95,3 +96,32 @@ exports.liberarPago = onDocumentUpdated(
     if (resultado !== 'nada') logger.info(`liberarPago ${evento.params.serviceId}: ${resultado}`);
   }
 );
+
+// --- Notificaciones push (functions/avisos.js) -------------------------------
+
+function avisos() {
+  const db = getFirestore();
+  return crearAvisos({
+    db,
+    fetch,
+    quitarToken: (uid, tokens) => db.doc(`dispositivos/${uid}`).update({ tokens: FieldValue.arrayRemove(...tokens) }),
+  });
+}
+// Los disparadores de Firestore van en europe-west1, dentro de eur3 como la base de datos.
+const enFirestore = (document) => ({ document, region: 'europe-west1' });
+
+exports.avisoOferta = onDocumentCreated(enFirestore('applications/{id}'), async (e) => {
+  if (e.data) await avisos().nuevaOferta(e.data.data());
+});
+
+exports.avisoMensaje = onDocumentCreated(enFirestore('helpRequests/{serviceId}/messages/{id}'), async (e) => {
+  if (e.data) await avisos().nuevoMensaje(e.params.serviceId, e.data.data());
+});
+
+exports.avisosServicio = onDocumentUpdated(enFirestore('helpRequests/{serviceId}'), async (e) => {
+  await avisos().cambioServicio(e.params.serviceId, e.data?.before.data(), e.data?.after.data());
+});
+
+exports.avisoCobros = onDocumentUpdated(enFirestore('users/{uid}'), async (e) => {
+  await avisos().cambioPerfil(e.params.uid, e.data?.before.data(), e.data?.after.data());
+});

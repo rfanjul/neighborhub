@@ -746,3 +746,39 @@ describe('pagos con Stripe (Cloud Functions)', () => {
     expect((await api.getMe()).cobrosActivos).toBe(false);
   });
 });
+
+describe('dispositivos para avisos push', () => {
+  it('apunta el token (el más nuevo primero, sin repetir, como mucho 10) con el idioma', async () => {
+    mockStore.set('dispositivos/uid-1', { tokens: ['viejo', 'T'], idioma: 'en' });
+
+    await api.guardarDispositivo('T', 'es');
+
+    expect(mockStore.get('dispositivos/uid-1')).toMatchObject({ tokens: ['T', 'viejo'], idioma: 'es' });
+  });
+
+  it('el primero crea el documento; nunca más de 10', async () => {
+    mockStore.delete('dispositivos/uid-1');
+    await api.guardarDispositivo('T1', 'de');
+    expect(mockStore.get('dispositivos/uid-1')).toMatchObject({ tokens: ['T1'], idioma: 'de' });
+
+    mockStore.set('dispositivos/uid-1', { tokens: Array.from({ length: 10 }, (_, i) => `t${i}`), idioma: 'de' });
+    await api.guardarDispositivo('nuevo', 'de');
+    expect(mockStore.get('dispositivos/uid-1')?.tokens).toHaveLength(10);
+    expect(mockStore.get('dispositivos/uid-1')?.tokens[0]).toBe('nuevo');
+  });
+
+  it('olvidar quita solo ese token y conserva el idioma', async () => {
+    mockStore.set('dispositivos/uid-1', { tokens: ['A', 'B'], idioma: 'es' });
+
+    await api.olvidarDispositivo('A');
+
+    expect(mockStore.get('dispositivos/uid-1')).toMatchObject({ tokens: ['B'], idioma: 'es' });
+  });
+
+  it('olvidar sin documento no hace nada', async () => {
+    mockStore.delete('dispositivos/uid-1');
+
+    await expect(api.olvidarDispositivo('A')).resolves.toBeUndefined();
+    expect(mockStore.has('dispositivos/uid-1')).toBe(false);
+  });
+});

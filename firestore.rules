@@ -209,6 +209,18 @@ service cloud.firestore {
     // Mensajes del formulario de contacto de la web: cualquiera puede
     // escribir uno bien formado; nadie los lee desde fuera (se revisan en
     // la consola de Firebase).
+    // Dispositivos de cada uno para los avisos push: privado (con un token
+    // se le pueden mandar notificaciones). Solo lo lee y escribe su dueño;
+    // las Functions lo leen con el Admin SDK.
+    match /dispositivos/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['tokens', 'idioma', 'actualizado'])
+        && request.resource.data.tokens is list
+        && request.resource.data.tokens.size() <= 10
+        && request.resource.data.idioma in ['en', 'de', 'es'];
+    }
+
     match /contactMessages/{id} {
       allow create: if request.resource.data.keys().hasOnly(['tipo', 'nombre', 'email', 'mensaje', 'referencia', 'origen', 'idioma', 'createdAt'])
         && request.resource.data.get('idioma', 'en') in ['en', 'de', 'es']

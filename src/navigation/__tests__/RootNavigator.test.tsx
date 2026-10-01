@@ -1,6 +1,8 @@
 import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react-native';
-import RootNavigator from '../RootNavigator';
+import RootNavigator, { irAlAviso } from '../RootNavigator';
+import * as Notifications from 'expo-notifications';
+import { api } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue } from '../../test-utils/renderWithAuth';
 import { cambiarIdioma } from '../../i18n';
@@ -105,5 +107,41 @@ describe('RootNavigator', () => {
 
     expect(await screen.findByRole('button', { name: 'Mit E-Mail anmelden' })).toBeTruthy();
     await act(async () => cambiarIdioma('en', { guardar: false }));
+  });
+});
+
+describe('avisos push', () => {
+  const N = Notifications as jest.Mocked<typeof Notifications>;
+  beforeEach(() => jest.clearAllMocks());
+
+  it('sin sesión no pide permiso ni apunta nada', async () => {
+    await renderNavigator({ initializing: false, user: null });
+
+    expect(N.getPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('con sesión apunta el dispositivo con el idioma de la app', async () => {
+    await renderNavigator({ initializing: false, user: signedInUser as never, profile: perfilCompleto as never });
+
+    await waitFor(() => expect(api.guardarDispositivo).toHaveBeenCalledWith('ExponentPushToken[test]', 'en'));
+  });
+
+  it('un aviso tocado abre su pantalla', async () => {
+    await renderNavigator({ initializing: false, user: signedInUser as never, profile: perfilCompleto as never });
+    await screen.findAllByText(/Need help nearby/);
+
+    await act(async () => {
+      expect(irAlAviso({ pantalla: 'Payments' })).toBe(true);
+    });
+    expect(await screen.findByText('No payments yet. Paid requests you pay for or help with will show up here.')).toBeTruthy();
+
+    await act(async () => {
+      irAlAviso({});
+    });
+    expect(await screen.findByLabelText('Settings')).toBeTruthy();
+  });
+
+  it('si la navegación aún no está, no hace nada', () => {
+    expect(irAlAviso({ pantalla: 'Payments' })).toBe(false);
   });
 });
