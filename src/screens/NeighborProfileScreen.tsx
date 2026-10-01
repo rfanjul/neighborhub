@@ -11,7 +11,7 @@ import Stars from '../components/Stars';
 import { insignias } from '../components/insignias';
 import { api, type ApiUserProfile } from '../firebase/data';
 import { mesYAno } from '../utils/fecha';
-import { idiomasTexto, nivelTexto, t, tp } from '../i18n';
+import { decimal, idiomasTexto, nivelTexto, t, tp } from '../i18n';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NeighborProfile'>;
@@ -98,7 +98,7 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
           <View style={styles.valoracion}>
             <Stars value={perfil.rating} size={15} />
             <Text style={styles.valoracionTexto}>
-              {perfil.rating > 0 ? perfil.rating.toFixed(1) : t('comun.sinValoraciones')}
+              {perfil.rating > 0 ? decimal(perfil.rating) : t('comun.sinValoraciones')}
               {perfil.ratingCount > 0 ? ` · ${tp('comun.valoraciones', perfil.ratingCount)}` : ''}
             </Text>
           </View>
@@ -129,7 +129,7 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityLabel={t('vecino.verResenas', { nombre: perfil.name })}
           >
-            <Text style={styles.statValue}>{perfil.rating > 0 ? `${perfil.rating.toFixed(1)} ★` : t('vecino.nuevo')}</Text>
+            <Text style={styles.statValue}>{perfil.rating > 0 ? `${decimal(perfil.rating)} ★` : t('vecino.nuevo')}</Text>
             <Text style={styles.statLink}>{t('vecino.resenas')}</Text>
           </Pressable>
         </View>

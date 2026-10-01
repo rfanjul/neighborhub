@@ -11,7 +11,7 @@ import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
-import { cambiarIdioma, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
+import { cambiarIdioma, decimal, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 import { authErrorMessage } from '../auth/errors';
 
@@ -180,7 +180,7 @@ export default function MyProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('miPerfil.verResenas')}
           >
-            <Text style={styles.statValue}>{currentUser.rating} ★</Text>
+            <Text style={styles.statValue}>{decimal(currentUser.rating)} ★</Text>
             <Text style={styles.statLink}>{t('miPerfil.resenas')}</Text>
           </Pressable>
           <View style={styles.statItem}>

@@ -10,6 +10,7 @@ import { api, type ChatMessage } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import { useAuth } from '../auth/AuthContext';
 import { t } from '../i18n';
+import Avatar from '../components/Avatar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
@@ -21,6 +22,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const { serviceId } = route.params;
   const { user } = useAuth();
   const [servicio, setServicio] = useState<ServiceRequest | null>(null);
+  const [fotoOtra, setFotoOtra] = useState<string | null>(null);
   const [mensajes, setMensajes] = useState<ChatMessage[]>([]);
   const [borrador, setBorrador] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,21 @@ export default function ChatScreen({ navigation, route }: Props) {
     );
   }, [serviceId]);
 
+  // La foto de quien ayuda no viene en el servicio: se lee de su perfil.
+  const soyQuienPide = !!servicio && !!user && servicio.requesterId === user.uid;
+  useEffect(() => {
+    if (!servicio) return;
+    if (!soyQuienPide) {
+      setFotoOtra(servicio.requester.photoURL);
+      return;
+    }
+    if (!servicio.helperId) return;
+    api
+      .getUserProfile(servicio.helperId)
+      .then((p) => setFotoOtra(p?.photoURL ?? null))
+      .catch(() => setFotoOtra(null));
+  }, [servicio, soyQuienPide]);
+
   const enviar = async () => {
     const texto = borrador.trim();
     if (!texto) return;
@@ -50,8 +67,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   };
 
   // Con quién se habla: si lo publiqué yo, con quien ayuda; si no, con quien lo publicó.
-  const otraPersona =
-    servicio && user && servicio.requesterId === user.uid ? servicio.helperName ?? '' : servicio?.requester.name ?? '';
+  const otraPersona = soyQuienPide ? servicio?.helperName ?? '' : servicio?.requester.name ?? '';
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -59,7 +75,7 @@ export default function ChatScreen({ navigation, route }: Props) {
         <Pressable onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel={t('comun.atras')}>
           <BackIcon size={18} />
         </Pressable>
-        <View style={styles.avatar} />
+        <Avatar name={otraPersona} photoURL={fotoOtra} size={38} color={colors.greenTint} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{otraPersona}</Text>
           <Text style={styles.subtitle} numberOfLines={1}>
@@ -116,7 +132,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.greenTint },
   name: { fontFamily: fonts.bodySemiBold, fontSize: 17, color: colors.ink },
   subtitle: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   messages: { padding: 20, gap: 14, flexGrow: 1 },

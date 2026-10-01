@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import {
   cambiarIdioma,
   cargarIdiomaGuardado,
+  decimal,
   idiomaActual,
   idiomaDelDispositivo,
   idiomasTexto,
@@ -83,6 +84,15 @@ describe('t y tp', () => {
     cambiarIdioma('de', { guardar: false });
     expect(localeActual()).toBe('de-CH');
   });
+
+  it('los decimales llevan el separador del idioma (en Suiza, punto)', () => {
+    expect(decimal(4.62)).toBe('4.6');
+    expect(decimal(5)).toBe('5.0');
+    cambiarIdioma('de', { guardar: false });
+    expect(decimal(4.62)).toBe('4.6');
+    cambiarIdioma('es', { guardar: false });
+    expect(decimal(4.62)).toBe('4,6');
+  });
 });
 
 describe('datos del perfil', () => {
@@ -95,7 +105,7 @@ describe('datos del perfil', () => {
 
   it('los idiomas hablados se traducen uno a uno', () => {
     cambiarIdioma('es', { guardar: false });
-    expect(idiomasTexto('German, English, Klingon')).toBe('Alemán, Inglés, Klingon');
+    expect(idiomasTexto('German, English, Klingon')).toBe('alemán, inglés, Klingon');
     expect(idiomasTexto(null)).toBe('');
   });
 });

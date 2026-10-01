@@ -111,6 +111,11 @@ export function localeActual(): string {
   return { en: 'en-US', de: 'de-CH', es: 'es-ES' }[actual];
 }
 
+/** Un decimal con el separador del idioma: "4.6" en inglés y alemán (Suiza), "4,6" en español. */
+export function decimal(n: number): string {
+  return n.toLocaleString(localeActual(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 /** Idioma actual que re-renderiza el componente cuando cambia. */
 export function useIdioma(): Idioma {
   return useSyncExternalStore(

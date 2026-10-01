@@ -72,7 +72,7 @@ const PAUSA_TRAS_TOQUE_MS = 10000;
 function Marca({ ancho, alto, arriba }: { ancho: number; alto: number; arriba: number }) {
   return (
     // Deja sitio arriba para el selector de idioma.
-    <View style={[s.diapositiva, s.marca, { width: ancho, height: alto, paddingTop: arriba + 48 }]}>
+    <View style={[s.diapositiva, s.marca, { width: ancho, height: alto, paddingTop: arriba + 64 }]}>
       <Degradado
         id="marca"
         diagonal
@@ -82,7 +82,7 @@ function Marca({ ancho, alto, arriba }: { ancho: number; alto: number; arriba: n
           { en: 1, color: '#A93E1C' },
         ]}
       />
-      <LogoMark size={156} late variante="blanca" />
+      <LogoMark size={132} late variante="blanca" />
       <Text style={s.marcaTitulo}>Neighborhub</Text>
       <Text style={s.marcaTexto}>{t('bienvenida.lema')}</Text>
       <View style={s.desliza}>
@@ -246,8 +246,9 @@ export default function WelcomeScreen({ navigation }: Props) {
 const s = StyleSheet.create({
   pantalla: { flex: 1, backgroundColor: colors.background },
   diapositiva: { overflow: 'hidden' },
-  marca: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 40, gap: 14 },
-  marcaTitulo: { marginTop: 10, fontFamily: fonts.display, fontSize: 46, lineHeight: 56, color: colors.white },
+  // Abajo deja sitio para los puntos del carrusel y la hoja de botones.
+  marca: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 76, gap: 12 },
+  marcaTitulo: { marginTop: 8, fontFamily: fonts.display, fontSize: 42, lineHeight: 52, color: colors.white },
   marcaTexto: {
     textAlign: 'center',
     fontFamily: fonts.bodyMedium,

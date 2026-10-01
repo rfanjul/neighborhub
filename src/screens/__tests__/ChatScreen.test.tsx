@@ -5,6 +5,7 @@ import { api, type ChatMessage } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue } from '../../test-utils/renderWithAuth';
 import { servicio } from '../../test-utils/servicio';
+import { perfil } from '../../test-utils/perfil';
 
 jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
@@ -42,6 +43,39 @@ describe('ChatScreen', () => {
     await renderChat('luis');
 
     expect(await screen.findByText('Ana')).toBeTruthy();
+  });
+
+  it('quien publicó ve la foto de quien ayuda, leída de su perfil', async () => {
+    mockedApi.getUserProfile.mockResolvedValue(perfil({ name: 'Luis', photoURL: 'https://fotos/luis.jpg' }));
+
+    await renderChat('ana');
+
+    expect(await screen.findByLabelText('Photo of Luis')).toBeTruthy();
+    expect(mockedApi.getUserProfile).toHaveBeenCalledWith('luis');
+  });
+
+  it('quien ayuda ve la foto de quien publicó, sin leer más perfiles', async () => {
+    mockedApi.getService.mockResolvedValue(
+      servicio({
+        status: 'accepted', requesterId: 'ana', helperId: 'luis', helperName: 'Luis',
+        requester: { name: 'Ana', rating: 4.8, ratingCount: 12, responseLabel: '< 1 h', avatarColor: '#E7C9A9', photoURL: 'https://fotos/ana.jpg' },
+      })
+    );
+
+    await renderChat('luis');
+
+    expect(await screen.findByLabelText('Photo of Ana')).toBeTruthy();
+    expect(mockedApi.getUserProfile).not.toHaveBeenCalled();
+  });
+
+  it('sin foto, o si falla al leer el perfil, queda la inicial', async () => {
+    mockedApi.getUserProfile.mockRejectedValue(new Error('sin red'));
+
+    await renderChat('ana');
+
+    expect(await screen.findByText('L')).toBeTruthy();
+    await waitFor(() => expect(mockedApi.getUserProfile).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Photo of Luis')).toBeNull();
   });
 
   it('pinta los mensajes según van llegando', async () => {

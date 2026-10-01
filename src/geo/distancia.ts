@@ -1,3 +1,5 @@
+import { decimal } from '../i18n';
+
 export type Coordenadas = { latitude: number; longitude: number };
 
 const RADIO_TIERRA_KM = 6371;
@@ -13,9 +15,9 @@ export function distanciaKm(a: Coordenadas, b: Coordenadas): number {
   return 2 * RADIO_TIERRA_KM * Math.asin(Math.sqrt(h));
 }
 
-/** "350 m", "1.2 km", "12 km": lo que se lee en una tarjeta. */
+/** "350 m", "1.2 km" (o "1,2 km"), "12 km": lo que se lee en una tarjeta. */
 export function formatearDistancia(km: number): string {
   if (km < 1) return `${Math.max(10, Math.round((km * 1000) / 10) * 10)} m`;
-  if (km < 10) return `${km.toFixed(1)} km`;
+  if (km < 10) return `${decimal(km)} km`;
   return `${Math.round(km)} km`;
 }

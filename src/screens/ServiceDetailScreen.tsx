@@ -14,7 +14,7 @@ import PillButton from '../components/PillButton';
 import { mockServices, type ServiceRequest } from '../data/mock';
 import { api, type Application } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
-import { t } from '../i18n';
+import { decimal, t } from '../i18n';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
@@ -58,7 +58,7 @@ const statusColor: Record<string, { fondo: string; color: string }> = {
 
 /** "★ 4.8 (12) · replies in ~2h", sin valores vacíos. */
 export function resumenAutor(r: ServiceRequest['requester']): string {
-  const partes = [r.rating > 0 ? `★ ${r.rating}${r.ratingCount > 0 ? ` (${r.ratingCount})` : ''}` : t('comun.sinValoraciones')];
+  const partes = [r.rating > 0 ? `★ ${decimal(r.rating)}${r.ratingCount > 0 ? ` (${r.ratingCount})` : ''}` : t('comun.sinValoraciones')];
   if (r.responseLabel && r.responseLabel !== '—') partes.push(t('detalle.responde', { tiempo: r.responseLabel }));
   return partes.join(' · ');
 }

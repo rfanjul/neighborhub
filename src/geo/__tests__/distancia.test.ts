@@ -1,4 +1,5 @@
 import { distanciaKm, formatearDistancia } from '../distancia';
+import { cambiarIdioma } from '../../i18n';
 
 const zurichHb = { latitude: 47.3779, longitude: 8.5403 };
 const zurichBellevue = { latitude: 47.3667, longitude: 8.5449 };
@@ -31,5 +32,15 @@ describe('formatearDistancia', () => {
     [12.4, '12 km'],
   ])('%p km se lee "%s"', (km, texto) => {
     expect(formatearDistancia(km)).toBe(texto);
+  });
+
+  it('en español, con coma decimal', () => {
+    cambiarIdioma('es', { guardar: false });
+    try {
+      expect(formatearDistancia(3.3)).toBe('3,3 km');
+      expect(formatearDistancia(0.95)).toBe('950 m');
+    } finally {
+      cambiarIdioma('en', { guardar: false });
+    }
   });
 });

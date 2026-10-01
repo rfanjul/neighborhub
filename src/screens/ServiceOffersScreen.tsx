@@ -13,7 +13,7 @@ import type { ServiceRequest } from '../data/mock';
 import { api, type Application, type ApiUserProfile, type Review } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import { insignias } from '../components/insignias';
-import { idiomasTexto, nivelTexto, t, tp } from '../i18n';
+import { decimal, idiomasTexto, nivelTexto, t, tp } from '../i18n';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceOffers'>;
 
@@ -59,7 +59,7 @@ function Ofertante({
             <View style={styles.filaNombre}>
               <Stars value={perfil.rating} size={13} />
               <Text style={styles.meta}>
-                {perfil.rating.toFixed(1)}
+                {decimal(perfil.rating)}
                 {perfil.ratingCount > 0 ? ` · ${tp('comun.valoraciones', perfil.ratingCount)}` : ''}
               </Text>
             </View>
@@ -196,18 +196,14 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
               {resena.comment ? <Text style={styles.comentario}>“{resena.comment}”</Text> : null}
             </View>
           )}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <PillButton
-              label={t('comun.abrirChat')}
-              onPress={() => navigation.navigate('Chat', { serviceId })}
-              style={{ flex: 1 }}
-            />
+          {/* Uno debajo del otro: en alemán, o con nombres largos, no caben en una fila. */}
+          <View style={{ gap: 10 }}>
+            <PillButton label={t('comun.abrirChat')} onPress={() => navigation.navigate('Chat', { serviceId })} />
             {(enCurso || porValorar) && (
               <PillButton
                 label={enCurso ? t('ofertas.marcarHecho') : t('ofertas.valorarA', { nombre: servicio.helperName })}
                 variant="outline"
                 onPress={valorar}
-                style={{ flex: 1 }}
                 disabled={ocupado}
               />
             )}

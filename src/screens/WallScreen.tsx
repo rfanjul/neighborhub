@@ -72,7 +72,8 @@ export default function WallScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
-        <View>
+        {/* Ocupa el hueco y parte en dos líneas: en alemán el título no cabe junto a los créditos. */}
+        <View style={{ flex: 1 }}>
           <Text style={styles.greeting}>{nombre ? t('muro.hola', { nombre }) : t('muro.holaSolo')}</Text>
           <Text style={styles.headline}>{t('muro.titulo')}</Text>
         </View>
@@ -128,7 +129,7 @@ export default function WallScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   greeting: { fontFamily: fonts.body, fontSize: 15, color: colors.muted },
   headline: { marginTop: 2, fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.ink },
   creditsPill: {

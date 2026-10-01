@@ -48,13 +48,14 @@ const es: Diccionario = {
     '3': 'Vecino de confianza',
     '4': 'Héroe del barrio',
   },
+  // En minúscula, como se escriben en español ("habla alemán, inglés").
   idiomasHablados: {
-    English: 'Inglés',
-    German: 'Alemán',
-    Spanish: 'Español',
-    French: 'Francés',
-    Italian: 'Italiano',
-    Portuguese: 'Portugués',
+    English: 'inglés',
+    German: 'alemán',
+    Spanish: 'español',
+    French: 'francés',
+    Italian: 'italiano',
+    Portuguese: 'portugués',
   },
   insignias: {
     amateur: 'Amateur',
