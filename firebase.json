@@ -1,0 +1,51 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8180
+    },
+    "storage": {
+      "port": 9199
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true,
+    "hosting": {
+      "port": 5050
+    }
+  },
+  "hosting": {
+    "public": "web",
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "ignore": [
+      "**/.*"
+    ],
+    "redirects": [
+      {
+        "source": "/privacidad",
+        "destination": "/es/privacy",
+        "type": 301
+      },
+      {
+        "source": "/terminos",
+        "destination": "/es/terms",
+        "type": 301
+      },
+      {
+        "source": "/soporte",
+        "destination": "/es/support",
+        "type": 301
+      }
+    ]
+  }
+}

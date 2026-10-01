@@ -46,3 +46,16 @@ GoogleService-Info.plist
 
 # tests
 coverage/
+
+# emuladores de Firebase
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+ui-debug.log
+
+# clave de cuenta de servicio para scripts/seed.js
+service-account.json
+
+# Capturas en crudo del simulador (scripts/store-screenshots.py las monta)
+store/screenshots/raw/
+__pycache__/

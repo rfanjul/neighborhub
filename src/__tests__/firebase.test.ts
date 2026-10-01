@@ -18,10 +18,16 @@ type Mocks = {
   initializeAuth: jest.Mock;
   getAuth: jest.Mock;
   getReactNativePersistence: jest.Mock;
+  initializeFirestore: jest.Mock;
+  connectAuthEmulator: jest.Mock;
+  connectFirestoreEmulator: jest.Mock;
+  connectStorageEmulator: jest.Mock;
 };
 
 /** Carga src/firebase con mocks frescos y devuelve el módulo y sus espías. */
-function loadFirebase(options: { existingApps?: unknown[]; initializeAuthThrows?: boolean } = {}) {
+function loadFirebase(
+  options: { existingApps?: unknown[]; initializeAuthThrows?: boolean; connectThrows?: boolean } = {}
+) {
   const mocks: Mocks = {
     initializeApp: jest.fn(() => ({ name: 'nueva-app' })),
     getApp: jest.fn(() => ({ name: 'app-existente' })),
@@ -32,6 +38,12 @@ function loadFirebase(options: { existingApps?: unknown[]; initializeAuthThrows?
     }),
     getAuth: jest.fn(() => ({ id: 'auth-existente' })),
     getReactNativePersistence: jest.fn((storage: unknown) => ({ persistencia: storage })),
+    initializeFirestore: jest.fn(() => ({ id: 'firestore' })),
+    connectAuthEmulator: jest.fn(() => {
+      if (options.connectThrows) throw new Error('already connected');
+    }),
+    connectFirestoreEmulator: jest.fn(),
+    connectStorageEmulator: jest.fn(),
   };
 
   jest.resetModules();
@@ -43,6 +55,16 @@ function loadFirebase(options: { existingApps?: unknown[]; initializeAuthThrows?
   jest.doMock('firebase/auth', () => ({
     initializeAuth: mocks.initializeAuth,
     getAuth: mocks.getAuth,
+    connectAuthEmulator: mocks.connectAuthEmulator,
+  }));
+  jest.doMock('@firebase/firestore', () => ({
+    initializeFirestore: mocks.initializeFirestore,
+    getFirestore: jest.fn(() => ({ id: 'firestore-existente' })),
+    connectFirestoreEmulator: mocks.connectFirestoreEmulator,
+  }));
+  jest.doMock('firebase/storage', () => ({
+    getStorage: jest.fn(() => ({ id: 'storage' })),
+    connectStorageEmulator: mocks.connectStorageEmulator,
   }));
   jest.doMock('@firebase/auth', () => ({ getReactNativePersistence: mocks.getReactNativePersistence }));
   jest.doMock('@react-native-async-storage/async-storage', () => ({ __esModule: true, default: { almacen: true } }));
@@ -93,6 +115,15 @@ describe('inicialización de Firebase', () => {
     expect(firebase.auth).toEqual({ id: 'auth-nuevo' });
   });
 
+  it('fuerza long polling en Firestore, que en React Native falla sin él', () => {
+    const { firebase, mocks } = loadFirebase();
+
+    expect(mocks.initializeFirestore).toHaveBeenCalledWith(expect.anything(), {
+      experimentalForceLongPolling: true,
+    });
+    expect(firebase.db).toEqual({ id: 'firestore' });
+  });
+
   it('recupera la instancia existente cuando Fast Refresh reejecuta el módulo', () => {
     const { firebase, mocks } = loadFirebase({ initializeAuthThrows: true });
 
@@ -114,4 +145,39 @@ describe('firebaseConfigured', () => {
       expect(loadFirebase().firebase.firebaseConfigured).toBe(false);
     }
   );
+});
+
+describe('modo demo con emuladores', () => {
+  it('sin EXPO_PUBLIC_USE_EMULATORS habla con el proyecto real', () => {
+    const { firebase, mocks } = loadFirebase();
+
+    expect(firebase.usandoEmuladores).toBe(false);
+    expect(mocks.connectAuthEmulator).not.toHaveBeenCalled();
+    expect(mocks.connectFirestoreEmulator).not.toHaveBeenCalled();
+    expect(mocks.connectStorageEmulator).not.toHaveBeenCalled();
+  });
+
+  it('con EXPO_PUBLIC_USE_EMULATORS=1 conecta auth, Firestore y Storage a los emuladores locales', () => {
+    process.env.EXPO_PUBLIC_USE_EMULATORS = '1';
+    const { firebase, mocks } = loadFirebase();
+
+    expect(firebase.usandoEmuladores).toBe(true);
+    expect(mocks.connectAuthEmulator).toHaveBeenCalledWith({ id: 'auth-nuevo' }, 'http://127.0.0.1:9099', { disableWarnings: true });
+    expect(mocks.connectFirestoreEmulator).toHaveBeenCalledWith({ id: 'firestore' }, '127.0.0.1', 8180);
+    expect(mocks.connectStorageEmulator).toHaveBeenCalledWith({ id: 'storage' }, '127.0.0.1', 9199);
+  });
+
+  it('el host se puede cambiar, p. ej. para un móvil en la misma red', () => {
+    process.env.EXPO_PUBLIC_USE_EMULATORS = '1';
+    process.env.EXPO_PUBLIC_EMULATOR_HOST = '192.168.1.20';
+    const { mocks } = loadFirebase();
+
+    expect(mocks.connectFirestoreEmulator).toHaveBeenCalledWith(expect.anything(), '192.168.1.20', 8180);
+  });
+
+  it('si Fast Refresh reejecuta el módulo y ya estaban conectados, no rompe', () => {
+    process.env.EXPO_PUBLIC_USE_EMULATORS = '1';
+
+    expect(() => loadFirebase({ connectThrows: true })).not.toThrow();
+  });
 });

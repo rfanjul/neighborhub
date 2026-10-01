@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neighborhub</title>
+  <meta name="description" content="Neighborhub is the app where neighbors help each other: ask for help, offer yours and build a reputation. No money involved.">
+  <link rel="alternate" hreflang="en" href="https://neighborhood-c4dc9.web.app/en/">
+  <link rel="alternate" hreflang="de" href="https://neighborhood-c4dc9.web.app/de/">
+  <link rel="alternate" hreflang="es" href="https://neighborhood-c4dc9.web.app/es/">
+  <link rel="alternate" hreflang="x-default" href="https://neighborhood-c4dc9.web.app/">
+  <link rel="icon" href="/img/favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script>
+    (function () {
+      var validos = ["en","de","es"];
+      var elegido = null;
+      try { elegido = localStorage.getItem('idioma'); } catch (e) {}
+      if (validos.indexOf(elegido) < 0) {
+        var preferidos = navigator.languages || [navigator.language || 'en'];
+        for (var i = 0; i < preferidos.length && !elegido; i++) {
+          var codigo = String(preferidos[i]).slice(0, 2).toLowerCase();
+          if (validos.indexOf(codigo) >= 0) elegido = codigo;
+        }
+      }
+      location.replace('/' + (elegido || 'en') + '/' + location.search + location.hash);
+    })();
+  </script>
+</head>
+<body>
+  <main class="legal"><div class="contenedor"><article style="text-align:center">
+    <img src="/img/icono-512.png" alt="" style="width:96px;height:96px;border-radius:24px;margin:0 auto 16px">
+    <h1>Neighborhub</h1>
+    <p><a class="boton boton-secundario" href="/en/" data-idioma="en">English</a> <a class="boton boton-secundario" href="/de/" data-idioma="de">Deutsch</a> <a class="boton boton-secundario" href="/es/" data-idioma="es">Español</a></p>
+  </article></div></main>
+  <script src="/idioma.js"></script>
+</body>
+</html>

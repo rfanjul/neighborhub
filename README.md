@@ -120,6 +120,148 @@ Una vez instalada la app, se conecta a Metro como cualquier development build:
 npx expo start --dev-client
 ```
 
+Si el iPhone no está en la misma red que el Mac, con túnel
+(`npx expo start --dev-client --tunnel`). En ese caso la URL que se abre en
+la app tiene que ser **https**:
+
+```
+exp+login-demo://expo-development-client/?url=https%3A%2F%2F<subdominio>.exp.direct
+```
+
+Si el túnel de Expo no arranca (`failed to start tunnel`, o en el log de
+ngrok `ERR_NGROK_108`), no es un fallo del proyecto: usa una cuenta de
+ngrok compartida por todos los usuarios de Expo y a veces llega a su
+límite de sesiones. Alternativa sin cuenta, con Cloudflare
+(`brew install cloudflared`):
+
+```bash
+cloudflared tunnel --url http://localhost:8085
+# copia la URL https://….trycloudflare.com que imprime y:
+EXPO_PACKAGER_PROXY_URL=https://….trycloudflare.com npx expo start --dev-client --port 8085
+```
+
+La URL para la app es entonces
+`exp+login-demo://expo-development-client/?url=<URL de cloudflare codificada>`.
+`EXPO_PACKAGER_PROXY_URL` hace que el manifiesto anuncie el bundle con esa
+dirección https en vez de la IP local.
+
+Con `http://` la app descarga el manifiesto pero no el bundle y sale
+"Could not connect to development server": iOS (App Transport Security)
+solo permite HTTP sin cifrar en la red local, no hacia un dominio de
+internet como `exp.direct`. Safari sí lo abre, porque no está sujeto a esa
+restricción, y eso despista.
+
+## Mapa
+
+El mapa pinta los servicios que tienen coordenadas (se guardan al
+publicarlos) y los filtra por distancia a tu ubicación.
+
+Usa **Google Maps** si `GOOGLE_MAPS_IOS_API_KEY` está definida al compilar;
+si no, el mapa nativo de Apple. Para activarlo:
+
+1. Google Cloud Console del proyecto -> *APIs & Services* -> *Library* ->
+   **Maps SDK for iOS** -> Enable (requiere facturación activada).
+2. *Credentials* -> *Create credentials* -> *API key*. Restríngela a
+   *iOS apps* con el bundle `com.app.neighborhub` y a la API *Maps SDK for iOS*.
+3. Ponla en `.env` como `GOOGLE_MAPS_IOS_API_KEY` y en EAS
+   (`npx eas-cli env:create --name GOOGLE_MAPS_IOS_API_KEY ...`).
+4. Build nuevo: el SDK de Google Maps va dentro del binario.
+
+## Datos de prueba
+
+`scripts/seed.js` crea 10 vecinos de Zúrich con 3 servicios **aprobados**
+cada uno (título, descripción, categoría, fotos, GPS, duración, disponibilidad,
+autor con foto y valoración). Todo lleva `seed: true` y ids `seed-…`.
+
+Usa el Admin SDK, que se salta las reglas, así que necesita credenciales de
+administrador. En Firebase Console → ⚙️ Configuración del proyecto → Cuentas de
+servicio → **Generar nueva clave privada**, guárdala como
+`service-account.json` en la raíz (está en `.gitignore`, nunca la subas) y:
+
+```bash
+npm run seed         # crea o actualiza (idempotente)
+npm run seed:clean   # borra solo lo sembrado, más sus ofertas y mensajes
+npm run seed -- --ofertas "Move table"   # 3 vecinos de prueba ofertan en tu servicio
+```
+
+`--ofertas` acepta el título exacto o el id del servicio; si estaba pendiente
+lo aprueba, porque solo los aprobados admiten ofertas.
+
+También vale `GOOGLE_APPLICATION_CREDENTIALS=/ruta/clave.json` o, contra el
+emulador, `FIRESTORE_EMULATOR_HOST=localhost:8180`. Los vecinos de prueba
+son solo perfiles de Firestore, no cuentas con las que se pueda iniciar sesión.
+
+## Modo demo (emuladores locales)
+
+Para ver y probar todas las pantallas sin tocar Firebase ni usar tu cuenta:
+la app habla con los emuladores locales y hay una cuenta demo con servicios y
+ofertas en cada estado (abierto con ofertas, en curso con chat, pendiente de
+revisión, ofertas enviadas y elegidas, ayudas con reseñas).
+
+```bash
+npm run demo:emulators   # terminal 1: Auth, Firestore y Storage locales
+npm run demo:seed        # terminal 2: vecinos de prueba + cuenta demo
+npm run demo:app         # terminal 2: Metro en el puerto 8086
+```
+
+En el simulador, abre `exp+login-demo://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8086`
+y en "Entrar con email" pulsa **Entrar con la cuenta demo** (solo aparece en
+este modo). La cuenta vive solo en el emulador: `demo:seed` se niega a crearla
+contra el proyecto real. Los datos se pierden al parar los emuladores.
+
+## Web (Firebase Hosting)
+
+La web pública (portada, cómo funciona, preguntas, soporte con formulario
+de contacto, privacidad y términos) está en inglés, alemán y español en
+https://neighborhood-c4dc9.web.app: `/en/`, `/de/` y `/es/`, cada una con
+`/privacy`, `/terms` y `/support` (las URL que pide App Store Connect para
+cada idioma). La raíz lleva a cada cual a su idioma.
+
+Los textos están en `web-src/textos-{en,de,es}.js` (un test comprueba que
+tienen las mismas claves) y las plantillas en `scripts/build-web.js`, que
+genera `web/{en,de,es}/`. Lo estático (`styles.css`, `contacto.js`,
+`idioma.js`, `img/`) vive directamente en `web/`.
+
+```bash
+npm run web:build                   # genera las páginas
+npm run hosting:deploy -- --check   # lista lo que subiría
+npm run hosting:deploy              # genera y publica con service-account.json
+```
+
+Los mensajes del formulario se guardan en Firestore (`contactMessages`) y se
+leen en la consola de Firebase; las reglas solo dejan crear mensajes bien
+formados. Para probarla en local: `npx firebase emulators:start --only
+hosting,firestore --project demo-neighborhub` y abre http://127.0.0.1:5050.
+
+## Reglas de seguridad
+
+`firestore.rules` y `storage.rules` son las que tienen que estar publicadas
+en Firebase. Si en producción van por detrás, la app falla con "No tienes
+permiso" (p. ej. al ofertar o al ver ofertas) o con `storage/unauthorized`
+al subir fotos. Con `service-account.json` en la raíz (ver Datos de prueba):
+
+```bash
+npm run rules:deploy -- --check   # compara con lo publicado, sin tocar nada
+npm run rules:deploy              # publica solo lo que haya cambiado
+```
+
+También se pueden pegar a mano en la consola (Firestore → Rules y
+Storage → Rules). Firebase guarda el historial para volver atrás.
+
+Están probadas contra los emuladores de Firebase, sin tocar el proyecto
+real ni necesitar que Firestore esté activado en la nube:
+
+```bash
+npm run test:rules   # arranca Firestore y Storage locales, prueba y los apaga
+```
+
+Hace falta Java (17 o superior). `firebase-tools` está fijado a la v13
+porque la 14 en adelante exige Java 21; en CI se usa Java 21 igualmente.
+
+Cubren, entre otras cosas, que nadie pueda darse créditos, valoración o
+verificación a sí mismo, aprobarse sus propios servicios o escribir en
+conversaciones ajenas.
+
 ## Tests
 
 ```bash

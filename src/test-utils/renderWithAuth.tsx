@@ -9,6 +9,8 @@ type AuthValue = ReturnType<typeof import('../auth/AuthContext').useAuth>;
 export function authValue(overrides: Partial<AuthValue> = {}): AuthValue {
   return {
     user: null,
+    profile: null,
+    refreshProfile: jest.fn().mockResolvedValue(undefined),
     initializing: false,
     register: jest.fn().mockResolvedValue(undefined),
     login: jest.fn().mockResolvedValue(undefined),
@@ -16,6 +18,8 @@ export function authValue(overrides: Partial<AuthValue> = {}): AuthValue {
     loginWithGoogle: jest.fn().mockResolvedValue(true),
     loginWithApple: jest.fn().mockResolvedValue(true),
     logout: jest.fn().mockResolvedValue(undefined),
+    deleteAccount: jest.fn().mockResolvedValue(true),
+    provider: null,
     ...overrides,
   } as AuthValue;
 }

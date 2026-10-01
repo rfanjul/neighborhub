@@ -1,8 +1,12 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import WelcomeScreen from '../WelcomeScreen';
+import WelcomeScreen, { AVANCE_MS, diapositivas } from '../WelcomeScreen';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue, navigationProps } from '../../test-utils/renderWithAuth';
+import { cambiarIdioma } from '../../i18n';
+
+// Estos textos se comprueban en español.
+cambiarIdioma('es', { guardar: false });
 
 let mockIsExpoGo = false;
 
@@ -51,6 +55,70 @@ describe('WelcomeScreen en el development build', () => {
     expect(googleButton()).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Entrar con email' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Crear una cuenta' })).toBeTruthy();
+  });
+
+  it('explica de qué va la app y, paso a paso, cómo pedir, ofrecerse, elegir y valorar', async () => {
+    await renderWelcome();
+
+    expect(screen.getByText(/acumulan créditos/)).toBeTruthy();
+    expect(screen.getAllByLabelText('Neighborhub').length).toBeGreaterThan(0);
+    for (const paso of ['1 · Pide ayuda', '2 · Ofrécete', '3 · Elige', '4 · Valora']) {
+      expect(screen.getByText(paso)).toBeTruthy();
+    }
+    expect(screen.getByText(/Ofrecer ayuda/)).toBeTruthy();
+    expect(screen.getByText(/se abre el chat/)).toBeTruthy();
+    expect(screen.getByText(/de 1 a 5 estrellas/)).toBeTruthy();
+  });
+
+  it('cada paso lleva su foto', async () => {
+    await renderWelcome();
+
+    const conFoto = diapositivas.filter((d) => 'foto' in d);
+    expect(conFoto).toHaveLength(4);
+    conFoto.forEach((d) => expect((d as { foto: string }).foto).toMatch(/^https:\/\/images\.unsplash\.com\//));
+  });
+
+  describe('carrusel', () => {
+    const activo = () =>
+      screen.getAllByLabelText(/^Diapositiva \d de 5$/).findIndex((p) => p.props.accessibilityState?.selected);
+
+    it('empieza por la marca y los puntos llevan a cada diapositiva', async () => {
+      await renderWelcome();
+      expect(activo()).toBe(0);
+
+      await fireEvent.press(screen.getByLabelText('Diapositiva 3 de 5'));
+
+      expect(activo()).toBe(2);
+    });
+
+    it('al deslizar marca la diapositiva en la que se queda', async () => {
+      await renderWelcome();
+
+      await fireEvent(screen.getByTestId('carrusel'), 'momentumScrollEnd', {
+        nativeEvent: { contentOffset: { x: 750 * 4, y: 0 } },
+      });
+
+      expect(activo()).toBe(4);
+    });
+
+    it('pasa solo, vuelve al principio tras la última y se para un rato si se toca', async () => {
+      jest.useFakeTimers();
+      try {
+        await renderWelcome();
+
+        await act(async () => jest.advanceTimersByTime(AVANCE_MS));
+        expect(activo()).toBe(1);
+
+        await act(async () => jest.advanceTimersByTime(AVANCE_MS * 4));
+        expect(activo()).toBe(0);
+
+        await fireEvent(screen.getByTestId('carrusel'), 'scrollBeginDrag');
+        await act(async () => jest.advanceTimersByTime(AVANCE_MS));
+        expect(activo()).toBe(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   it('entra con Google', async () => {

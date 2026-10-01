@@ -4,6 +4,10 @@ import LoginScreen from '../LoginScreen';
 import { useAuth } from '../../auth/AuthContext';
 import { authValue, navigationProps } from '../../test-utils/renderWithAuth';
 import { firebaseError } from '../../test-utils/firebaseError';
+import { cambiarIdioma } from '../../i18n';
+
+// Estos textos se comprueban en español.
+cambiarIdioma('es', { guardar: false });
 
 jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
@@ -97,5 +101,29 @@ describe('LoginScreen', () => {
     await renderLogin();
 
     expect(screen.getByPlaceholderText('Contraseña').props.secureTextEntry).toBe(true);
+  });
+});
+
+describe('modo demo', () => {
+  // Sin reasignar process.env: Expo lee las EXPO_PUBLIC_* del objeto original.
+  afterEach(() => {
+    delete process.env.EXPO_PUBLIC_DEMO_EMAIL;
+    delete process.env.EXPO_PUBLIC_DEMO_PASSWORD;
+  });
+
+  it('fuera del modo demo no hay botón de cuenta demo', async () => {
+    await renderLogin();
+
+    expect(screen.queryByText('Entrar con la cuenta demo')).toBeNull();
+  });
+
+  it('con la cuenta demo configurada entra con un toque', async () => {
+    process.env.EXPO_PUBLIC_DEMO_EMAIL = 'demo@neighborhub.test';
+    process.env.EXPO_PUBLIC_DEMO_PASSWORD = 'clave-demo';
+    const { value } = await renderLogin();
+
+    await fireEvent.press(screen.getByText('Entrar con la cuenta demo'));
+
+    await waitFor(() => expect(value.login).toHaveBeenCalledWith('demo@neighborhub.test', 'clave-demo'));
   });
 });
