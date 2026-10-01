@@ -16,9 +16,11 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 - Reglas de Firestore: la administración lee todos los servicios y los
   aprueba, despublica o corrige mientras nadie está ayudando; no cambia
   quién pide ni quién ayuda.
-- Pagos con Stripe Connect (pendientes de probar contra el Sandbox: falta
-  aceptar la responsabilidad de pérdidas en el perfil de plataforma de
-  Stripe, y publicar las Functions requiere el plan Blaze):
+- Pagos con Stripe Connect, probados de extremo a extremo contra el Sandbox
+  con los emuladores (cobros activados, pago de CHF 32.40 con tarjeta de
+  prueba, CHF 30 transferidos a quien ayudó y CHF 1.05 netos para la
+  plataforma tras la comisión de Stripe). Publicar las Functions requiere el
+  plan Blaze:
   - Perfil → **Activar cobros**: formulario de Stripe para quien ayuda
     (cuenta conectada, Accounts v2), y su estado al volver a la app.
   - En servicios con precio, ofrecerse exige tener los cobros activos, y

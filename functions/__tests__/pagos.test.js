@@ -93,7 +93,6 @@ describe('cobros de quien ayuda', () => {
       use_case: {
         type: 'account_onboarding',
         account_onboarding: {
-          configurations: ['recipient'],
           refresh_url: 'https://web.test/cobros?estado=reintentar',
           return_url: 'https://web.test/cobros?estado=listo',
         },

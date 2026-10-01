@@ -84,7 +84,6 @@ function crearPagos({ stripe, db, ahora, web }) {
       use_case: {
         type: 'account_onboarding',
         account_onboarding: {
-          configurations: ['recipient'],
           refresh_url: `${web}/cobros?estado=reintentar`,
           return_url: `${web}/cobros?estado=listo`,
         },

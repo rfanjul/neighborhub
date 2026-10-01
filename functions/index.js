@@ -36,7 +36,8 @@ function llamable(accion) {
       return await accion(pagos(), peticion.auth, peticion.data || {});
     } catch (e) {
       if (e instanceof ErrorPago) throw new HttpsError(e.codigo, e.message, { motivo: e.motivo });
-      logger.error('Stripe', e);
+      // Lo justo para depurar: sin las cabeceras ni el cuerpo de Stripe.
+      logger.error('Stripe', { tipo: e.type, codigo: e.code, mensaje: e.message, peticion: e.requestId });
       throw new HttpsError('internal', 'No se pudo hablar con Stripe.', { motivo: 'generico' });
     }
   });
@@ -63,7 +64,7 @@ exports.stripeWebhook = onRequest({ secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_
       return;
     }
     // Un 500 hace que Stripe reintente más tarde.
-    logger.error(`${evento.type} falló`, e);
+    logger.error(`${evento.type} falló`, { tipo: e.type, codigo: e.code, mensaje: e.message, peticion: e.requestId });
     res.status(500).send('Error procesando el aviso');
   }
 });
