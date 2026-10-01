@@ -6,7 +6,16 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+### Añadido
+- Web de administración en `/admin` (Firebase Hosting): lista de servicios
+  por estado con buscador, y editor para corregir título, categoría,
+  descripción, duración, disponibilidad y precio, aprobar o despublicar.
+  Login con email y contraseña; solo entran cuentas con el claim `admin`.
+- `npm run admin`: crea cuentas de administración (contraseña generada que
+  solo se ve en el terminal), quita el permiso o lista quién lo tiene.
+- Reglas de Firestore: la administración lee todos los servicios y los
+  aprueba, despublica o corrige mientras nadie está ayudando; no cambia
+  quién pide ni quién ayuda.
 
 ## [1.1.0 (5)] — 2026-10-01 · TestFlight, prueba interna
 

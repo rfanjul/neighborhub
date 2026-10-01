@@ -56,6 +56,7 @@
     "seed": "node scripts/seed.js",
     "seed:clean": "node scripts/seed.js --clean",
     "seed:revision": "node scripts/seed.js --revision",
+    "admin": "node scripts/admin.js",
     "rules:deploy": "node scripts/deploy-rules.js",
     "demo:emulators": "firebase emulators:start --only auth,firestore,storage --project demo-neighborhub",
     "demo:seed": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8180 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-neighborhub node scripts/seed.js --demo",

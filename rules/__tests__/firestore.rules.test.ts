@@ -310,6 +310,66 @@ describe('helpRequests', () => {
   });
 });
 
+describe('administración', () => {
+  const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
+
+  it('ve los pendientes de cualquiera y puede listarlos todos', async () => {
+    await sembrar('helpRequests/s1', servicio());
+    await sembrar('helpRequests/s2', servicio({ status: 'accepted', requesterId: 'luis', helperId: 'ana' }));
+
+    await assertSucceeds(getDoc(doc(admin(), 'helpRequests/s1')));
+    await assertSucceeds(getDocs(collection(admin(), 'helpRequests')));
+  });
+
+  it('aprueba un pendiente y lo vuelve a despublicar', async () => {
+    await sembrar('helpRequests/s1', servicio());
+    const ref = doc(admin(), 'helpRequests/s1');
+
+    await assertSucceeds(updateDoc(ref, { status: 'approved', reviewedBy: 'jefa', reviewedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(ref, { status: 'pending' }));
+  });
+
+  it('corrige el contenido y el precio, también ya publicado', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+
+    await assertSucceeds(
+      updateDoc(doc(admin(), 'helpRequests/s1'), { title: 'Pintar una pared del salón', category: 'painting', priceCents: 4500 })
+    );
+  });
+
+  it('no cambia quién pide ni elige a quién ayuda', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+    const ref = doc(admin(), 'helpRequests/s1');
+
+    await assertFails(updateDoc(ref, { requesterId: 'luis' }));
+    await assertFails(updateDoc(ref, { helperId: 'luis', helperName: 'Luis' }));
+    await assertFails(updateDoc(ref, { status: 'accepted' }));
+  });
+
+  it('no toca los que ya están en marcha', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+
+    await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'pending' }));
+    await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { title: 'Otra cosa' }));
+  });
+
+  it('respeta el rango de precios', async () => {
+    await sembrar('helpRequests/s1', servicio());
+
+    await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { priceCents: 100 }));
+  });
+
+  it('sin el claim de admin nadie aprueba, ni siquiera con una cuenta normal', async () => {
+    await sembrar('helpRequests/s1', servicio({ requesterId: 'luis' }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'approved' }));
+    await assertFails(
+      updateDoc(doc(env.authenticatedContext('ana', { admin: false }).firestore(), 'helpRequests/s1'), { status: 'approved' })
+    );
+    await assertFails(getDoc(doc(como('ana'), 'helpRequests/s1')));
+  });
+});
+
 describe('ofertas', () => {
   const oferta = (overrides: object = {}) => ({
     serviceId: 's1',

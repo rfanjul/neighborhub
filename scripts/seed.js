@@ -261,10 +261,12 @@ function proyecto() {
   throw new Error('No encuentro el id del proyecto: define FIREBASE_PROJECT_ID o rellena .env');
 }
 
-async function main() {
+/**
+ * App del Admin SDK con las credenciales de la cabecera: contra el emulador
+ * si FIRESTORE_EMULATOR_HOST está definido. Lo comparte scripts/admin.js.
+ */
+function iniciarAdmin() {
   const { initializeApp, cert, applicationDefault } = require('firebase-admin/app');
-  const { getFirestore, Timestamp } = require('firebase-admin/firestore');
-
   const projectId = proyecto();
   const clave = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '..', 'service-account.json');
   const credential = process.env.FIRESTORE_EMULATOR_HOST
@@ -272,9 +274,15 @@ async function main() {
     : fs.existsSync(clave)
       ? cert(JSON.parse(fs.readFileSync(clave, 'utf8')))
       : applicationDefault();
-  const db = getFirestore(initializeApp({ projectId, ...(credential && { credential }) }));
-
+  const app = initializeApp({ projectId, ...(credential && { credential }) });
   const destino = process.env.FIRESTORE_EMULATOR_HOST ? `emulador ${process.env.FIRESTORE_EMULATOR_HOST}` : projectId;
+  return { app, destino };
+}
+
+async function main() {
+  const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+  const { app, destino } = iniciarAdmin();
+  const db = getFirestore(app);
   if (process.argv.includes('--revision')) {
     const { getAuth } = require('firebase-admin/auth');
     const iEmail = process.argv.indexOf('--email');
@@ -320,4 +328,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { sembrar, limpiar, ofertar, demo, revision, generarClave };
+module.exports = { sembrar, limpiar, ofertar, demo, revision, generarClave, iniciarAdmin };

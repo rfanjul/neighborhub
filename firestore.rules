@@ -14,6 +14,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    /**
+     * Administración (web /admin): cuentas con el claim admin, que pone
+     * `npm run admin` con el Admin SDK. Nadie se lo puede dar desde la app.
+     */
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
     /** Campos que cambia esta escritura respecto al documento guardado. */
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
@@ -86,7 +94,7 @@ service cloud.firestore {
       }
 
       allow read: if signedIn() && (
-        resource.data.status == 'approved' || isRequester() || isHelper()
+        resource.data.status == 'approved' || isRequester() || isHelper() || isAdmin()
       );
 
       // Se publica siempre pendiente de revisión y a nombre propio.
@@ -96,6 +104,14 @@ service cloud.firestore {
         && precioValido(request.resource.data);
 
       allow update: if signedIn() && (
+        // Administración: aprueba, despublica y corrige el contenido mientras
+        // nadie está ayudando todavía. No cambia quién pide ni quién ayuda.
+        (isAdmin()
+          && resource.data.status in ['pending', 'approved']
+          && request.resource.data.status in ['pending', 'approved']
+          && !changedKeys().hasAny(['requesterId', 'requesterName', 'helperId', 'helperName'])
+          && precioValido(request.resource.data))
+        ||
         // Quien publica elige a una de las personas que han ofertado. Solo
         // mientras está aprobado (así solo se elige una vez) y solo a alguien
         // con una oferta registrada.

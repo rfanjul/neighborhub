@@ -1,0 +1,88 @@
+/* Administración: usa los colores y botones de /styles.css. */
+/* .boton fija display: sin esto, hidden no ocultaría los botones. */
+.admin [hidden] { display: none !important; }
+body.admin { min-height: 100vh; background: var(--crema); }
+
+.admin-cabecera { position: sticky; top: 0; z-index: 5; background: rgba(251, 243, 234, .94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--borde); }
+.admin-cabecera-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; }
+.admin-cabecera .marca img { width: 36px; height: 36px; border-radius: 10px; }
+.admin-etiqueta { margin-left: 4px; padding: 2px 10px; border-radius: 10px; background: var(--tinta); color: #fff; font: 600 13px 'Work Sans', sans-serif; letter-spacing: .04em; }
+.admin-sesion { display: inline-flex; align-items: center; gap: 12px; color: var(--gris); font-size: 15px; min-width: 0; }
+.admin-sesion #quien { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.boton-pequeno { min-height: 38px; padding: 0 16px; font-size: 15px; }
+
+.admin-cuerpo { padding: 28px 0 60px; }
+.admin-cargando, .admin-vacio, .admin-gris { color: var(--gris); }
+.admin-vacio { text-align: center; padding: 40px 0; }
+
+.admin-login { max-width: 420px; margin: 40px auto; padding: 32px; background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); box-shadow: var(--sombra); }
+.admin-login h1 { margin: 0 0 4px; font-size: 32px; }
+.admin-login form { display: grid; gap: 16px; margin-top: 20px; }
+
+.admin label { display: grid; gap: 6px; font-weight: 600; font-size: 15px; color: var(--gris); }
+.admin input:not([type=checkbox]), .admin select, .admin textarea {
+  width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--borde); border-radius: 12px;
+  background: #fff; font: 400 16px 'Work Sans', sans-serif; color: var(--tinta);
+}
+.admin textarea { resize: vertical; }
+.admin input:focus, .admin select:focus, .admin textarea:focus { outline: 2px solid var(--terracota); outline-offset: 1px; }
+.admin input:disabled, .admin select:disabled, .admin textarea:disabled { background: var(--crema-2); color: var(--gris); }
+
+.admin-aviso { margin: 0; min-height: 1.2em; font-size: 15px; }
+.admin-aviso.error { color: #B3261E; }
+.admin-aviso.ok { color: var(--verde); }
+
+.admin-barra { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.admin-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-filtros button { border: 1px solid var(--borde); background: var(--tarjeta); color: var(--tinta); border-radius: 18px; padding: 8px 14px; font: 500 15px 'Work Sans', sans-serif; cursor: pointer; }
+.admin-filtros button[aria-selected=true] { background: var(--terracota); border-color: var(--terracota); color: #fff; }
+.admin-filtros .cuenta { margin-left: 4px; opacity: .75; }
+#buscar { max-width: 340px; }
+
+.admin-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.fila-boton { width: 100%; display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: center; padding: 12px; text-align: left; background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 16px; cursor: pointer; font: inherit; color: inherit; }
+.fila-boton:hover { border-color: var(--terracota); }
+.mini { width: 64px; height: 64px; border-radius: 12px; overflow: hidden; background: var(--terracota-claro); display: grid; place-items: center; font: 700 24px 'Baloo 2', sans-serif; color: var(--terracota-osc); }
+.mini img { width: 100%; height: 100%; object-fit: cover; }
+.fila-texto { display: grid; gap: 2px; min-width: 0; }
+.fila-texto strong { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fila-meta { color: var(--gris); font-size: 14px; }
+.fila-lado { display: grid; gap: 6px; justify-items: end; }
+
+.chip { display: inline-block; padding: 3px 10px; border-radius: 12px; font: 600 13px 'Work Sans', sans-serif; background: var(--crema); color: var(--gris); }
+.chip-pending { background: #F5E7CB; color: #8A5E0F; }
+.chip-approved { background: #DCEDE2; color: var(--verde); }
+.chip-accepted, .chip-in_progress { background: #E1E8F7; color: #3A5AA8; }
+.precio { font-weight: 600; color: var(--terracota-osc); font-size: 15px; }
+.precio.gratis { color: var(--verde); }
+
+#editor { width: min(720px, 100% - 24px); max-height: calc(100vh - 32px); padding: 0; border: 0; border-radius: var(--radio); box-shadow: 0 30px 80px rgba(40, 25, 15, .35); background: var(--crema-2); color: var(--tinta); }
+#editor::backdrop { background: rgba(40, 25, 15, .45); }
+#form-editor { display: grid; gap: 16px; padding: 24px; }
+.editor-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.editor-cabecera h2 { margin: 0 0 6px; font-size: 26px; line-height: 1.2; }
+.editor-cerrar { border: 0; background: var(--borde); width: 36px; height: 36px; border-radius: 18px; font-size: 22px; cursor: pointer; flex: none; }
+.editor-fotos { display: flex; gap: 8px; overflow-x: auto; }
+.editor-fotos:empty { display: none; }
+.editor-fotos img { height: 140px; border-radius: 12px; }
+.editor-vecino, .editor-datos { margin: 0; color: var(--gris); font-size: 15px; }
+.editor-dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.editor-precio { border: 1px solid var(--borde); border-radius: 14px; padding: 12px 14px 14px; display: flex; gap: 18px; align-items: end; flex-wrap: wrap; }
+.editor-precio legend { padding: 0 6px; font-weight: 600; color: var(--gris); font-size: 15px; }
+.editor-check { display: flex !important; grid-auto-flow: column; align-items: center; gap: 8px !important; color: var(--tinta) !important; }
+.editor-check input { width: 20px; height: 20px; accent-color: var(--terracota); }
+.editor-chf { grid-template-columns: auto 120px; align-items: center; }
+.editor-acciones { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+.editor-acciones .boton { min-height: 46px; }
+
+.aviso-flotante { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--tinta); color: #fff; padding: 12px 20px; border-radius: 14px; font-weight: 500; box-shadow: var(--sombra); z-index: 20; }
+
+@media (max-width: 640px) {
+  .fila-boton { grid-template-columns: 52px 1fr; }
+  .mini { width: 52px; height: 52px; }
+  .fila-lado { grid-column: 2; justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; }
+  .editor-dos { grid-template-columns: 1fr; }
+  #buscar { max-width: none; }
+  .admin-sesion #quien { display: none; }
+  .editor-acciones .boton { flex: 1 1 100%; }
+}

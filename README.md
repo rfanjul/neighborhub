@@ -233,6 +233,35 @@ leen en la consola de Firebase; las reglas solo dejan crear mensajes bien
 formados. Para probarla en local: `npx firebase emulators:start --only
 hosting,firestore --project demo-neighborhub` y abre http://127.0.0.1:5050.
 
+## Administración (web /admin)
+
+https://neighborhood-c4dc9.web.app/admin — ver, corregir y aprobar
+servicios: los pendientes de revisión salen primero; se puede cambiar el
+título, la categoría, la descripción, la duración, la disponibilidad y el
+precio, aprobar (se ve en la app al momento) o despublicar. Los que ya están
+en marcha solo se consultan.
+
+Entra con email y contraseña quien tenga el claim `admin`, que solo pone el
+Admin SDK (las reglas lo comprueban en cada escritura):
+
+```bash
+npm run admin -- --email tu@correo           # crea la cuenta o la hace admin
+npm run admin -- --email tu@correo --nueva-clave
+npm run admin -- --email tu@correo --quitar  # deja de ser admin al momento
+npm run admin -- --lista
+```
+
+La contraseña nueva solo se muestra en el terminal. Una cuenta que entra
+en la app con Apple o Google no tiene contraseña: dale una con
+`--nueva-clave` o usa otro email. La sesión de la web dura lo que la
+pestaña.
+
+En local: `npm run demo:emulators`, `npx firebase emulators:start --only
+hosting --project demo-neighborhub` y http://127.0.0.1:5050/admin (con un
+admin creado con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8180
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-neighborhub
+npm run admin -- --email admin@neighborhub.test`).
+
 ## Reglas de seguridad
 
 `firestore.rules` y `storage.rules` son las que tienen que estar publicadas
