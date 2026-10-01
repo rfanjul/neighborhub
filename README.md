@@ -262,6 +262,12 @@ Cubren, entre otras cosas, que nadie pueda darse créditos, valoración o
 verificación a sí mismo, aprobarse sus propios servicios o escribir en
 conversaciones ajenas.
 
+## Versiones
+
+Cada build que sube a App Store Connect tiene su entrada en
+[CHANGELOG.md](CHANGELOG.md) y su etiqueta en git (`v1.1.0-build.5`). El
+paso a paso está en [docs/VERSIONES.md](docs/VERSIONES.md).
+
 ## Tests
 
 ```bash
