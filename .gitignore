@@ -59,3 +59,7 @@ service-account.json
 # Capturas en crudo del simulador (scripts/store-screenshots.py las monta)
 store/screenshots/raw/
 __pycache__/
+
+# Secretos de Cloud Functions (clave secreta de Stripe, webhooks)
+functions/.secret.local
+*.secret.local
