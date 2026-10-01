@@ -156,8 +156,11 @@ function crearPagos({ stripe, db, ahora, web }) {
     });
     await db.doc(`pagos/${serviceId}`).set({
       serviceId,
+      titulo: servicio.title || '',
       requesterId: uid,
+      requesterName: servicio.requesterName || '',
       helperId: applicantId,
+      helperName: oferta.applicantName || '',
       cuentaDestino: cuenta.stripeAccountId,
       precio,
       comision: gestion,
@@ -252,7 +255,46 @@ function crearPagos({ stripe, db, ahora, web }) {
     return 'pagado';
   }
 
-  return { activarCobros, estadoCobros, pagarOferta, alCompletarCheckout, alActualizarCuenta, liberarPago };
+  /**
+   * Lo que he pagado y lo que he cobrado, con su estado, para el perfil.
+   * Solo campos seguros: nada de ids de Stripe. Quien ayuda no ve los pagos
+   * a medias (puede que al final elijan a otra persona).
+   */
+  async function misPagos(uid) {
+    const [pagados, cobrados] = await Promise.all([
+      db.collection('pagos').where('requesterId', '==', uid).get(),
+      db.collection('pagos').where('helperId', '==', uid).get(),
+    ]);
+    const milis = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
+    const filas = [
+      ...pagados.docs.map((d) => ({ d: d.data(), rol: 'pagado' })),
+      ...cobrados.docs.map((d) => ({ d: d.data(), rol: 'cobrado' })).filter((f) => f.d.estado !== 'pendiente'),
+    ];
+    // Pagos antiguos sin título ni nombres: se completan con el servicio.
+    const sinTitulo = [...new Set(filas.filter((f) => !f.d.titulo).map((f) => f.d.serviceId))];
+    const servicios = new Map(
+      await Promise.all(sinTitulo.map(async (id) => [id, (await db.doc(`helpRequests/${id}`).get()).data() || {}]))
+    );
+    return filas
+      .map(({ d, rol }) => {
+        const s = servicios.get(d.serviceId) || {};
+        return {
+          serviceId: d.serviceId,
+          rol,
+          estado: d.estado,
+          importe: rol === 'pagado' ? d.total : d.precio,
+          precio: d.precio,
+          comision: d.comision,
+          titulo: d.titulo || s.title || '',
+          otraPersona: rol === 'pagado' ? d.helperName || s.helperName || '' : d.requesterName || s.requesterName || '',
+          fecha: milis(d.actualizado) || milis(d.creado),
+        };
+      })
+      .sort((a, b) => b.fecha - a.fecha)
+      .slice(0, 50);
+  }
+
+  return { activarCobros, estadoCobros, pagarOferta, alCompletarCheckout, alActualizarCuenta, liberarPago, misPagos };
 }
 
 module.exports = { crearPagos, comision, cuentaActiva, ErrorPago };

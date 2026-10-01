@@ -266,3 +266,43 @@ describe('liberar el pago al darlo por hecho', () => {
     expect(await pagos.liberarPago('otro', { status: 'accepted' }, { status: 'rated' })).toBe('nada');
   });
 });
+
+describe('mis pagos (perfil)', () => {
+  beforeEach(async () => {
+    await servicioConOfertas();
+    await pagos.pagarOferta('ana', null, { serviceId: 's1', applicantId: 'luis' });
+  });
+
+  it('quien paga ve el pago a medias; quien ayuda aún no', async () => {
+    expect(await pagos.misPagos('ana')).toEqual([
+      expect.objectContaining({ serviceId: 's1', rol: 'pagado', estado: 'pendiente', importe: 4320, titulo: 'Subir un sofá', otraPersona: 'Luis' }),
+    ]);
+    expect(await pagos.misPagos('luis')).toEqual([]);
+  });
+
+  it('retenido y pagado: cada uno ve su importe y a la otra persona, sin datos de Stripe', async () => {
+    await pagos.alCompletarCheckout(sesionPagada());
+    expect(await pagos.misPagos('luis')).toEqual([
+      expect.objectContaining({ rol: 'cobrado', estado: 'retenido', importe: 4000, otraPersona: 'Ana' }),
+    ]);
+
+    await pagos.liberarPago('s1', { status: 'accepted' }, { status: 'rated' });
+    const [deAna] = await pagos.misPagos('ana');
+    const [deLuis] = await pagos.misPagos('luis');
+    expect(deAna).toMatchObject({ rol: 'pagado', estado: 'pagado', importe: 4320, precio: 4000, comision: 320 });
+    expect(deLuis).toMatchObject({ rol: 'cobrado', estado: 'pagado', importe: 4000 });
+    expect(typeof deLuis.fecha).toBe('number');
+    expect(JSON.stringify([deAna, deLuis])).not.toMatch(/acct_|ch_|cs_|pi_|tr_/);
+  });
+
+  it('un pago antiguo sin título ni nombres los toma del servicio', async () => {
+    await db.doc('pagos/viejo').set({ serviceId: 's1', requesterId: 'ana', helperId: 'luis', estado: 'pagado', precio: 2000, comision: 160, total: 2160 });
+
+    const viejo = (await pagos.misPagos('ana')).find((p) => p.importe === 2160);
+    expect(viejo).toMatchObject({ titulo: 'Subir un sofá' });
+  });
+
+  it('nadie más ve nada', async () => {
+    expect(await pagos.misPagos('pepe')).toEqual([]);
+  });
+});

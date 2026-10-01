@@ -40,6 +40,7 @@ jest.mock('./src/firebase/data', () => ({
     activarCobros: jest.fn(async () => 'https://accounts.stripe.com/r/acct_test'),
     estadoCobros: jest.fn(async () => ({ conCuenta: true, activos: true, pendiente: false })),
     pagarOferta: jest.fn(async () => 'https://checkout.stripe.com/c/pay/cs_test'),
+    misPagos: jest.fn(async () => []),
   },
 }));
 

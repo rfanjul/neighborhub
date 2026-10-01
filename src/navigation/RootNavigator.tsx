@@ -18,6 +18,7 @@ import RateHelperScreen from '../screens/RateHelperScreen';
 import NeighborProfileScreen from '../screens/NeighborProfileScreen';
 import NeighborListScreen from '../screens/NeighborListScreen';
 import ChatScreen from '../screens/ChatScreen';
+import PaymentsScreen from '../screens/PaymentsScreen';
 import MainTabs from './MainTabs';
 import { t, useIdioma } from '../i18n';
 
@@ -64,6 +65,7 @@ export default function RootNavigator() {
           <AppStack.Screen name="NeighborProfile" component={NeighborProfileScreen} />
           <AppStack.Screen name="NeighborList" component={NeighborListScreen} />
           <AppStack.Screen name="Chat" component={ChatScreen} />
+          <AppStack.Screen name="Payments" component={PaymentsScreen} />
           <AppStack.Screen
             name="CreateService"
             component={CreateServiceScreen}

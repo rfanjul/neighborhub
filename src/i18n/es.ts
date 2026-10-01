@@ -363,6 +363,23 @@ const es: Diccionario = {
     sinServicios: '{nombre} no tiene servicios abiertos ahora mismo.',
   },
   pagos: {
+    titulo: 'Pagos',
+    verTodos: 'Ver todos ({n})',
+    vacio: 'Aún no hay pagos. Aquí verás los servicios con precio que pagues o en los que ayudes.',
+    servicio: 'Servicio',
+    a: 'a {nombre}',
+    de: 'de {nombre}',
+    estados: {
+      pagado: {
+        pendiente: 'Sin completar',
+        retenido: 'Pagado · retenido hasta que esté hecho',
+        pagado: 'Pagado a {nombre}',
+      },
+      cobrado: {
+        retenido: 'Lo cobras cuando esté hecho',
+        pagado: 'Cobrado',
+      },
+    },
     activarTitulo: 'Cobra por ayudar',
     activarTexto: 'Para ayudar en servicios con precio, activa los cobros una vez: Stripe te pide tu identidad y tu cuenta (IBAN) en su página segura.',
     activar: 'Activar cobros',

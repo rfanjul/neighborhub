@@ -33,6 +33,8 @@ export type RootStackParamList = {
   /** Sus ayudas (con las reseñas) o sus servicios abiertos. */
   NeighborList: { userId: string; lista: 'helps' | 'services'; nombre: string };
   Chat: { serviceId: string };
+  /** Todos mis pagos y cobros con su estado. */
+  Payments: undefined;
   /** Sin serviceId crea uno nuevo; con él, edita ese servicio. */
   CreateService: { serviceId?: string } | undefined;
 };

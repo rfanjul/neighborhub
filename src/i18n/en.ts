@@ -364,6 +364,23 @@ const en = {
     sinServicios: '{nombre} has no open services right now.',
   },
   pagos: {
+    titulo: 'Payments',
+    verTodos: 'See all ({n})',
+    vacio: 'No payments yet. Paid requests you pay for or help with will show up here.',
+    servicio: 'Request',
+    a: 'to {nombre}',
+    de: 'from {nombre}',
+    estados: {
+      pagado: {
+        pendiente: 'Not completed',
+        retenido: 'Paid · held until done',
+        pagado: 'Paid to {nombre}',
+      },
+      cobrado: {
+        retenido: "You'll get it when it's done",
+        pagado: 'Received',
+      },
+    },
     activarTitulo: 'Get paid for your help',
     activarTexto: 'To help with paid requests, set up payouts once: Stripe asks for your ID and bank account (IBAN) on its secure page.',
     activar: 'Set up payouts',

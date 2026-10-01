@@ -78,6 +78,29 @@ describe('MyProfileScreen', () => {
     expect(screen.queryByText('30')).toBeNull();
   });
 
+  it('enseña los últimos pagos con su estado y, si hay más, lleva a verlos todos', async () => {
+    const { pago } = require('../../test-utils/pago');
+    mockedApi.misPagos.mockResolvedValue([
+      pago(),
+      pago({ serviceId: 's2', titulo: 'Pasear a Toby' }),
+      pago({ serviceId: 's3', titulo: 'Pintar' }),
+      pago({ serviceId: 's4', titulo: 'Regar' }),
+    ]);
+    await render(<MyProfileScreen />);
+
+    expect(await screen.findByText('Subir un sofá')).toBeTruthy();
+    expect(screen.queryByText('Regar')).toBeNull();
+    await fireEvent.press(screen.getByText('See all (4)'));
+    expect(mockNavigate).toHaveBeenCalledWith('Payments');
+  });
+
+  it('sin pagos lo explica', async () => {
+    mockedApi.misPagos.mockResolvedValue([]);
+    await render(<MyProfileScreen />);
+
+    expect(await screen.findByText(/No payments yet/)).toBeTruthy();
+  });
+
   it('ofrece activar los cobros y, si ya están, lo dice', async () => {
     await render(<MyProfileScreen />);
     expect(await screen.findByText('Set up payouts')).toBeTruthy();

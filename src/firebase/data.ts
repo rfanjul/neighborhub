@@ -31,6 +31,22 @@ import { t } from '../i18n';
 
 const storage = getStorage();
 
+/** Un pago o un cobro, tal como lo devuelve la función misPagos (sin datos de Stripe). */
+export type PagoMovimiento = {
+  serviceId: string;
+  /** pagado: lo pagué yo (quien pide). cobrado: lo cobro yo (quien ayuda). */
+  rol: 'pagado' | 'cobrado';
+  /** pendiente: Checkout sin terminar; retenido: pagado y guardado; pagado: transferido a quien ayudó. */
+  estado: 'pendiente' | 'retenido' | 'pagado';
+  /** Céntimos: lo pagado con la gestión, o lo que cobra quien ayuda. */
+  importe: number;
+  precio: number;
+  comision: number;
+  titulo: string;
+  otraPersona: string;
+  fecha: number;
+};
+
 export type ApplicationStatus = 'pending' | 'selected' | 'rejected';
 
 /** Oferta de ayuda de un vecino sobre un servicio. */
@@ -610,6 +626,12 @@ export const api = {
   /** Pregunta a Stripe si ya puede cobrar (y lo apunta en el perfil). */
   async estadoCobros(): Promise<{ conCuenta: boolean; activos: boolean; pendiente: boolean }> {
     const r = await httpsCallable<void, { conCuenta: boolean; activos: boolean; pendiente: boolean }>(functions, 'estadoCobros')();
+    return r.data;
+  },
+
+  /** Mis pagos y cobros, los más recientes primero. */
+  async misPagos(): Promise<PagoMovimiento[]> {
+    const r = await httpsCallable<void, PagoMovimiento[]>(functions, 'misPagos')();
     return r.data;
   },
 

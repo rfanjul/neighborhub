@@ -47,6 +47,7 @@ function llamable(accion) {
 exports.activarCobros = llamable((p, auth) => p.activarCobros(auth.uid, auth.token.email));
 exports.estadoCobros = llamable((p, auth) => p.estadoCobros(auth.uid));
 exports.pagarOferta = llamable((p, auth, datos) => p.pagarOferta(auth.uid, auth.token.email, datos));
+exports.misPagos = llamable((p, auth) => p.misPagos(auth.uid));
 
 /**
  * Comprueba la firma con cualquiera de los secretos (separados por comas):

@@ -362,6 +362,23 @@ const de: Diccionario = {
     sinServicios: '{nombre} hat gerade keine offenen Anfragen.',
   },
   pagos: {
+    titulo: 'Zahlungen',
+    verTodos: 'Alle ansehen ({n})',
+    vacio: 'Noch keine Zahlungen. Bezahlte Anfragen, die du bezahlst oder bei denen du hilfst, erscheinen hier.',
+    servicio: 'Anfrage',
+    a: 'an {nombre}',
+    de: 'von {nombre}',
+    estados: {
+      pagado: {
+        pendiente: 'Nicht abgeschlossen',
+        retenido: 'Bezahlt · zurückgehalten bis erledigt',
+        pagado: 'An {nombre} ausgezahlt',
+      },
+      cobrado: {
+        retenido: 'Du erhältst es, wenn es erledigt ist',
+        pagado: 'Erhalten',
+      },
+    },
     activarTitulo: 'Für deine Hilfe bezahlt werden',
     activarTexto: 'Um bei bezahlten Anfragen zu helfen, richte einmal Auszahlungen ein: Stripe fragt auf seiner sicheren Seite nach Ausweis und Bankkonto (IBAN).',
     activar: 'Auszahlungen einrichten',
