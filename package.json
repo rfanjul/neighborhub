@@ -61,7 +61,8 @@
     "demo:app": "node scripts/demo-app.js",
     "hosting:deploy": "node scripts/deploy-hosting.js",
     "web:build": "node scripts/build-web.js",
-    "store:md": "node scripts/store-md.js"
+    "store:md": "node scripts/store-md.js",
+    "store:screenshots": "python3 scripts/store-screenshots.py"
   },
   "private": true
 }

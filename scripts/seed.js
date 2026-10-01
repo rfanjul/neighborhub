@@ -24,7 +24,8 @@ const { construir, cuentaDemo, avatar, foto } = require('./seed-data');
 /** Crea o sobrescribe los documentos de prueba. Idempotente. */
 async function sembrar(db, { Timestamp } = {}) {
   const fecha = Timestamp ? (d) => Timestamp.fromDate(d) : (d) => d;
-  const { usuarios, servicios, resenas } = construir({ fecha });
+  // Fechas relativas al momento de sembrar: el muro siempre parece reciente.
+  const { usuarios, servicios, resenas } = construir({ fecha, ahora: new Date() });
   const batch = db.batch();
   for (const u of usuarios) batch.set(db.collection('users').doc(u.id), u.data);
   for (const s of servicios) batch.set(db.collection('helpRequests').doc(s.id), s.data);
@@ -159,7 +160,7 @@ async function demo(db, auth, { Timestamp } = {}) {
     b.set(db.doc(`helpRequests/${id}`), {
       category: 'moving', credits: 0, locationLabel: '', travelRadiusKm: 5, durationLabel: '1 hour', availableLabel: 'This week',
       coords: { latitude: 47.3785, longitude: 8.5262 }, helperId: null, helperName: null, seed: true,
-      createdAt: hace(3), updatedAt: hace(3), ...yo, ...datos,
+      createdAt: hace(26), updatedAt: hace(26), ...yo, ...datos,
     });
   servicio('demo-move-table', {
     title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)],
@@ -167,12 +168,15 @@ async function demo(db, auth, { Timestamp } = {}) {
   });
   servicio('demo-mirror', {
     title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)],
+    // Cada uno en su sitio: con chinchetas superpuestas el mapa elige mal.
+    coords: { latitude: 47.3773, longitude: 8.5243 },
     helperId: 'seed-user-08', helperName: 'Elias Huber', createdAt: hace(30),
     description: 'Heavy mirror (120 x 80 cm) that needs proper anchors in a concrete wall. I have the drill.',
   });
   servicio('demo-sofa', {
     title: 'Help me choose a second-hand sofa', status: 'pending', category: 'other', photos: [],
-    description: 'Two options on Ricardo, both in Oerlikon. Come and sit on them with me and help me decide?', createdAt: hace(1),
+    coords: { latitude: 47.3794, longitude: 8.5283 },
+    description: 'Two options on Ricardo, both in Oerlikon. Come and sit on them with me and help me decide?', createdAt: hace(18),
   });
   b.set(db.doc('applications/demo-mirror_seed-user-08'), {
     serviceId: 'demo-mirror', serviceTitle: 'Hang a big mirror in the hallway', applicantId: 'seed-user-08', applicantName: 'Elias Huber',

@@ -57,7 +57,17 @@
         "marketingUrl": "https://neighborhood-c4dc9.web.app/en",
         "supportUrl": "https://neighborhood-c4dc9.web.app/en/support",
         "privacyPolicyUrl": "https://neighborhood-c4dc9.web.app/en/privacy",
-        "privacyChoicesUrl": "https://neighborhood-c4dc9.web.app/en/support?tipo=borrar-cuenta#contacto"
+        "privacyChoicesUrl": "https://neighborhood-c4dc9.web.app/en/support?tipo=borrar-cuenta#contacto",
+        "screenshots": {
+          "APP_IPHONE_65": [
+            "./store/screenshots/en/1-muro.jpg",
+            "./store/screenshots/en/2-detalle.jpg",
+            "./store/screenshots/en/3-ofertas.jpg",
+            "./store/screenshots/en/4-resenas.jpg",
+            "./store/screenshots/en/5-mapa.jpg",
+            "./store/screenshots/en/6-chat.jpg"
+          ]
+        }
       },
       "de-DE": {
         "title": "neighborhubwork",
@@ -79,7 +89,17 @@
         "marketingUrl": "https://neighborhood-c4dc9.web.app/de",
         "supportUrl": "https://neighborhood-c4dc9.web.app/de/support",
         "privacyPolicyUrl": "https://neighborhood-c4dc9.web.app/de/privacy",
-        "privacyChoicesUrl": "https://neighborhood-c4dc9.web.app/de/support?tipo=borrar-cuenta#contacto"
+        "privacyChoicesUrl": "https://neighborhood-c4dc9.web.app/de/support?tipo=borrar-cuenta#contacto",
+        "screenshots": {
+          "APP_IPHONE_65": [
+            "./store/screenshots/de/1-muro.jpg",
+            "./store/screenshots/de/2-detalle.jpg",
+            "./store/screenshots/de/3-ofertas.jpg",
+            "./store/screenshots/de/4-resenas.jpg",
+            "./store/screenshots/de/5-mapa.jpg",
+            "./store/screenshots/de/6-chat.jpg"
+          ]
+        }
       },
       "es-ES": {
         "title": "neighborhubwork",
@@ -102,7 +122,17 @@
         "marketingUrl": "https://neighborhood-c4dc9.web.app/es",
         "supportUrl": "https://neighborhood-c4dc9.web.app/es/support",
         "privacyPolicyUrl": "https://neighborhood-c4dc9.web.app/es/privacy",
-        "privacyChoicesUrl": "https://neighborhood-c4dc9.web.app/es/support?tipo=borrar-cuenta#contacto"
+        "privacyChoicesUrl": "https://neighborhood-c4dc9.web.app/es/support?tipo=borrar-cuenta#contacto",
+        "screenshots": {
+          "APP_IPHONE_65": [
+            "./store/screenshots/es/1-muro.jpg",
+            "./store/screenshots/es/2-detalle.jpg",
+            "./store/screenshots/es/3-ofertas.jpg",
+            "./store/screenshots/es/4-resenas.jpg",
+            "./store/screenshots/es/5-mapa.jpg",
+            "./store/screenshots/es/6-chat.jpg"
+          ]
+        }
       }
     }
   }

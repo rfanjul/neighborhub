@@ -8,30 +8,44 @@
  */
 
 const foto = (id) => `https://picsum.photos/id/${id}/800/600`;
-const avatar = (nombre) =>
-  `https://api.dicebear.com/9.x/avataaars/png?size=256&backgroundColor=f2ddcb&seed=${encodeURIComponent(nombre)}`;
+// Con solo la semilla, DiceBear reparte peinados al azar y salían bigotes
+// donde no tocaban. Cada vecino fija el suyo; quien no está en la lista
+// (la cuenta demo) se queda con el que le toque.
+const peinados = {
+  corto: { top: 'shortFlat,shortRound,shortWaved,shortCurly,theCaesar,theCaesarAndSidePart,sides,frizzle', facialHairProbability: 35 },
+  largo: { top: 'bob,bun,curly,curvy,longButNotTooLong,straight01,straight02,straightAndStrand,bigHair,miaWallace', facialHairProbability: 0 },
+};
+// Y caras amables: sin las lágrimas, muecas o lenguas que también reparte.
+const cara =
+  '&mouth=smile,default,twinkle&eyes=default,happy,wink,squint&eyebrows=default,defaultNatural,raisedExcited,raisedExcitedNatural' +
+  '&skinColor=614335,d08b5b,ae5d29,edb98a,ffdbb4';
+const avatar = (nombre) => {
+  const peinado = peinados[vecinos.find((v) => v.nombre === nombre)?.pelo];
+  const extra = peinado ? `&top=${peinado.top}&facialHairProbability=${peinado.facialHairProbability}` : '';
+  return `https://api.dicebear.com/9.x/avataaars/png?size=256&backgroundColor=f2ddcb&seed=${encodeURIComponent(nombre)}${cara}${extra}`;
+};
 
 // Cada vecino vive en un barrio; sus servicios quedan cerca de casa.
 const vecinos = [
   {
-    nombre: 'Anna Weber',
+    nombre: 'Anna Weber', pelo: 'largo',
     barrio: 'Wiedikon', cp: '8003', casa: [47.37, 8.517],
     idiomas: 'German, English', valoracion: 4.9, respuesta: '< 1h', nivel: 3, ayudas: 18, creditos: 45, verificada: true,
     bio: "Graphic designer, two cats and a balcony full of plants. Happy to lend a hand with anything creative.",
     servicios: [
+      { cat: 'dog', titulo: 'Evening walk for Luna (pug)', fotos: [1025],
+        texto: 'Luna is 4, friendly with people and other dogs, and pulls a little at the start. A 45-minute loop around Friedhof Sihlfeld would be perfect while I work late this week.',
+        duracion: '45 minutes', disponible: 'Weekday evenings' },
       { cat: 'painting', titulo: 'Repaint my living room wall', fotos: [210],
         texto: 'One wall of about 4 x 2.5 m, currently white, going light terracotta. I already have the paint, rollers and tape; I just need a second pair of hands and someone steadier on the ladder than me.',
         duracion: '3 hours', disponible: 'This Saturday' },
-      { cat: 'dog', titulo: 'Evening walk for Luna (beagle)', fotos: [1025],
-        texto: 'Luna is 4, friendly with people and other dogs, and pulls a little at the start. A 45-minute loop around Friedhof Sihlfeld would be perfect while I work late this week.',
-        duracion: '45 minutes', disponible: 'Weekday evenings' },
       { cat: 'other', titulo: 'Water my plants while I travel', fotos: [530, 940],
         texto: 'Away from the 12th to the 19th. About 20 plants, most need water twice a week. I will leave a key with the neighbor and a little care sheet on the fridge.',
         duracion: '20 minutes, twice a week', disponible: 'Next week' },
     ],
   },
   {
-    nombre: 'Lukas Meier',
+    nombre: 'Lukas Meier', pelo: 'corto',
     barrio: 'Oerlikon', cp: '8050', casa: [47.411, 8.544],
     idiomas: 'German, English, French', valoracion: 4.7, respuesta: '~2h', nivel: 2, ayudas: 9, creditos: 30, verificada: true,
     bio: 'Engineer, cyclist, and the person on my floor with the full toolbox. Always up for fixing things.',
@@ -48,7 +62,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'Sofia Rossi',
+    nombre: 'Sofia Rossi', pelo: 'largo',
     barrio: 'Seefeld', cp: '8008', casa: [47.356, 8.555],
     idiomas: 'Italian, German, English', valoracion: 5.0, respuesta: '< 30 min', nivel: 4, ayudas: 31, creditos: 80, verificada: true,
     bio: 'Italian cook living by the lake. I will happily trade a lasagna for almost anything.',
@@ -65,7 +79,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'Jonas Keller',
+    nombre: 'Jonas Keller', pelo: 'corto',
     barrio: 'Altstetten', cp: '8048', casa: [47.391, 8.488],
     idiomas: 'German, English', valoracion: 4.6, respuesta: '~3h', nivel: 2, ayudas: 7, creditos: 20, verificada: false,
     bio: 'Student at ETH, flatshare in Altstetten. Good with bikes, bad with plants.',
@@ -82,7 +96,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'Mia Schneider',
+    nombre: 'Mia Schneider', pelo: 'largo',
     barrio: 'Enge', cp: '8002', casa: [47.364, 8.531],
     idiomas: 'German, English, Spanish', valoracion: 4.8, respuesta: '~1h', nivel: 3, ayudas: 22, creditos: 55, verificada: true,
     bio: 'Primary school teacher and piano player. Two kids, one very energetic dog.',
@@ -99,7 +113,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'Noah Fischer',
+    nombre: 'Noah Fischer', pelo: 'corto',
     barrio: 'Hottingen', cp: '8032', casa: [47.37, 8.56],
     idiomas: 'German, English', valoracion: 4.5, respuesta: '~2h', nivel: 1, ayudas: 3, creditos: 10, verificada: false,
     bio: 'New to Zurich, working in the city. Still learning which bin goes where.',
@@ -116,7 +130,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'Lea Brunner',
+    nombre: 'Lea Brunner', pelo: 'largo',
     barrio: 'Wipkingen', cp: '8037', casa: [47.393, 8.529],
     idiomas: 'German, English, Italian', valoracion: 4.9, respuesta: '< 1h', nivel: 3, ayudas: 16, creditos: 40, verificada: true,
     bio: 'Nurse working shifts. I love the Limmat in summer and my dachshund all year round.',
@@ -133,7 +147,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'Elias Huber',
+    nombre: 'Elias Huber', pelo: 'corto',
     barrio: 'Schwamendingen', cp: '8051', casa: [47.405, 8.572],
     idiomas: 'German, English', valoracion: 4.7, respuesta: '~2h', nivel: 2, ayudas: 11, creditos: 25, verificada: true,
     bio: 'Carpenter by trade, dad of two, grows tomatoes on a tiny allotment.',
@@ -150,7 +164,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'Nina Graf',
+    nombre: 'Nina Graf', pelo: 'largo',
     barrio: 'Langstrasse', cp: '8004', casa: [47.378, 8.525],
     idiomas: 'German, English, Portuguese', valoracion: 4.8, respuesta: '< 1h', nivel: 2, ayudas: 12, creditos: 35, verificada: true,
     bio: 'Barista and musician. If you need someone to test your coffee or tune a guitar, I am your neighbor.',
@@ -167,7 +181,7 @@ const vecinos = [
     ],
   },
   {
-    nombre: 'David Baumann',
+    nombre: 'David Baumann', pelo: 'corto',
     barrio: 'Wollishofen', cp: '8038', casa: [47.344, 8.53],
     idiomas: 'German, English', valoracion: 4.4, respuesta: '~4h', nivel: 1, ayudas: 4, creditos: 15, verificada: false,
     bio: 'Retired, lots of time, fewer strong arms than before. Former bookbinder, happy to teach it.',
@@ -288,7 +302,8 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
       });
     }
     v.servicios.forEach((s, j) => {
-      const n = i * 3 + j;
+      // Intercalados por vecino: el muro no empieza con tres del mismo.
+      const n = j * vecinos.length + i;
       servicios.push({
         id: `seed-service-${String(i + 1).padStart(2, '0')}-${j + 1}`,
         data: {

@@ -17,6 +17,7 @@ Edad: SIXTEEN_PLUS (contenido de usuarios y chat; sin anuncios ni navegador web)
 | Marketing | https://neighborhood-c4dc9.web.app/en | |
 | Privacidad | https://neighborhood-c4dc9.web.app/en/privacy | |
 | Opciones de privacidad | https://neighborhood-c4dc9.web.app/en/support?tipo=borrar-cuenta#contacto | |
+| Capturas iPhone 6,5" | [1-muro.jpg](./screenshots/en/1-muro.jpg) · [2-detalle.jpg](./screenshots/en/2-detalle.jpg) · [3-ofertas.jpg](./screenshots/en/3-ofertas.jpg) · [4-resenas.jpg](./screenshots/en/4-resenas.jpg) · [5-mapa.jpg](./screenshots/en/5-mapa.jpg) · [6-chat.jpg](./screenshots/en/6-chat.jpg) | 6/10 |
 
 **Texto promocional** (166/170)
 
@@ -65,6 +66,7 @@ Questions or feedback? https://neighborhood-c4dc9.web.app/en/support
 | Marketing | https://neighborhood-c4dc9.web.app/de | |
 | Privacidad | https://neighborhood-c4dc9.web.app/de/privacy | |
 | Opciones de privacidad | https://neighborhood-c4dc9.web.app/de/support?tipo=borrar-cuenta#contacto | |
+| Capturas iPhone 6,5" | [1-muro.jpg](./screenshots/de/1-muro.jpg) · [2-detalle.jpg](./screenshots/de/2-detalle.jpg) · [3-ofertas.jpg](./screenshots/de/3-ofertas.jpg) · [4-resenas.jpg](./screenshots/de/4-resenas.jpg) · [5-mapa.jpg](./screenshots/de/5-mapa.jpg) · [6-chat.jpg](./screenshots/de/6-chat.jpg) | 6/10 |
 
 **Texto promocional** (157/170)
 
@@ -113,6 +115,7 @@ Fragen oder Feedback? https://neighborhood-c4dc9.web.app/de/support
 | Marketing | https://neighborhood-c4dc9.web.app/es | |
 | Privacidad | https://neighborhood-c4dc9.web.app/es/privacy | |
 | Opciones de privacidad | https://neighborhood-c4dc9.web.app/es/support?tipo=borrar-cuenta#contacto | |
+| Capturas iPhone 6,5" | [1-muro.jpg](./screenshots/es/1-muro.jpg) · [2-detalle.jpg](./screenshots/es/2-detalle.jpg) · [3-ofertas.jpg](./screenshots/es/3-ofertas.jpg) · [4-resenas.jpg](./screenshots/es/4-resenas.jpg) · [5-mapa.jpg](./screenshots/es/5-mapa.jpg) · [6-chat.jpg](./screenshots/es/6-chat.jpg) | 6/10 |
 
 **Texto promocional** (165/170)
 

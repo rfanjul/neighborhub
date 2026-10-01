@@ -8,6 +8,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { avatar } = require('./seed-data');
 
 const raiz = path.join(__dirname, '..');
 const salidaPorDefecto = path.join(raiz, 'web');
@@ -183,7 +184,7 @@ function inicio(t) {
           <img class="foto-1" src="${foto(fotos.ofrecer, 900)}" alt="">
           <img class="foto-2" src="${foto(fotos.elegir, 700)}" alt="">
           <div class="flotante">
-            <img src="https://api.dicebear.com/9.x/avataaars/png?size=96&backgroundColor=f2ddcb&seed=Lukas%20Meier" alt="">
+            <img src="${avatar('Lukas Meier').replace('size=256', 'size=96').replace(/&/g, '&amp;')}" alt="">
             <div><strong>${t.portada.tarjeta}</strong><br><span class="estrellas">★★★★★</span> ${t.portada.tarjetaDatos}</div>
           </div>
         </div>

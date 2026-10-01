@@ -33,6 +33,7 @@ for (const [locale, i] of Object.entries(config.apple.info)) {
 | Marketing | ${i.marketingUrl} | |
 | Privacidad | ${i.privacyPolicyUrl} | |
 | Opciones de privacidad | ${i.privacyChoicesUrl} | |
+| Capturas iPhone 6,5" | ${(i.screenshots?.APP_IPHONE_65 ?? []).map((c) => `[${path.basename(c)}](${c.replace('./store/', './')})`).join(' · ')} | ${(i.screenshots?.APP_IPHONE_65 ?? []).length}/10 |
 
 **Texto promocional** (${i.promoText.length}/170)
 
