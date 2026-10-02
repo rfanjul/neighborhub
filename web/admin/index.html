@@ -14,6 +14,7 @@
   <script defer src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
   <script defer src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
   <script defer src="/__/firebase/10.12.2/firebase-firestore-compat.js"></script>
+  <script defer src="/__/firebase/10.12.2/firebase-functions-compat.js"></script>
   <script defer src="/__/firebase/init.js"></script>
   <script defer src="/admin/admin.js"></script>
 </head>
@@ -55,6 +56,7 @@
           <button type="button" role="tab" data-filtro="en-marcha">En marcha <span class="cuenta"></span></button>
           <button type="button" role="tab" data-filtro="terminados">Terminados <span class="cuenta"></span></button>
           <button type="button" role="tab" data-filtro="todos">Todos <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="pagos">Con pago <span class="cuenta"></span></button>
           <button type="button" role="tab" data-filtro="denuncias" class="tab-denuncias">Denuncias <span class="cuenta"></span></button>
         </div>
         <input id="buscar" type="search" placeholder="Buscar por título, vecino o texto" aria-label="Buscar">
@@ -116,6 +118,12 @@
       </fieldset>
 
       <p id="editor-datos" class="editor-datos"></p>
+
+      <section id="editor-pago" class="editor-pago" aria-labelledby="editor-pago-titulo" hidden>
+        <h3 id="editor-pago-titulo">Pago</h3>
+        <div id="pago-cuerpo"></div>
+        <p id="pago-aviso" class="admin-aviso" role="alert"></p>
+      </section>
       <p id="editor-aviso" class="admin-aviso" role="alert"></p>
 
       <footer class="editor-acciones">

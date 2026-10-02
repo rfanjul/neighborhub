@@ -6,7 +6,19 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+Solo servidor y web (publicados; no hace falta build):
+- Administración → cada servicio con precio tiene una sección **Pago**: estado,
+  importes, quién paga y quién cobra, el último error y los movimientos en
+  Stripe (cobro, reembolsos, transferencias) con sus ids. Pestaña **Con pago**
+  y chip del estado del pago en la lista.
+- **Reintentar el pago** a quien ayudó (servicio terminado y pago en error,
+  reembolsado o retenido): desde el cobro si aún tiene el dinero; si se
+  devolvió a quien pidió, desde el saldo de Neighborhub (lo avisa antes); si la
+  transferencia ya está en Stripe, solo la apunta. Cada intento queda en
+  `pagos/{id}.intentos` con su resultado. Functions `adminVerPago` y
+  `adminReintentarPago` (solo con el claim admin).
+- `misPagos`: si se pagó desde el saldo, quien pidió sigue viendo su
+  reembolso.
 
 ## [1.1.0 (14)] — 2026-10-02 · TestFlight
 

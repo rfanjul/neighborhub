@@ -29,6 +29,14 @@
     terminados: ['completed', 'rated'],
     todos: null,
   };
+  const PAGO_ESTADOS = {
+    pendiente: 'sin completar',
+    retenido: 'retenido',
+    pagado: 'pagado',
+    reembolsado: 'reembolsado',
+    error: 'error',
+  };
+  const MOVIMIENTOS = { checkout: 'Checkout', cobro: 'Cobro', reembolso: 'Reembolso', transferencia: 'Transferencia' };
   // Los mismos límites que la app y las reglas, en céntimos.
   const PRECIO_MINIMO = 500;
   const PRECIO_MAXIMO = 100000;
@@ -36,6 +44,7 @@
   const $ = (id) => document.getElementById(id);
   let auth;
   let db;
+  let fns;
   let servicios = [];
   let filtro = 'pendientes';
   let dejarDeEscuchar = null;
@@ -53,6 +62,8 @@
   }
 
   const precioTexto = (c) => (c == null ? 'Gratis' : `CHF ${(c / 100).toFixed(c % 100 ? 2 : 0)}`);
+  const chf = (c) => `CHF ${((c || 0) / 100).toFixed(2)}`;
+  const fechaMs = (ms) => (ms ? new Date(ms).toLocaleString('es-CH', { dateStyle: 'medium', timeStyle: 'short' }) : '—');
   const milis = (ts) => (ts && typeof ts.toMillis === 'function' ? ts.toMillis() : 0);
   const fecha = (ts) =>
     ts && typeof ts.toDate === 'function'
@@ -124,10 +135,12 @@
   function iniciar() {
     auth = firebase.auth();
     db = firebase.firestore();
+    fns = firebase.app().functions('europe-west6');
     if (['localhost', '127.0.0.1'].includes(location.hostname)) {
       // En local, contra los emuladores (npm run demo:emulators).
       auth.useEmulator('http://127.0.0.1:9099');
       db.useEmulator('127.0.0.1', 8180);
+      fns.useEmulator('127.0.0.1', 5001);
     }
     // La sesión dura lo que la pestaña: en un ordenador compartido no se queda abierta.
     auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(() => {});
@@ -335,7 +348,8 @@
     return li;
   }
 
-  const enFiltro = (s, nombre) => !FILTROS[nombre] || FILTROS[nombre].includes(s.status);
+  const enFiltro = (s, nombre) =>
+    nombre === 'pagos' ? Boolean(s.pago) : !FILTROS[nombre] || FILTROS[nombre].includes(s.status);
 
   function pintar() {
     document.querySelectorAll('[data-filtro]').forEach((b) => {
@@ -394,6 +408,9 @@
       el('span', `chip chip-${s.status}`, ESTADOS[s.status] || s.status || '—'),
       el('span', `precio${s.priceCents == null ? ' gratis' : ''}`, precioTexto(s.priceCents))
     );
+    if (s.pago && s.pago.estado) {
+      lado.append(el('span', `chip chip-pago-${s.pago.estado}`, `Pago ${PAGO_ESTADOS[s.pago.estado] || s.pago.estado}`));
+    }
 
     boton.append(mini, texto, lado);
     const li = el('li');
@@ -465,7 +482,7 @@
     }
 
     Array.from(form.elements).forEach((campo) => {
-      if (campo.id !== 'cerrar') campo.disabled = !editable;
+      if (campo.id !== 'cerrar' && !campo.closest('#editor-pago')) campo.disabled = !editable;
     });
     form.precio.disabled = !editable || form.gratis.checked;
     $('aprobar').hidden = s.status !== 'pending';
@@ -473,11 +490,134 @@
     $('guardar').hidden = !editable;
     aviso(
       'editor-aviso',
-      editable ? '' : 'Este servicio ya está en marcha o terminado: solo se puede consultar.',
+      editable ? '' : 'Este servicio ya está en marcha o terminado: sus datos ya no se pueden editar.',
       ''
     );
 
+    cargarPago(s);
     $('editor').showModal();
+  }
+
+  // --- Pago del servicio (Functions adminVerPago / adminReintentarPago) ---
+
+  function cargarPago(s) {
+    const seccion = $('editor-pago');
+    const cuerpo = $('pago-cuerpo');
+    cuerpo.textContent = '';
+    aviso('pago-aviso', '');
+    seccion.hidden = s.priceCents == null && !s.pago;
+    if (seccion.hidden) return;
+    cuerpo.appendChild(el('p', 'admin-gris', 'Consultando Stripe…'));
+    fns
+      .httpsCallable('adminVerPago')({ serviceId: s.id })
+      .then(({ data }) => {
+        if (abierto === s.id) pintarPago(s, data);
+      })
+      .catch((err) => {
+        if (abierto !== s.id) return;
+        cuerpo.textContent = '';
+        aviso('pago-aviso', `No se pudo consultar el pago (${err.message || err.code}).`, 'error');
+      });
+  }
+
+  function pintarPago(s, { pago, movimientos, intentos, reintento }) {
+    const cuerpo = $('pago-cuerpo');
+    cuerpo.textContent = '';
+    if (!pago) {
+      cuerpo.appendChild(el('p', 'admin-gris', 'Todavía no hay pago: nadie ha elegido una oferta pagando.'));
+      return;
+    }
+
+    const resumen = el('p', 'pago-resumen');
+    resumen.append(
+      el('span', `chip chip-pago-${pago.estado}`, PAGO_ESTADOS[pago.estado] || pago.estado),
+      ` ${chf(pago.precio)} para ${pago.helperName || '—'} · gestión ${chf(pago.comision)} · total ${chf(pago.total)} pagado por ${pago.requesterName || '—'}`
+    );
+    if (pago.origenPago === 'saldo') resumen.append(' · pagado desde el saldo de Neighborhub');
+    cuerpo.appendChild(resumen);
+    if (pago.error) cuerpo.appendChild(el('p', 'admin-aviso error', `Último error: ${pago.error}`));
+
+    if (movimientos.length) {
+      const tabla = el('table', 'pago-tabla');
+      const cabecera = el('tr');
+      ['Fecha', 'Movimiento', 'Importe', 'Estado', 'Id de Stripe'].forEach((t) => cabecera.appendChild(el('th', null, t)));
+      tabla.appendChild(cabecera);
+      movimientos.forEach((m) => {
+        const tr = el('tr', `mov-${m.tipo}`);
+        const tipo = MOVIMIENTOS[m.tipo] || m.tipo;
+        tr.append(
+          el('td', null, fechaMs(m.fecha)),
+          el('td', null, m.detalle ? `${tipo} (${m.detalle})` : tipo),
+          el('td', 'importe', `${m.tipo === 'reembolso' ? '−' : ''}${chf(m.importe)}`),
+          el('td', null, m.estado || '—'),
+          el('td', 'id', m.id)
+        );
+        tabla.appendChild(tr);
+      });
+      cuerpo.appendChild(tabla);
+    } else {
+      cuerpo.appendChild(el('p', 'admin-gris', 'Stripe aún no tiene movimientos de este pago.'));
+    }
+
+    if (intentos.length) {
+      const lista = el('ul', 'pago-intentos');
+      intentos.forEach((i) =>
+        lista.appendChild(
+          el(
+            'li',
+            null,
+            `${fechaMs(i.fecha)} · ${
+              i.origen === 'saldo' ? 'desde el saldo' : i.origen === 'cobro' ? 'desde el cobro' : 'ya estaba en Stripe'
+            }: ${
+              i.resultado === 'pagado' ? `pagado (${i.transferId})` : `error: ${i.error}`
+            }`
+          )
+        )
+      );
+      cuerpo.append(el('h4', null, 'Reintentos'), lista);
+    }
+
+    const acciones = el('div', 'pago-acciones');
+    if (reintento.posible) {
+      const textos = {
+        cobro: [`Reintentar el pago (${chf(pago.precio)})`, `¿Pagar ${chf(pago.precio)} a ${pago.helperName} desde el cobro de este servicio?`, 'Pagar'],
+        saldo: [
+          `Pagar ${chf(pago.precio)} desde el saldo de Neighborhub`,
+          `El cobro se devolvió a ${pago.requesterName}, así que no queda dinero de este servicio. ¿Pagar ${chf(pago.precio)} a ${pago.helperName} desde el saldo de Neighborhub? Lo pone Neighborhub y ${pago.requesterName} no paga nada más.`,
+          'Pagar desde el saldo',
+        ],
+        existente: [
+          'Marcar como pagado',
+          `Stripe ya tiene la transferencia ${reintento.transferId} a ${pago.helperName}. ¿Marcar el pago como hecho? No se mueve dinero.`,
+          'Marcar como pagado',
+        ],
+      }[reintento.origen];
+      const boton = el('button', 'boton boton-primario', textos[0]);
+      boton.type = 'button';
+      boton.addEventListener('click', async () => {
+        if (!(await preguntar(textos[1], textos[2]))) return;
+        boton.disabled = true;
+        aviso('pago-aviso', 'Pagando…');
+        fns
+          .httpsCallable('adminReintentarPago')({ serviceId: s.id, origen: reintento.origen })
+          .then(() => {
+            flotante(`Pagado a ${pago.helperName}`);
+            if (abierto === s.id) cargarPago(s);
+          })
+          .catch((err) => {
+            aviso('pago-aviso', err.message || err.code, 'error');
+            if (abierto === s.id) setTimeout(() => cargarPago(s), 1500);
+          });
+      });
+      acciones.appendChild(boton);
+    } else if (pago.estado !== 'pagado') {
+      acciones.appendChild(el('p', 'admin-gris', reintento.motivo));
+    }
+    const ids = Object.entries(pago.ids)
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(' · ');
+    cuerpo.append(acciones, el('p', 'pago-ids', ids));
   }
 
   function cerrarEditor() {

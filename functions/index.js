@@ -37,7 +37,7 @@ function pagos() {
 }
 
 /** Funciones que llama la app: con sesión, y con errores que la app entiende. */
-function llamable(accion) {
+function llamable(accion, { mensajeStripe = false } = {}) {
   return onCall({ secrets: [STRIPE_SECRET_KEY] }, async (peticion) => {
     if (!peticion.auth) throw new HttpsError('unauthenticated', 'Hay que entrar en la app.');
     try {
@@ -46,7 +46,10 @@ function llamable(accion) {
       if (e instanceof ErrorPago) throw new HttpsError(e.codigo, e.message, { motivo: e.motivo });
       // Lo justo para depurar: sin las cabeceras ni el cuerpo de Stripe.
       logger.error('Stripe', { tipo: e.type, codigo: e.code, mensaje: e.message, peticion: e.requestId });
-      throw new HttpsError('internal', 'No se pudo hablar con Stripe.', { motivo: 'generico' });
+      // A administración sí se le enseña lo que dijo Stripe.
+      throw new HttpsError('internal', mensajeStripe && e.message ? `Stripe: ${e.message}` : 'No se pudo hablar con Stripe.', {
+        motivo: 'generico',
+      });
     }
   });
 }
@@ -55,6 +58,17 @@ exports.activarCobros = llamable((p, auth) => p.activarCobros(auth.uid, auth.tok
 exports.estadoCobros = llamable((p, auth) => p.estadoCobros(auth.uid));
 exports.pagarOferta = llamable((p, auth, datos) => p.pagarOferta(auth.uid, auth.token.email, datos));
 exports.misPagos = llamable((p, auth) => p.misPagos(auth.uid));
+
+/** Solo para la web de administración (claim admin). */
+function llamableAdmin(accion) {
+  return llamable((p, auth, datos) => {
+    if (auth.token.admin !== true) throw new ErrorPago('permission-denied', 'Solo administración.', 'noAdmin');
+    return accion(p, auth, datos);
+  }, { mensajeStripe: true });
+}
+
+exports.adminVerPago = llamableAdmin((p, auth, datos) => p.verPago(datos.serviceId));
+exports.adminReintentarPago = llamableAdmin((p, auth, datos) => p.reintentarPago(auth.uid, datos));
 
 /**
  * Comprueba la firma con cualquiera de los secretos (separados por comas):

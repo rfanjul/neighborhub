@@ -60,6 +60,25 @@ body.admin { min-height: 100vh; background: var(--crema); }
 .chip-approved { background: #DCEDE2; color: var(--verde); }
 .chip-accepted, .chip-in_progress { background: #E1E8F7; color: #3A5AA8; }
 .precio { font-weight: 600; color: var(--terracota-osc); font-size: 15px; }
+.chip-pago-pagado { background: #DCEDE2; color: var(--verde); }
+.chip-pago-retenido, .chip-pago-pendiente { background: #E1E8F7; color: #3A5AA8; }
+.chip-pago-reembolsado, .chip-pago-error { background: #F8DEDA; color: #B3261E; }
+
+.editor-pago { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--borde); border-radius: 14px; background: var(--tarjeta); }
+.editor-pago h3 { margin: 0; font-size: 20px; }
+.editor-pago h4 { margin: 4px 0 0; font-size: 15px; color: var(--gris); }
+.pago-resumen { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 15px; }
+.pago-tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+.pago-tabla th { text-align: left; color: var(--gris); font-weight: 600; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--borde); }
+.pago-tabla td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--borde); vertical-align: top; }
+.pago-tabla .importe { white-space: nowrap; font-weight: 600; }
+.pago-tabla .mov-reembolso .importe { color: #B3261E; }
+.pago-tabla .mov-transferencia .importe { color: var(--verde); }
+.pago-tabla .id, .pago-ids { font: 12px ui-monospace, Menlo, monospace; color: var(--gris); word-break: break-all; }
+.pago-ids { margin: 0; }
+.pago-intentos { margin: 0; padding-left: 18px; font-size: 14px; color: var(--gris); }
+.pago-acciones { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.pago-acciones p { margin: 0; }
 .precio.gratis { color: var(--verde); }
 
 #editor { width: min(720px, 100% - 24px); max-height: calc(100vh - 32px); padding: 0; border: 0; border-radius: var(--radio); box-shadow: 0 30px 80px rgba(40, 25, 15, .35); background: var(--crema-2); color: var(--tinta); }
@@ -94,4 +113,5 @@ body.admin { min-height: 100vh; background: var(--crema); }
   #buscar { max-width: none; }
   .admin-sesion #quien { display: none; }
   .editor-acciones .boton { flex: 1 1 100%; }
+  .pago-tabla th:last-child, .pago-tabla td.id { display: none; }
 }
