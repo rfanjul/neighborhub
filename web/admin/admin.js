@@ -52,6 +52,8 @@
   let dejarDeEscucharConfig = null;
   let pagosActivos = false;
   let denuncias = [];
+  let usuarios = null;
+  let cargandoUsuarios = false;
   let abierto = null;
 
   function el(etiqueta, clase, texto) {
@@ -158,10 +160,13 @@
     document.querySelectorAll('[data-filtro]').forEach((b) =>
       b.addEventListener('click', () => {
         filtro = b.dataset.filtro;
+        // Los usuarios se piden de nuevo cada vez que se abre la pestaña.
+        if (filtro === 'usuarios') cargarUsuarios();
         pintar();
       })
     );
     $('buscar').addEventListener('input', pintar);
+    $('usuario-cerrar').addEventListener('click', () => $('usuario').close());
     $('cerrar').addEventListener('click', cerrarEditor);
     $('editor').addEventListener('close', () => (abierto = null));
     $('form-editor').gratis.addEventListener('change', (e) => {
@@ -217,6 +222,7 @@
       dejarDeEscucharConfig = null;
     }
     if (!usuario) {
+      usuarios = null;
       $('quien').textContent = '';
       mostrarVista('login');
       return;
@@ -232,6 +238,7 @@
         $('quien').textContent = usuario.email;
         mostrarVista('panel');
         escuchar();
+        cargarUsuarios();
       })
       .catch(() => {
         aviso('estado-login', 'No se pudo comprobar la cuenta. Vuelve a intentarlo.', 'error');
@@ -355,12 +362,25 @@
     document.querySelectorAll('[data-filtro]').forEach((b) => {
       b.setAttribute('aria-selected', String(b.dataset.filtro === filtro));
       b.querySelector('.cuenta').textContent =
-        b.dataset.filtro === 'denuncias' ? denuncias.length : servicios.filter((s) => enFiltro(s, b.dataset.filtro)).length;
+        b.dataset.filtro === 'denuncias'
+          ? denuncias.length
+          : b.dataset.filtro === 'usuarios'
+            ? usuarios
+              ? usuarios.filter((u) => !u.ficticio).length
+              : '…'
+            : servicios.filter((s) => enFiltro(s, b.dataset.filtro)).length;
     });
     const verDenuncias = filtro === 'denuncias';
+    const verUsuarios = filtro === 'usuarios';
     $('denuncias').hidden = !verDenuncias;
-    $('lista').hidden = verDenuncias;
+    $('usuarios').hidden = !verUsuarios;
+    $('lista').hidden = verDenuncias || verUsuarios;
     $('buscar').hidden = verDenuncias;
+    $('buscar').placeholder = verUsuarios ? 'Buscar por nombre, email o ciudad' : 'Buscar por título, vecino o texto';
+    if (verUsuarios) {
+      pintarUsuarios();
+      return;
+    }
     if (verDenuncias) {
       const lista = $('denuncias');
       lista.textContent = '';
@@ -416,6 +436,156 @@
     const li = el('li');
     li.appendChild(boton);
     return li;
+  }
+
+  // --- Usuarios (Function adminUsuarios: cuentas de Auth con su perfil) ---
+
+  const PROVEEDOR = { apple: 'Apple', google: 'Google', email: 'Email' };
+
+  function cargarUsuarios() {
+    if (cargandoUsuarios) return;
+    cargandoUsuarios = true;
+    fns
+      .httpsCallable('adminUsuarios')()
+      .then(({ data }) => {
+        usuarios = data;
+        aviso('error-panel', '');
+      })
+      .catch((err) => aviso('error-panel', `No se pudieron cargar los usuarios (${err.message || err.code}).`, 'error'))
+      .finally(() => {
+        cargandoUsuarios = false;
+        pintar();
+      });
+  }
+
+  function chipsUsuario(u) {
+    const chips = [];
+    if (u.admin) chips.push(['Admin', 'chip-admin']);
+    if (u.ficticio) chips.push(['Ficticio (ejemplo)', 'chip-ficticio']);
+    if (u.desactivado) chips.push(['Desactivada', 'chip-pago-error']);
+    u.proveedores.forEach((p) => chips.push([PROVEEDOR[p] || p, 'chip-proveedor']));
+    if (!u.ficticio && !u.conPerfil) chips.push(['Sin perfil', 'chip-pending']);
+    if (u.conPerfil && !u.ficticio && !u.perfilCompleto) chips.push(['Perfil a medias', 'chip-pending']);
+    if (u.cobrosActivos) chips.push(['Cobros activos', 'chip-pago-pagado']);
+    return chips.map(([texto, clase]) => el('span', `chip ${clase}`, texto));
+  }
+
+  /** Servicios en los que la persona pide o ayuda (de los que ya están cargados). */
+  const deUsuario = (uid) => ({
+    pide: servicios.filter((s) => s.requesterId === uid),
+    ayuda: servicios.filter((s) => s.helperId === uid),
+  });
+
+  function pintarUsuarios() {
+    const lista = $('usuarios');
+    lista.textContent = '';
+    if (!usuarios) {
+      lista.appendChild(el('li', 'admin-gris', cargandoUsuarios ? 'Cargando usuarios…' : 'No se pudieron cargar.'));
+      $('vacio').hidden = true;
+      return;
+    }
+    const busqueda = $('buscar').value.trim().toLowerCase();
+    const visibles = usuarios.filter(
+      (u) => !busqueda || [u.nombre, u.email, u.ciudad, u.codigoPostal, u.uid].join(' ').toLowerCase().includes(busqueda)
+    );
+    visibles.forEach((u) => lista.appendChild(filaUsuario(u)));
+    $('vacio').hidden = visibles.length > 0;
+    $('vacio').textContent = visibles.length ? '' : 'No hay usuarios con esa búsqueda.';
+  }
+
+  function fotoUsuario(u, contenedor) {
+    contenedor.textContent = '';
+    const foto = urlSegura(u.foto);
+    if (foto) {
+      const img = el('img');
+      img.src = foto;
+      img.alt = '';
+      img.loading = 'lazy';
+      contenedor.appendChild(img);
+    } else {
+      contenedor.textContent = (u.nombre || u.email || '?').charAt(0).toUpperCase();
+    }
+  }
+
+  function filaUsuario(u) {
+    const boton = el('button', `fila-boton${u.ficticio ? ' ficticio' : ''}`);
+    boton.type = 'button';
+    boton.addEventListener('click', () => abrirUsuario(u));
+    const mini = el('div', 'mini redonda');
+    fotoUsuario(u, mini);
+
+    const { pide, ayuda } = deUsuario(u.uid);
+    const texto = el('div', 'fila-texto');
+    texto.append(
+      el('strong', null, u.nombre || u.email || '(sin nombre)'),
+      el('span', 'fila-meta', [u.email || null, [u.codigoPostal, u.ciudad].filter(Boolean).join(' ') || null].filter(Boolean).join(' · ') || '—'),
+      el(
+        'span',
+        'fila-meta',
+        [
+          u.valoraciones ? `★ ${u.valoracion.toFixed(1)} (${u.valoraciones})` : 'Sin valoraciones',
+          `${pide.length} pedidos`,
+          `${ayuda.length} ayudas`,
+          u.ficticio ? null : `último acceso ${u.ultimoAcceso ? fechaMs(u.ultimoAcceso) : '—'}`,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      )
+    );
+    const lado = el('div', 'fila-lado usuario-lado');
+    lado.append(...chipsUsuario(u));
+
+    boton.append(mini, texto, lado);
+    const li = el('li');
+    li.appendChild(boton);
+    return li;
+  }
+
+  function abrirUsuario(u) {
+    fotoUsuario(u, $('usuario-foto'));
+    $('usuario-nombre').textContent = u.nombre || '(sin nombre)';
+    $('usuario-email').textContent = u.email ? `${u.email}${u.emailVerificado ? ' · verificado' : ''}` : 'Sin email';
+    $('usuario-uid').textContent = u.uid;
+    const chips = $('usuario-chips');
+    chips.textContent = '';
+    chips.append(...chipsUsuario(u));
+
+    const datos = $('usuario-datos');
+    datos.textContent = '';
+    [
+      ['Dónde', [u.codigoPostal, u.ciudad, u.pais].filter(Boolean).join(' ') || '—'],
+      ['Alta', fechaMs(u.creado)],
+      ['Último acceso', u.ficticio ? '— (no tiene cuenta)' : fechaMs(u.ultimoAcceso)],
+      ['Valoración', u.valoraciones ? `★ ${u.valoracion.toFixed(1)} de ${u.valoraciones} valoraciones` : 'Sin valoraciones'],
+      ['Ayudas completadas', String(u.ayudas)],
+    ].forEach(([k, v]) => datos.append(el('dt', null, k), el('dd', null, v)));
+
+    const { pide, ayuda } = deUsuario(u.uid);
+    [
+      ['usuario-pide', pide, 'No ha pedido ningún servicio.'],
+      ['usuario-ayuda', ayuda, 'No ha ayudado en ningún servicio.'],
+    ].forEach(([id, lista, vacio]) => {
+      const ul = $(id);
+      ul.textContent = '';
+      if (!lista.length) ul.appendChild(el('li', 'admin-gris', vacio));
+      lista.forEach((s) => {
+        const b = el('button', 'usuario-servicio');
+        b.type = 'button';
+        b.append(
+          el('span', null, s.title || '(sin título)'),
+          el('span', `chip chip-${s.status}`, ESTADOS[s.status] || s.status || '—'),
+          el('span', `precio${s.priceCents == null ? ' gratis' : ''}`, precioTexto(s.priceCents))
+        );
+        b.addEventListener('click', () => {
+          $('usuario').close();
+          abrir(s.id);
+        });
+        const li = el('li');
+        li.appendChild(b);
+        ul.appendChild(li);
+      });
+    });
+    $('usuario').showModal();
   }
 
   // --- Editor ---------------------------------------------------------

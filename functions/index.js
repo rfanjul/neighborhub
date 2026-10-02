@@ -12,9 +12,11 @@ const { defineSecret } = require('firebase-functions/params');
 const logger = require('firebase-functions/logger');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
 const StripeModulo = require('stripe');
 const { crearPagos, ErrorPago } = require('./pagos');
 const { crearAvisos } = require('./avisos');
+const { crearUsuarios } = require('./usuarios');
 
 const Stripe = StripeModulo.default || StripeModulo;
 setGlobalOptions({ region: 'europe-west6', maxInstances: 5 });
@@ -69,6 +71,12 @@ function llamableAdmin(accion) {
 
 exports.adminVerPago = llamableAdmin((p, auth, datos) => p.verPago(datos.serviceId));
 exports.adminReintentarPago = llamableAdmin((p, auth, datos) => p.reintentarPago(auth.uid, datos));
+
+/** Usuarios para la administración: cuentas de Auth con su perfil. No usa Stripe. */
+exports.adminUsuarios = onCall(async (peticion) => {
+  if (peticion.auth?.token?.admin !== true) throw new HttpsError('permission-denied', 'Solo administración.');
+  return crearUsuarios({ auth: getAuth(), db: getFirestore() }).listar();
+});
 
 /**
  * Comprueba la firma con cualquiera de los secretos (separados por comas):

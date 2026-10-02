@@ -85,7 +85,26 @@ body.admin { min-height: 100vh; background: var(--crema); }
 .precio.gratis { color: var(--verde); }
 
 #editor { width: min(720px, 100% - 24px); max-height: calc(100vh - 32px); padding: 0; border: 0; border-radius: var(--radio); box-shadow: 0 30px 80px rgba(40, 25, 15, .35); background: var(--crema-2); color: var(--tinta); }
-#editor::backdrop, #pregunta::backdrop { background: rgba(40, 25, 15, .45); }
+#editor::backdrop, #pregunta::backdrop, #usuario::backdrop { background: rgba(40, 25, 15, .45); }
+#usuario { width: min(640px, 100% - 24px); max-height: calc(100vh - 32px); padding: 0; border: 0; border-radius: var(--radio); box-shadow: 0 30px 80px rgba(40, 25, 15, .35); background: var(--crema-2); color: var(--tinta); }
+.usuario-ficha { display: grid; gap: 16px; padding: 24px; }
+.usuario-ficha h3 { margin: 0 0 8px; font-size: 18px; }
+.usuario-cabecera { display: flex; gap: 14px; align-items: center; }
+.usuario-cabecera h2 { margin: 0; font-size: 26px; line-height: 1.2; }
+.usuario-chips, .usuario-lado { display: flex; flex-wrap: wrap; gap: 6px; }
+.usuario-lado { justify-content: flex-end; max-width: 260px; }
+.usuario-datos { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: 15px; }
+.usuario-datos dt { color: var(--gris); font-weight: 600; }
+.usuario-datos dd { margin: 0; }
+.usuario-servicios { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.usuario-servicio { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 12px; cursor: pointer; font: inherit; color: inherit; text-align: left; }
+.usuario-servicio:hover { border-color: var(--terracota); }
+.usuario-servicio span:first-child { flex: 1 1 200px; font-weight: 600; }
+.mini.redonda { border-radius: 50%; }
+.fila-boton.ficticio { opacity: .72; }
+.chip-admin { background: var(--tinta); color: #fff; }
+.chip-ficticio { background: var(--crema); color: var(--gris); border: 1px dashed var(--borde); }
+.chip-proveedor { background: #EEE6F7; color: #5B3A8A; }
 #pregunta { width: min(460px, 100% - 24px); padding: 0; border: 0; border-radius: var(--radio); box-shadow: 0 30px 80px rgba(40, 25, 15, .35); background: var(--crema-2); color: var(--tinta); }
 .pregunta { display: grid; gap: 18px; padding: 24px; }
 .pregunta p { margin: 0; font-size: 17px; line-height: 1.45; }
@@ -113,6 +132,7 @@ body.admin { min-height: 100vh; background: var(--crema); }
   .mini { width: 52px; height: 52px; }
   .fila-lado { grid-column: 2; justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; }
   .editor-dos { grid-template-columns: 1fr; }
+  .usuario-lado { justify-content: flex-start; max-width: none; }
   #buscar { max-width: none; }
   .admin-sesion #quien { display: none; }
   .editor-acciones .boton { flex: 1 1 100%; }

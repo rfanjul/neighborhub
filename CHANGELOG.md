@@ -22,6 +22,13 @@ Solo servidor y web (publicados; no hace falta build):
   Functions `adminVerPago` y `adminReintentarPago` (solo con el claim admin).
 - Aviso push «Falta tu pago» a quien pidió (en/de/es), que abre Ajustes → Pagos.
 - `misPagos` da a quien pidió el enlace (`urlPago`) mientras vale.
+- Administración → pestaña **Usuarios**: las cuentas de Firebase Auth con su
+  perfil (nombre, email, dónde, cómo entra —Apple, Google, email—, alta,
+  último acceso, admin, desactivada, cobros activos, valoración, pedidos y
+  ayudas), con búsqueda; al tocar una, su ficha con los servicios que pide y
+  en los que ayuda (se abren en el editor). Los vecinos de ejemplo salen al
+  final como ficticios. Function `adminUsuarios` (solo con el claim admin; no
+  devuelve fecha de nacimiento ni bio).
 
 App (necesita build):
 - Ajustes → Pagos: «Falta tu pago» con el botón **Pagar CHF …**, y la lista se

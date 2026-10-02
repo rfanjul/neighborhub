@@ -58,12 +58,14 @@
           <button type="button" role="tab" data-filtro="todos">Todos <span class="cuenta"></span></button>
           <button type="button" role="tab" data-filtro="pagos">Con pago <span class="cuenta"></span></button>
           <button type="button" role="tab" data-filtro="denuncias" class="tab-denuncias">Denuncias <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="usuarios">Usuarios <span class="cuenta"></span></button>
         </div>
         <input id="buscar" type="search" placeholder="Buscar por título, vecino o texto" aria-label="Buscar">
       </div>
       <p id="error-panel" class="admin-aviso error" role="alert"></p>
       <ul id="lista" class="admin-lista"></ul>
       <ul id="denuncias" class="admin-lista" hidden></ul>
+      <ul id="usuarios" class="admin-lista" hidden></ul>
       <p id="vacio" class="admin-vacio" hidden>No hay servicios aquí.</p>
     </section>
   </main>
@@ -77,6 +79,32 @@
         <button id="pregunta-si" class="boton boton-primario" value="si" type="submit">Sí</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="usuario" aria-labelledby="usuario-nombre">
+    <div class="usuario-ficha">
+      <header class="editor-cabecera">
+        <div class="usuario-cabecera">
+          <div id="usuario-foto" class="mini"></div>
+          <div>
+            <h2 id="usuario-nombre">Usuario</h2>
+            <p id="usuario-email" class="editor-vecino"></p>
+          </div>
+        </div>
+        <button id="usuario-cerrar" class="editor-cerrar" type="button" aria-label="Cerrar">×</button>
+      </header>
+      <div id="usuario-chips" class="usuario-chips"></div>
+      <dl id="usuario-datos" class="usuario-datos"></dl>
+      <section>
+        <h3>Servicios que pide</h3>
+        <ul id="usuario-pide" class="usuario-servicios"></ul>
+      </section>
+      <section>
+        <h3>Servicios en los que ayuda</h3>
+        <ul id="usuario-ayuda" class="usuario-servicios"></ul>
+      </section>
+      <p class="pago-ids">uid: <span id="usuario-uid"></span></p>
+    </div>
   </dialog>
 
   <dialog id="editor" aria-labelledby="editor-titulo">
