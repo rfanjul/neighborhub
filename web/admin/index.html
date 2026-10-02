@@ -66,6 +66,17 @@
     </section>
   </main>
 
+  <!-- Confirmaciones dentro de la página: algunos navegadores bloquean confirm(). -->
+  <dialog id="pregunta" aria-labelledby="pregunta-texto">
+    <form method="dialog" class="pregunta">
+      <p id="pregunta-texto"></p>
+      <div class="editor-acciones">
+        <button class="boton boton-secundario" value="no" type="submit">Cancelar</button>
+        <button id="pregunta-si" class="boton boton-primario" value="si" type="submit">Sí</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="editor" aria-labelledby="editor-titulo">
     <form id="form-editor" novalidate>
       <header class="editor-cabecera">

@@ -58,16 +58,20 @@ async function main() {
     return;
   }
 
-  // Misma configuración que firebase.json: cleanUrls, sin barra final y sus redirecciones.
+  // Misma configuración que firebase.json: cleanUrls, sin barra final, sus redirecciones y cabeceras.
   const hosting = JSON.parse(fs.readFileSync(path.join(raiz, 'firebase.json'), 'utf8')).hosting ?? {};
   const redirects = (hosting.redirects ?? []).map((r) => ({
     glob: r.source,
     statusCode: r.type ?? 301,
     location: r.destination,
   }));
+  const headers = (hosting.headers ?? []).map((h) => ({
+    glob: h.source,
+    headers: Object.fromEntries(h.headers.map(({ key, value }) => [key, value])),
+  }));
   const version = await pedir(`${sitio}/versions`, {
     method: 'POST',
-    body: JSON.stringify({ config: { cleanUrls: true, trailingSlashBehavior: 'REMOVE', redirects } }),
+    body: JSON.stringify({ config: { cleanUrls: true, trailingSlashBehavior: 'REMOVE', redirects, headers } }),
   });
   const { uploadRequiredHashes = [], uploadUrl } = await pedir(`${version.name}:populateFiles`, {
     method: 'POST',

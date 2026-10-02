@@ -6,7 +6,12 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+Solo web (Hosting, ya publicada; no hace falta build):
+- Administración: el botón **Pagos** y *Despublicar* piden confirmación con un
+  diálogo dentro de la página en vez de `confirm()`, que algunos navegadores
+  bloquean (el botón parecía no hacer nada).
+- `/admin` se sirve sin caché (`Cache-Control: no-cache` en `firebase.json`,
+  que ahora `scripts/deploy-hosting.js` también publica).
 
 ## [1.1.0 (11)] — 2026-10-02 · TestFlight → revisión de App Store
 

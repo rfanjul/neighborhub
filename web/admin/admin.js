@@ -74,6 +74,37 @@
     nodo.className = `admin-aviso ${tipo || ''}`;
   }
 
+  /** Confirmación dentro de la página (confirm() lo bloquean algunos navegadores). */
+  function preguntar(texto, si) {
+    if (!$('pregunta')) {
+      // Página antigua en caché sin el diálogo: se crea aquí.
+      const d = el('dialog');
+      d.id = 'pregunta';
+      const form = el('form', 'pregunta');
+      form.method = 'dialog';
+      const p = el('p');
+      p.id = 'pregunta-texto';
+      const acciones = el('div', 'editor-acciones');
+      const no = el('button', 'boton boton-secundario', 'Cancelar');
+      no.value = 'no';
+      const siBoton = el('button', 'boton boton-primario');
+      siBoton.id = 'pregunta-si';
+      siBoton.value = 'si';
+      acciones.append(no, siBoton);
+      form.append(p, acciones);
+      d.append(form);
+      document.body.append(d);
+    }
+    const dialogo = $('pregunta');
+    $('pregunta-texto').textContent = texto;
+    $('pregunta-si').textContent = si;
+    dialogo.returnValue = '';
+    return new Promise((resolver) => {
+      dialogo.addEventListener('close', () => resolver(dialogo.returnValue === 'si'), { once: true });
+      dialogo.showModal();
+    });
+  }
+
   function flotante(texto) {
     const nodo = el('div', 'aviso-flotante', texto);
     document.body.appendChild(nodo);
@@ -125,8 +156,8 @@
     });
     $('guardar').addEventListener('click', () => guardar({}, 'Cambios guardados'));
     $('aprobar').addEventListener('click', () => guardar(revision('approved'), 'Aprobado: ya se ve en la app'));
-    $('despublicar').addEventListener('click', () => {
-      if (confirm('¿Despublicar? Dejará de verse en el muro y volverá a «En revisión».')) {
+    $('despublicar').addEventListener('click', async () => {
+      if (await preguntar('¿Despublicar? Dejará de verse en el muro y volverá a «En revisión».', 'Despublicar')) {
         guardar(revision('pending'), 'Despublicado');
       }
     });
@@ -240,12 +271,12 @@
       );
   }
 
-  function cambiarPagos() {
+  async function cambiarPagos() {
     const encender = !pagosActivos;
     const texto = encender
       ? '¿Encender los pagos? La app enseñará precios y cobrará con Stripe (con las claves que tenga el servidor).'
       : '¿Apagar los pagos? La app dejará de enseñar precios y todo funcionará como favores gratis.';
-    if (!confirm(texto)) return;
+    if (!(await preguntar(texto, encender ? 'Encender' : 'Apagar'))) return;
     db.collection('config')
       .doc('app')
       .set({
