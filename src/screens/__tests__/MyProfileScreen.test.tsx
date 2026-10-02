@@ -106,6 +106,26 @@ describe('MyProfileScreen', () => {
     __ponerPagos(true);
   });
 
+  it('con los pagos apagados, quien ya tiene pagos los sigue viendo en ajustes', async () => {
+    const { __ponerPagos } = require('../../config/remota');
+    __ponerPagos(false);
+    mockedApi.misPagos.mockResolvedValueOnce([
+      { serviceId: 's1', rol: 'cobrado', estado: 'reembolsado', importe: 3000, precio: 3000, comision: 240, titulo: 'Move TV', otraPersona: 'Ana', fecha: 1 },
+    ]);
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await render(<MyProfileScreen />);
+
+    await screen.findByText('Ruben');
+    await waitFor(() => expect(mockedApi.misPagos).toHaveBeenCalled());
+    expect(screen.queryByText('Set up payouts')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Payments')!.onPress!());
+
+    expect(mockNavigate).toHaveBeenCalledWith('Payments');
+    alerta.mockRestore();
+    __ponerPagos(true);
+  });
+
   it('en ajustes están los vecinos bloqueados', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await render(<MyProfileScreen />);

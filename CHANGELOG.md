@@ -6,6 +6,11 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
+App:
+- Ajustes → **Pagos** sale también con los pagos apagados si ya tienes
+  pagos o cobros (antes desaparecía y no había forma de ver el historial).
+  La cuenta de revisión de Apple no tiene, así que no lo ve.
+
 Solo web (Hosting, ya publicada; no hace falta build):
 - Administración: el botón **Pagos** y *Despublicar* piden confirmación con un
   diálogo dentro de la página en vez de `confirm()`, que algunos navegadores

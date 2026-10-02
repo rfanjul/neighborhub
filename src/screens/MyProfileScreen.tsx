@@ -28,6 +28,9 @@ export default function MyProfileScreen() {
   // la base de las insignias. Se calcula, no se guarda en el perfil.
   const [ayudas, setAyudas] = useState(0);
   const [cobros, setCobros] = useState(false);
+  // Con los pagos apagados, Ajustes → Pagos solo sale a quien ya tiene
+  // pagos o cobros (su historial no desaparece).
+  const [conHistorial, setConHistorial] = useState(false);
   const pagos = usePagosActivos();
 
   const handleSettingsPress = () => {
@@ -35,7 +38,7 @@ export default function MyProfileScreen() {
       { text: t('comun.cancelar'), style: 'cancel' },
       { text: t('miPerfil.editarDatos'), onPress: () => navigation.navigate('ProfileDetails') },
       { text: t('idioma.titulo'), onPress: elegirIdioma },
-      ...(pagosActivos() ? [{ text: t('pagos.titulo'), onPress: () => navigation.navigate('Payments') }] : []),
+      ...(pagosActivos() || conHistorial ? [{ text: t('pagos.titulo'), onPress: () => navigation.navigate('Payments') }] : []),
       { text: t('cuenta.legal'), onPress: ayudaYLegal },
       { text: t('moderacion.bloqueadosTitulo'), onPress: () => navigation.navigate('Blocked') },
       { text: t('miPerfil.salir'), onPress: () => logout() },
@@ -130,6 +133,12 @@ export default function MyProfileScreen() {
           });
         })
         .catch(() => setCurrentUser(mockCurrentUser));
+      if (!pagosActivos()) {
+        api
+          .misPagos()
+          .then((p) => setConHistorial(p.length > 0))
+          .catch(() => {});
+      }
     }, [])
   );
 
