@@ -66,6 +66,7 @@ beforeEach(async () => {
 });
 
 async function servicioConOfertas({ precio = 4000, status = 'approved', cobros = true } = {}) {
+  await db.doc('config/app').set({ pagosActivos: true });
   await db.doc('helpRequests/s1').set({ title: 'Subir un sofá', status, priceCents: precio, requesterId: 'ana', requesterName: 'Ana', helperId: null });
   await db.doc('applications/s1_luis').set({ serviceId: 's1', applicantId: 'luis', applicantName: 'Luis', status: 'pending' });
   await db.doc('applications/s1_mia').set({ serviceId: 's1', applicantId: 'mia', applicantName: 'Mia', status: 'pending' });
@@ -146,6 +147,14 @@ describe('pagar al elegir una oferta', () => {
     expect((await db.doc('pagos/s1').get()).data()).toMatchObject({
       estado: 'pendiente', precio: 4000, comision: 320, total: 4320, cuentaDestino: 'acct_luis', checkoutSessionId: 'cs_1',
     });
+  });
+
+  it('con los pagos apagados (config/app) no se cobra nada', async () => {
+    await servicioConOfertas();
+    await db.doc('config/app').set({ pagosActivos: false });
+
+    await expect(pagos.pagarOferta('ana', null, { serviceId: 's1', applicantId: 'luis' })).rejects.toMatchObject({ motivo: 'noDisponible' });
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
   it('la gestión mínima es CHF 1', () => {

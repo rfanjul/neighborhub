@@ -12,15 +12,8 @@ import { api } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import type { ServiceCategory, ServiceStatus } from '../data/mock';
 import { t } from '../i18n';
-import {
-  PRECIO_MAXIMO,
-  PRECIO_MINIMO,
-  comision,
-  formatearPrecio,
-  leerPrecio,
-  precioValido,
-  totalAPagar,
-} from '../pagos/precio';
+import { usePagosActivos } from '../config/remota';
+import { PRECIO_MAXIMO, PRECIO_MINIMO, comision, formatearPrecio, leerPrecio, precioValido, totalAPagar } from '../pagos/precio';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateService'>;
 
@@ -44,6 +37,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   const [estado, setEstado] = useState<ServiceStatus | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const pagos = usePagosActivos();
   // Una vez publicado puede tener ofertas: el precio ya no se toca.
   const precioBloqueado = !!editandoId && estado !== null && estado !== 'pending';
   const precio = gratis ? null : leerPrecio(precioTexto);
@@ -82,7 +76,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         description: description.trim(),
         durationLabel: duration.trim() || '—',
         photos: finales,
-        ...(precioBloqueado ? {} : { priceCents: precio }),
+        ...(precioBloqueado || !pagos ? {} : { priceCents: precio }),
       });
       // Las fotos que se quitaron ya no las usa nadie: fuera de Storage.
       const quitadas = originales.filter((url) => !finales.includes(url));
@@ -143,7 +137,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
       Alert.alert(t('crear.faltaTitulo'), t('crear.faltaTituloTexto'));
       return;
     }
-    if (!precioBloqueado && !gratis && (precio === null || !precioValido(precio))) {
+    if (pagos && !precioBloqueado && !gratis && (precio === null || !precioValido(precio))) {
       Alert.alert(t('crear.precioInvalido'), t('crear.precioRango', rango));
       return;
     }
@@ -166,7 +160,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         title: title.trim(),
         category,
         description: description.trim(),
-        priceCents: precio,
+        priceCents: pagos ? precio : null,
         photos: subidas,
         coords,
         durationLabel: duration.trim() || '—',
@@ -221,61 +215,65 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
                 style={[styles.categoryChip, category === c && styles.categoryChipActive]}
                 onPress={() => setCategory(c)}
               >
-                <Text style={[styles.categoryLabel, category === c && styles.categoryLabelActive]}>
-                  {t(`categorias.${c}`)}
-                </Text>
+                <Text style={[styles.categoryLabel, category === c && styles.categoryLabelActive]}>{t(`categorias.${c}`)}</Text>
               </Pressable>
             ))}
           </View>
         </View>
 
-        <View style={{ gap: 8 }}>
-          <Text style={styles.label}>{t('crear.precio')}</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
-            {[true, false].map((opcion) => (
-              <Pressable
-                key={String(opcion)}
-                style={[styles.categoryChip, gratis === opcion && styles.categoryChipActive, precioBloqueado && styles.bloqueado]}
-                onPress={() => setGratis(opcion)}
-                disabled={precioBloqueado}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: gratis === opcion, disabled: precioBloqueado }}
-              >
-                <Text style={[styles.categoryLabel, gratis === opcion && styles.categoryLabelActive]}>
-                  {opcion ? t('crear.gratis') : t('crear.conPrecio')}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          {!gratis && (
-            <View style={styles.precioFila}>
-              <Text style={styles.moneda}>CHF</Text>
-              <TextInput
-                style={[styles.input, { flex: 1 }, precioBloqueado && styles.bloqueado]}
-                placeholder="40"
-                placeholderTextColor={colors.mutedLight}
-                keyboardType="decimal-pad"
-                value={precioTexto}
-                onChangeText={setPrecioTexto}
-                editable={!precioBloqueado}
-                accessibilityLabel={t('crear.precio')}
-              />
+        {pagos && (
+          <View style={{ gap: 8 }}>
+            <Text style={styles.label}>{t('crear.precio')}</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
+              {[true, false].map((opcion) => (
+                <Pressable
+                  key={String(opcion)}
+                  style={[
+                    styles.categoryChip,
+                    gratis === opcion && styles.categoryChipActive,
+                    precioBloqueado && styles.bloqueado,
+                  ]}
+                  onPress={() => setGratis(opcion)}
+                  disabled={precioBloqueado}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: gratis === opcion, disabled: precioBloqueado }}
+                >
+                  <Text style={[styles.categoryLabel, gratis === opcion && styles.categoryLabelActive]}>
+                    {opcion ? t('crear.gratis') : t('crear.conPrecio')}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
-          )}
-          <Text style={styles.photoHint}>
-            {precioBloqueado
-              ? t('crear.precioBloqueado')
-              : gratis
-                ? t('crear.gratisPista')
-                : precio !== null && precioValido(precio)
-                  ? t('crear.resumenPrecio', {
-                      total: formatearPrecio(totalAPagar(precio), { exacto: true }),
-                      precio: formatearPrecio(precio, { exacto: true }),
-                      gestion: formatearPrecio(comision(precio), { exacto: true }),
-                    })
-                  : t('crear.precioRango', rango)}
-          </Text>
-        </View>
+            {!gratis && (
+              <View style={styles.precioFila}>
+                <Text style={styles.moneda}>CHF</Text>
+                <TextInput
+                  style={[styles.input, { flex: 1 }, precioBloqueado && styles.bloqueado]}
+                  placeholder="40"
+                  placeholderTextColor={colors.mutedLight}
+                  keyboardType="decimal-pad"
+                  value={precioTexto}
+                  onChangeText={setPrecioTexto}
+                  editable={!precioBloqueado}
+                  accessibilityLabel={t('crear.precio')}
+                />
+              </View>
+            )}
+            <Text style={styles.photoHint}>
+              {precioBloqueado
+                ? t('crear.precioBloqueado')
+                : gratis
+                  ? t('crear.gratisPista')
+                  : precio !== null && precioValido(precio)
+                    ? t('crear.resumenPrecio', {
+                        total: formatearPrecio(totalAPagar(precio), { exacto: true }),
+                        precio: formatearPrecio(precio, { exacto: true }),
+                        gestion: formatearPrecio(comision(precio), { exacto: true }),
+                      })
+                    : t('crear.precioRango', rango)}
+            </Text>
+          </View>
+        )}
 
         <View style={{ gap: 6 }}>
           <Text style={styles.label}>{t('crear.descripcion')}</Text>
@@ -353,9 +351,23 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.backgroundAlt },
   photo: { width: 96, height: 96, borderRadius: radii.sm },
   photoHint: { fontFamily: fonts.body, fontSize: 13, color: colors.mutedLight },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.ink },
-  closeButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   form: { paddingHorizontal: 20, paddingBottom: 20, gap: 16 },
   label: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.muted },
   input: {
@@ -370,7 +382,14 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   textarea: { height: 72, paddingTop: 12, textAlignVertical: 'top' },
-  categoryChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   categoryChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   categoryLabel: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
   categoryLabelActive: { fontFamily: fonts.bodySemiBold, color: colors.white },

@@ -92,6 +92,20 @@ describe('MyProfileScreen', () => {
     alerta.mockRestore();
   });
 
+  it('con los pagos apagados no hay cobros ni pagos en el perfil ni en ajustes', async () => {
+    const { __ponerPagos } = require('../../config/remota');
+    __ponerPagos(false);
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await render(<MyProfileScreen />);
+
+    await screen.findByText('Ruben');
+    expect(screen.queryByText('Set up payouts')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    expect(alerta.mock.calls.at(-1)![2]!.map((b) => b.text)).not.toContain('Payments');
+    alerta.mockRestore();
+    __ponerPagos(true);
+  });
+
   it('en ajustes están los vecinos bloqueados', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await render(<MyProfileScreen />);

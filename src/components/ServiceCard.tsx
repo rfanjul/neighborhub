@@ -7,6 +7,7 @@ import type { ServiceRequest } from '../data/mock';
 import { distanciaKm, formatearDistancia, type Coordenadas } from '../geo/distancia';
 import { t } from '../i18n';
 import { formatearPrecio } from '../pagos/precio';
+import { usePagosActivos } from '../config/remota';
 
 /** Distancia real si hay coordenadas y ubicación; si no, la guardada; si tampoco, nada. */
 function textoDistancia(service: ServiceRequest, ubicacion?: Coordenadas | null): string | null {
@@ -27,6 +28,7 @@ export default function ServiceCard({
   /** Posición del usuario, para calcular la distancia real. */
   ubicacion?: Coordenadas | null;
 }) {
+  const pagos = usePagosActivos();
   const distancia = textoDistancia(service, ubicacion);
   return (
     <Pressable style={styles.card} onPress={onPress}>
@@ -65,15 +67,17 @@ export default function ServiceCard({
                 <Text style={styles.pendingLabel}>{t('estados.pending')}</Text>
               </View>
             )}
-            {service.priceCents == null ? (
-              <View style={[styles.precioChip, styles.gratisChip]}>
-                <Text style={[styles.precioLabel, styles.gratisLabel]}>{t('comun.gratis')}</Text>
-              </View>
-            ) : (
-              <View style={styles.precioChip}>
-                <Text style={styles.precioLabel}>{formatearPrecio(service.priceCents)}</Text>
-              </View>
-            )}
+            {/* Con los pagos apagados (config/app) no se habla de precios. */}
+            {pagos &&
+              (service.priceCents == null ? (
+                <View style={[styles.precioChip, styles.gratisChip]}>
+                  <Text style={[styles.precioLabel, styles.gratisLabel]}>{t('comun.gratis')}</Text>
+                </View>
+              ) : (
+                <View style={styles.precioChip}>
+                  <Text style={styles.precioLabel}>{formatearPrecio(service.priceCents)}</Text>
+                </View>
+              ))}
           </View>
         </View>
       </View>

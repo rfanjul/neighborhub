@@ -13,6 +13,7 @@ import type { ServiceRequest } from '../data/mock';
 import { api, type Application, type ApiUserProfile, type Review } from '../firebase/data';
 import { dataErrorMessage, pagoErrorMessage } from '../firebase/errors';
 import { comision, formatearPrecio, totalAPagar } from '../pagos/precio';
+import { usePagosActivos } from '../config/remota';
 import { insignias } from '../components/insignias';
 import { decimal, idiomasTexto, nivelTexto, t, tp } from '../i18n';
 
@@ -100,6 +101,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
   const [resena, setResena] = useState<Review | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [esperandoPago, setEsperandoPago] = useState(false);
+  const pagos = usePagosActivos();
   const pagando = useRef(false);
 
   const cargar = useCallback(async () => {
@@ -168,7 +170,7 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
   };
 
   const elegir = (oferta: Application) => {
-    if (servicio?.priceCents != null) {
+    if (pagos && servicio?.priceCents != null) {
       pagarYElegir(oferta, servicio.priceCents);
       return;
     }
@@ -302,12 +304,12 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
                 <Text style={styles.comentario}>“{item.comment}”</Text>
               </View>
             ) : null}
-            {abierto && servicio?.priceCents != null && !item.applicant?.cobrosActivos ? (
+            {abierto && pagos && servicio?.priceCents != null && !item.applicant?.cobrosActivos ? (
               // Sin cobros activos no se le puede pagar: primero tiene que activarlos.
               <Text style={styles.estado}>{t('pagos.sinCobrosOferta')}</Text>
             ) : abierto ? (
               <PillButton
-                label={servicio?.priceCents != null ? t('pagos.pagar', { total: formatearPrecio(totalAPagar(servicio.priceCents), { exacto: true }) }) : t('ofertas.elegir')}
+                label={pagos && servicio?.priceCents != null ? t('pagos.pagar', { total: formatearPrecio(totalAPagar(servicio.priceCents), { exacto: true }) }) : t('ofertas.elegir')}
                 onPress={() => elegir(item)}
                 disabled={ocupado}
               />

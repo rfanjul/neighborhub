@@ -10,6 +10,7 @@ import { api } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import { t } from '../i18n';
 import CobrosTarjeta from '../components/CobrosTarjeta';
+import { usePagosActivos } from '../config/remota';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Apply'>;
 
@@ -37,7 +38,8 @@ export default function ApplyScreen({ navigation, route }: Props) {
   }, [serviceId]);
 
   // Con precio hay que poder cobrar: sin cobros activos, quien pide no podría pagar.
-  const faltanCobros = conPrecio && !cobros;
+  const pagos = usePagosActivos();
+  const faltanCobros = pagos && conPrecio && !cobros;
 
   const enviar = async () => {
     if (!comentario.trim()) {

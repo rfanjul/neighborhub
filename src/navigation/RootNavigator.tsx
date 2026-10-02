@@ -23,6 +23,7 @@ import BlockedScreen from '../screens/BlockedScreen';
 import MainTabs from './MainTabs';
 import { t, useIdioma } from '../i18n';
 import { activarAvisos, alTocarAviso, type Destino } from '../notificaciones';
+import { cargarConfig } from '../config/remota';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 export const navegacion = createNavigationContainerRef<RootStackParamList>();
@@ -54,6 +55,10 @@ export default function RootNavigator() {
   useEffect(() => {
     if (user) activarAvisos(idioma);
   }, [user?.uid, idioma]);
+  // Configuración remota (pagos activos o no), con sesión porque la protege una regla.
+  useEffect(() => {
+    if (user) cargarConfig();
+  }, [user?.uid]);
   // …y al tocar un aviso, ir a su pantalla.
   useEffect(() => {
     if (!user) return;

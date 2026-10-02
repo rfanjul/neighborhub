@@ -22,6 +22,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    /** Pagos encendidos en config/app (se apagan para la revisión de Apple). */
+    function pagosActivos() {
+      let ruta = /databases/$(database)/documents/config/app;
+      return exists(ruta) && get(ruta).data.get('pagosActivos', false) == true;
+    }
+
     /** quien está en la lista de bloqueados de uid (bloqueos/{uid}). */
     function bloqueadoPor(uid, quien) {
       let ruta = /databases/$(database)/documents/bloqueos/$(uid);
@@ -120,12 +126,13 @@ service cloud.firestore {
         ||
         // Quien publica elige a una de las personas que han ofertado. Solo
         // mientras está aprobado (así solo se elige una vez), solo a alguien
-        // con una oferta registrada y solo si es gratis: con precio lo acepta
-        // el servidor cuando Stripe confirma el pago (functions/pagos.js).
+        // con una oferta registrada y solo si es gratis (o con los pagos
+        // apagados): con precio lo acepta el servidor cuando Stripe confirma
+        // el pago (functions/pagos.js).
         (isRequester()
           && resource.data.status == 'approved'
           && request.resource.data.status == 'accepted'
-          && resource.data.get('priceCents', null) == null
+          && (resource.data.get('priceCents', null) == null || !pagosActivos())
           && exists(/databases/$(database)/documents/applications/$(requestId + '_' + request.resource.data.helperId))
           && changedKeys().hasOnly(['status', 'helperId', 'helperName', 'updatedAt']))
         ||
@@ -262,6 +269,14 @@ service cloud.firestore {
       allow update: if isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'revisadoPor', 'revisadoEn', 'nota'])
         && request.resource.data.estado in ['nuevo', 'revisado', 'retirado'];
+    }
+
+    // Configuración que la app lee al entrar; solo la administración la cambia.
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['pagosActivos', 'actualizado', 'actualizadoPor'])
+        && request.resource.data.pagosActivos is bool;
     }
 
     match /contactMessages/{id} {

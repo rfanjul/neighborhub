@@ -107,6 +107,8 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
   /** Abre el pago de la oferta elegida en Stripe Checkout. */
   async function pagarOferta(uid, email, { serviceId, applicantId } = {}) {
     if (!serviceId || !applicantId) throw new ErrorPago('invalid-argument', 'Falta el servicio o la oferta.', 'datos');
+    const config = (await db.doc('config/app').get()).data();
+    if (config?.pagosActivos !== true) throw new ErrorPago('failed-precondition', 'Los pagos están desactivados.', 'noDisponible');
     const [servicioSnap, ofertaSnap, cuentaSnap, pagoSnap] = await Promise.all([
       db.doc(`helpRequests/${serviceId}`).get(),
       db.doc(`applications/${serviceId}_${applicantId}`).get(),

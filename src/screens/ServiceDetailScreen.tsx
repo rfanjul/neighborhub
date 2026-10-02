@@ -16,6 +16,7 @@ import { api, type Application } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import { decimal, t } from '../i18n';
 import { comision, formatearPrecio, totalAPagar } from '../pagos/precio';
+import { usePagosActivos } from '../config/remota';
 import { confirmarBloqueo, denunciar } from '../moderacion/acciones';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
@@ -59,7 +60,9 @@ const statusColor: Record<string, { fondo: string; color: string }> = {
 
 /** "★ 4.8 (12) · replies in ~2h", sin valores vacíos. */
 export function resumenAutor(r: ServiceRequest['requester']): string {
-  const partes = [r.rating > 0 ? `★ ${decimal(r.rating)}${r.ratingCount > 0 ? ` (${r.ratingCount})` : ''}` : t('comun.sinValoraciones')];
+  const partes = [
+    r.rating > 0 ? `★ ${decimal(r.rating)}${r.ratingCount > 0 ? ` (${r.ratingCount})` : ''}` : t('comun.sinValoraciones'),
+  ];
   if (r.responseLabel && r.responseLabel !== '—') partes.push(t('detalle.responde', { tiempo: r.responseLabel }));
   return partes.join(' · ');
 }
@@ -78,18 +81,22 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
   // Al volver de hacer una oferta hay que releer su estado.
   useFocusEffect(
     useCallback(() => {
-      api.getService(serviceId).then(setService).catch(() => {
-        // Backend not reachable — keep showing the local mock version.
-      });
+      api
+        .getService(serviceId)
+        .then(setService)
+        .catch(() => {
+          // Backend not reachable — keep showing the local mock version.
+        });
       api
         .listMyApplications()
         .then((ofertas) => setMiOferta(ofertas.find((o) => o.serviceId === serviceId) ?? null))
         .catch(() => setMiOferta(null));
-    }, [serviceId])
+    }, [serviceId]),
   );
 
   const accion = accionPrincipal(service, user?.uid ?? null, miOferta);
   const verAutor = !!service.requesterId && service.requesterId !== user?.uid;
+  const pagos = usePagosActivos();
   const ubicacion = useUbicacion();
   const distancia =
     service.coords && ubicacion
@@ -157,7 +164,12 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
           accessibilityRole={verAutor ? 'button' : undefined}
           accessibilityLabel={verAutor ? t('comun.verPerfil', { nombre: service.requester.name }) : undefined}
         >
-          <Avatar name={service.requester.name} photoURL={service.requester.photoURL} size={44} color={service.requester.avatarColor} />
+          <Avatar
+            name={service.requester.name}
+            photoURL={service.requester.photoURL}
+            size={44}
+            color={service.requester.avatarColor}
+          />
           <View style={{ flex: 1 }}>
             <Text style={styles.requesterName}>{service.requester.name}</Text>
             <Text style={styles.requesterMeta}>{resumenAutor(service.requester)}</Text>
@@ -188,22 +200,26 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
               <Text style={styles.infoValue}>{service.durationLabel}</Text>
             </View>
           ) : null}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>{t('detalle.precio')}</Text>
-            <Text style={[styles.infoValue, { color: service.priceCents == null ? colors.green : colors.accentDark }]}>
-              {service.priceCents == null ? t('comun.gratis') : formatearPrecio(service.priceCents, { exacto: true })}
-            </Text>
-          </View>
-          {/* Quien lo pide ve lo que pagará; quien ayuda, que se lleva el precio entero. */}
-          {service.priceCents != null && (
-            <Text style={styles.notaPrecio}>
-              {verAutor
-                ? t('detalle.recibesEntero')
-                : t('detalle.pagarasTotal', {
-                    total: formatearPrecio(totalAPagar(service.priceCents), { exacto: true }),
-                    gestion: formatearPrecio(comision(service.priceCents), { exacto: true }),
-                  })}
-            </Text>
+          {pagos && (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>{t('detalle.precio')}</Text>
+                <Text style={[styles.infoValue, { color: service.priceCents == null ? colors.green : colors.accentDark }]}>
+                  {service.priceCents == null ? t('comun.gratis') : formatearPrecio(service.priceCents, { exacto: true })}
+                </Text>
+              </View>
+              {/* Quien lo pide ve lo que pagará; quien ayuda, que se lleva el precio entero. */}
+              {service.priceCents != null && (
+                <Text style={styles.notaPrecio}>
+                  {verAutor
+                    ? t('detalle.recibesEntero')
+                    : t('detalle.pagarasTotal', {
+                        total: formatearPrecio(totalAPagar(service.priceCents), { exacto: true }),
+                        gestion: formatearPrecio(comision(service.priceCents), { exacto: true }),
+                      })}
+                </Text>
+              )}
+            </>
           )}
           {distancia ? (
             <View style={styles.infoRow}>

@@ -7,6 +7,10 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 ## Sin publicar
 
 ### Añadido
+- **Interruptor de pagos** (`config/app.pagosActivos`, en la web de
+  administración): apagados, la app no enseña precios, cobros ni pagos y
+  todo funciona como favores gratis; las reglas y `pagarOferta` lo
+  respetan. Se apagan para la revisión de Apple hasta tener Stripe en real.
 - **Bloquear y denunciar** (normas de contenido de usuarios de Apple, 1.2):
   denunciar un servicio, un vecino o una conversación con un motivo, desde
   la app (queda en `reports/`); bloquear y desbloquear vecinos desde su

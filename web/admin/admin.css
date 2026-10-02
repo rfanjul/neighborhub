@@ -10,6 +10,7 @@ body.admin { min-height: 100vh; background: var(--crema); }
 .admin-sesion { display: inline-flex; align-items: center; gap: 12px; color: var(--gris); font-size: 15px; min-width: 0; }
 .admin-sesion #quien { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .boton-pequeno { min-height: 38px; padding: 0 16px; font-size: 15px; }
+#pagos.encendidos { border-color: var(--verde); color: var(--verde) !important; }
 
 .admin-cuerpo { padding: 28px 0 60px; }
 .admin-cargando, .admin-vacio, .admin-gris { color: var(--gris); }

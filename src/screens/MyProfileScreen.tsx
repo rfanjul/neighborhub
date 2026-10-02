@@ -12,6 +12,7 @@ import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
 import CobrosTarjeta from '../components/CobrosTarjeta';
+import { pagosActivos, usePagosActivos } from '../config/remota';
 import { cambiarIdioma, decimal, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 import { authErrorMessage } from '../auth/errors';
@@ -27,13 +28,14 @@ export default function MyProfileScreen() {
   // la base de las insignias. Se calcula, no se guarda en el perfil.
   const [ayudas, setAyudas] = useState(0);
   const [cobros, setCobros] = useState(false);
+  const pagos = usePagosActivos();
 
   const handleSettingsPress = () => {
     Alert.alert(t('miPerfil.cuenta'), undefined, [
       { text: t('comun.cancelar'), style: 'cancel' },
       { text: t('miPerfil.editarDatos'), onPress: () => navigation.navigate('ProfileDetails') },
       { text: t('idioma.titulo'), onPress: elegirIdioma },
-      { text: t('pagos.titulo'), onPress: () => navigation.navigate('Payments') },
+      ...(pagosActivos() ? [{ text: t('pagos.titulo'), onPress: () => navigation.navigate('Payments') }] : []),
       { text: t('cuenta.legal'), onPress: ayudaYLegal },
       { text: t('moderacion.bloqueadosTitulo'), onPress: () => navigation.navigate('Blocked') },
       { text: t('miPerfil.salir'), onPress: () => logout() },
@@ -194,9 +196,11 @@ export default function MyProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <CobrosTarjeta activos={cobros} onCambio={setCobros} />
-        </View>
+        {pagos && (
+          <View style={styles.section}>
+            <CobrosTarjeta activos={cobros} onCambio={setCobros} />
+          </View>
+        )}
 
 
         <View style={styles.section}>

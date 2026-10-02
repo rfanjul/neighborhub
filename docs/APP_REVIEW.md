@@ -46,11 +46,11 @@ notificaciones de otras apps (modo Concentración).
     bienvenida.
 13. Parar la grabación.
 
-Antes de grabar: `npm run seed` (vecinos y servicios en el muro) y
+Antes de grabar: los **pagos apagados** en la web de administración
+(botón «Pagos: apagados»), `npm run seed` (vecinos y servicios en el muro) y
 `npm run seed:revision` (datos de la cuenta de revisión, sin cambiar su
-contraseña). Si los pagos están activos en esa build, «Move a table» tiene
-precio y *Choose* abre el pago: o se graba con una tarjeta de prueba
-(Sandbox) o se desactivan los pagos para la revisión.
+contraseña). Con los pagos apagados no se ven precios y *Choose* elige sin
+pagar, como verá Apple.
 
 Subir el vídeo en App Store Connect → la respuesta al mensaje de App Review
 (admite adjuntos) o como enlace (iCloud Drive / Google Drive, «cualquiera

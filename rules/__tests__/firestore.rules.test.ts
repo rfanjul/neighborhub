@@ -311,6 +311,8 @@ describe('helpRequests', () => {
 });
 
 describe('pagos con Stripe (los escribe solo el servidor)', () => {
+  beforeEach(() => sembrar('config/app', { pagosActivos: true }));
+
   it('con precio, la app no puede elegir oferta: lo acepta el servidor al cobrar', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
     await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
@@ -318,6 +320,27 @@ describe('pagos con Stripe (los escribe solo el servidor)', () => {
     await assertFails(
       updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
     );
+  });
+
+  it('con los pagos apagados, uno con precio se elige como si fuera gratis', async () => {
+    await sembrar('config/app', { pagosActivos: false });
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+    await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+    await assertSucceeds(
+      updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+    );
+  });
+
+  it('la configuración la lee quien entra y solo la cambia la administración', async () => {
+    await sembrar('config/app', { pagosActivos: false });
+
+    await assertSucceeds(getDoc(doc(como('ana'), 'config/app')));
+    await assertFails(getDoc(doc(anonimo(), 'config/app')));
+    await assertFails(setDoc(doc(como('ana'), 'config/app'), { pagosActivos: true }));
+    const admin = env.authenticatedContext('jefa', { admin: true }).firestore();
+    await assertSucceeds(setDoc(doc(admin, 'config/app'), { pagosActivos: true, actualizadoPor: 'jefa' }));
+    await assertFails(setDoc(doc(admin, 'config/app'), { pagosActivos: 'sí' }));
   });
 
   it('gratis se sigue eligiendo desde la app', async () => {

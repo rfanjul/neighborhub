@@ -93,3 +93,16 @@ jest.mock('expo-notifications', () => ({
   getLastNotificationResponseAsync: jest.fn(async () => null),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
+
+// Configuración remota: pagos activos por defecto; un test los apaga con __ponerPagos(false).
+jest.mock('./src/config/remota', () => {
+  let activos = true;
+  return {
+    cargarConfig: jest.fn(async () => undefined),
+    pagosActivos: () => activos,
+    usePagosActivos: () => activos,
+    __ponerPagos: (valor: boolean) => {
+      activos = valor;
+    },
+  };
+});

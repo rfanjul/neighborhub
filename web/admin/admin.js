@@ -40,6 +40,8 @@
   let filtro = 'pendientes';
   let dejarDeEscuchar = null;
   let dejarDeEscucharDenuncias = null;
+  let dejarDeEscucharConfig = null;
+  let pagosActivos = false;
   let denuncias = [];
   let abierto = null;
 
@@ -83,6 +85,7 @@
     $('vista-login').hidden = nombre !== 'login';
     $('vista-panel').hidden = nombre !== 'panel';
     $('salir').hidden = nombre !== 'panel';
+    $('pagos').hidden = nombre !== 'panel';
   }
 
   // --- Sesión ---------------------------------------------------------
@@ -107,6 +110,7 @@
 
     $('form-login').addEventListener('submit', entrar);
     $('salir').addEventListener('click', () => auth.signOut());
+    $('pagos').addEventListener('click', cambiarPagos);
     document.querySelectorAll('[data-filtro]').forEach((b) =>
       b.addEventListener('click', () => {
         filtro = b.dataset.filtro;
@@ -164,6 +168,10 @@
       dejarDeEscucharDenuncias();
       dejarDeEscucharDenuncias = null;
     }
+    if (dejarDeEscucharConfig) {
+      dejarDeEscucharConfig();
+      dejarDeEscucharConfig = null;
+    }
     if (!usuario) {
       $('quien').textContent = '';
       mostrarVista('login');
@@ -200,6 +208,7 @@
       },
       (err) => aviso('error-panel', `No se pudieron cargar los servicios (${err.code || err.message}).`, 'error')
     );
+    escucharConfig();
     // Denuncias sin revisar: hay que atenderlas en menos de 24 horas.
     dejarDeEscucharDenuncias = db
       .collection('reports')
@@ -213,6 +222,39 @@
         },
         (err) => aviso('error-panel', `No se pudieron cargar las denuncias (${err.code || err.message}).`, 'error')
       );
+  }
+
+  /** config/app.pagosActivos: con los pagos apagados la app no enseña precios ni cobra. */
+  function escucharConfig() {
+    dejarDeEscucharConfig = db
+      .collection('config')
+      .doc('app')
+      .onSnapshot(
+        (d) => {
+          pagosActivos = d.exists && d.data().pagosActivos === true;
+          const b = $('pagos');
+          b.textContent = pagosActivos ? 'Pagos: encendidos' : 'Pagos: apagados';
+          b.classList.toggle('encendidos', pagosActivos);
+        },
+        () => {}
+      );
+  }
+
+  function cambiarPagos() {
+    const encender = !pagosActivos;
+    const texto = encender
+      ? '¿Encender los pagos? La app enseñará precios y cobrará con Stripe (con las claves que tenga el servidor).'
+      : '¿Apagar los pagos? La app dejará de enseñar precios y todo funcionará como favores gratis.';
+    if (!confirm(texto)) return;
+    db.collection('config')
+      .doc('app')
+      .set({
+        pagosActivos: encender,
+        actualizadoPor: auth.currentUser.uid,
+        actualizado: firebase.firestore.FieldValue.serverTimestamp(),
+      })
+      .then(() => flotante(encender ? 'Pagos encendidos' : 'Pagos apagados'))
+      .catch((err) => aviso('error-panel', `No se pudo cambiar (${err.code || err.message}).`, 'error'));
   }
 
   function revisar(denuncia, estado) {
