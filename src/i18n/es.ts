@@ -364,6 +364,10 @@ const es: Diccionario = {
   },
   pagos: {
     reembolsado: 'Se te han devuelto {total}.',
+    porPagar: 'Falta tu pago',
+    porPagarTexto: 'Tu pago se devolvió y {nombre} aún no ha cobrado. Vuelve a pagar {total} para que lo reciba.',
+    pagarAhora: 'Pagar {total}',
+    enlaceCaducado: 'El enlace de pago ha caducado. Escríbenos desde Ayuda y te mandamos otro.',
     problema: 'Hubo un problema al liberar el pago. Lo estamos revisando.',
     titulo: 'Pagos',
     verTodos: 'Ver todos ({n})',

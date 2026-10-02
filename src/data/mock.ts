@@ -9,6 +9,8 @@ export type PagoResumen = {
   precio: number;
   comision: number;
   total: number;
+  /** El cobro se devolvió y administración pidió volver a pagar: el enlace está en Ajustes → Pagos. */
+  porPagar?: boolean;
 };
 
 export type ServiceRequest = {

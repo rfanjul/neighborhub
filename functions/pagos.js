@@ -104,6 +104,29 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     return { conCuenta: true, activos, pendiente: !activos };
   }
 
+  /**
+   * Stripe Checkout con el precio y la gestión. recobro: el nuevo pago que
+   * administración pide a quien pidió cuando el primero se devolvió.
+   */
+  function abrirCheckout({ serviceId, helperId, requesterId, email, titulo, precio, gestion, recobro = false }) {
+    // proyecto: el Sandbox de Stripe lo comparten la app real y los
+    // emuladores; cada uno solo atiende sus propios pagos.
+    const metadata = { serviceId, helperId, requesterId, ...(proyecto ? { proyecto } : {}), ...(recobro ? { recobro: '1' } : {}) };
+    const linea = (nombre, importe) => ({
+      quantity: 1,
+      price_data: { currency: 'chf', unit_amount: importe, product_data: { name: nombre } },
+    });
+    return stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: email || undefined,
+      line_items: [linea(titulo || 'Servicio', precio), linea('Gestión Neighborhub (8 %, mínimo CHF 1)', gestion)],
+      payment_intent_data: { transfer_group: serviceId, metadata },
+      metadata,
+      success_url: `${web}/pago?estado=ok`,
+      cancel_url: `${web}/pago?estado=cancelado`,
+    });
+  }
+
   /** Abre el pago de la oferta elegida en Stripe Checkout. */
   async function pagarOferta(uid, email, { serviceId, applicantId } = {}) {
     if (!serviceId || !applicantId) throw new ErrorPago('invalid-argument', 'Falta el servicio o la oferta.', 'datos');
@@ -142,21 +165,14 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
 
     const precio = servicio.priceCents;
     const gestion = comision(precio);
-    // proyecto: el Sandbox de Stripe lo comparten la app real y los
-    // emuladores; cada uno solo atiende sus propios pagos.
-    const metadata = { serviceId, helperId: applicantId, requesterId: uid, ...(proyecto ? { proyecto } : {}) };
-    const linea = (nombre, importe) => ({
-      quantity: 1,
-      price_data: { currency: 'chf', unit_amount: importe, product_data: { name: nombre } },
-    });
-    const sesion = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer_email: email || undefined,
-      line_items: [linea(servicio.title || 'Servicio', precio), linea('Gestión Neighborhub (8 %, mínimo CHF 1)', gestion)],
-      payment_intent_data: { transfer_group: serviceId, metadata },
-      metadata,
-      success_url: `${web}/pago?estado=ok`,
-      cancel_url: `${web}/pago?estado=cancelado`,
+    const sesion = await abrirCheckout({
+      serviceId,
+      helperId: applicantId,
+      requesterId: uid,
+      email,
+      titulo: servicio.title,
+      precio,
+      gestion,
     });
     await db.doc(`pagos/${serviceId}`).set({
       serviceId,
@@ -184,12 +200,13 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
    * es un pago viejo), se devuelve el dinero.
    */
   async function alCompletarCheckout(sesion) {
-    const { serviceId, helperId, proyecto: deProyecto } = sesion.metadata || {};
+    const { serviceId, helperId, proyecto: deProyecto, recobro } = sesion.metadata || {};
     if (!serviceId || !helperId || sesion.payment_status !== 'paid') return 'ignorado';
     // Un pago de otro entorno (p. ej. la app real vista desde los emuladores): ni se toca.
     if (deProyecto && proyecto && deProyecto !== proyecto) return 'ajeno';
     const intento = await stripe.paymentIntents.retrieve(sesion.payment_intent);
     const chargeId = typeof intento.latest_charge === 'string' ? intento.latest_charge : intento.latest_charge?.id;
+    if (recobro) return alPagarRecobro(sesion, intento, chargeId);
 
     const resultado = await db.runTransaction(async (tx) => {
       const servicioRef = db.doc(`helpRequests/${serviceId}`);
@@ -244,9 +261,18 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
    */
   async function liberarPago(serviceId, antes, despues) {
     if (!antes || !despues || terminado(antes.status) || !terminado(despues.status)) return 'nada';
-    const pagoRef = db.doc(`pagos/${serviceId}`);
-    const pago = (await pagoRef.get()).data();
+    const pago = (await db.doc(`pagos/${serviceId}`).get()).data();
     if (pago?.estado !== 'retenido') return 'nada';
+    return (await transferir(serviceId, pago, `liberar-${serviceId}`)).estado;
+  }
+
+  /**
+   * Transfiere el precio a quien ayudó desde el cargo del pago (no hace falta
+   * esperar a tener saldo disponible) y lo apunta. Si falla, no se queda
+   * «retenido»: o el cargo ya se devolvió, o hay que mirarlo.
+   */
+  async function transferir(serviceId, pago, clave, metadata = {}) {
+    const pagoRef = db.doc(`pagos/${serviceId}`);
     let transferencia;
     try {
       transferencia = await stripe.transfers.create(
@@ -255,30 +281,67 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
           currency: 'chf',
           destination: pago.cuentaDestino,
           transfer_group: serviceId,
-          // Del propio cargo: no hace falta esperar a tener saldo disponible.
           source_transaction: pago.chargeId,
-          metadata: { serviceId, helperId: pago.helperId },
+          metadata: { serviceId, helperId: pago.helperId, ...metadata },
         },
-        { idempotencyKey: `liberar-${serviceId}` }
+        { idempotencyKey: clave }
       );
     } catch (e) {
-      // Que no se quede «retenido» para siempre: o ya se devolvió, o hay que mirarlo.
       const cargo = await stripe.charges.retrieve(pago.chargeId).catch(() => null);
       const estado = cargo?.refunded ? 'reembolsado' : 'error';
-      await pagoRef.update({ estado, error: String(e.message || e).slice(0, 300), actualizado: ahora() });
+      const error = String(e.message || e).slice(0, 300);
+      await pagoRef.update({ estado, error, actualizado: ahora() });
       await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': estado });
-      return estado;
+      return { estado, error };
     }
-    await pagoRef.update({ estado: 'pagado', transferId: transferencia.id, actualizado: ahora() });
-    await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': 'pagado' });
-    return 'pagado';
+    await pagoRef.update({ estado: 'pagado', transferId: transferencia.id, error: '', actualizado: ahora() });
+    await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': 'pagado', 'pago.porPagar': false });
+    return { estado: 'pagado', transferId: transferencia.id };
+  }
+
+  /**
+   * Quien pidió ha pagado el enlace nuevo: el servicio ya está terminado, así
+   * que el precio va a quien ayudó al momento, desde este cargo. Un enlace
+   * viejo (ya sustituido) o un servicio ya pagado se devuelve.
+   */
+  async function alPagarRecobro(sesion, intento, chargeId) {
+    const { serviceId } = sesion.metadata;
+    const pagoRef = db.doc(`pagos/${serviceId}`);
+    const resultado = await db.runTransaction(async (tx) => {
+      const pago = (await tx.get(pagoRef)).data();
+      if (!pago) return 'ajeno';
+      if (pago.recobro?.pagadoCon === sesion.id) return 'repetido';
+      if (pago.recobro?.checkoutSessionId !== sesion.id || pago.recobro?.estado !== 'esperando' || pago.estado === 'pagado') {
+        return 'reembolsar';
+      }
+      tx.update(pagoRef, {
+        estado: 'retenido',
+        // El primer cargo (el devuelto) se guarda para la administración.
+        chargeIdOriginal: pago.chargeIdOriginal || pago.chargeId || null,
+        paymentIntentIdOriginal: pago.paymentIntentIdOriginal || pago.paymentIntentId || null,
+        chargeId,
+        paymentIntentId: intento.id,
+        recobro: { ...pago.recobro, estado: 'pagado', pagadoCon: sesion.id, pagadoEn: new Date() },
+        actualizado: ahora(),
+      });
+      return 'recobrado';
+    });
+    if (resultado === 'reembolsar') {
+      await stripe.refunds.create({ payment_intent: intento.id, reason: 'duplicate' }, { idempotencyKey: `reembolso-${sesion.id}` });
+      return resultado;
+    }
+    if (resultado !== 'recobrado') return resultado;
+    const pago = (await pagoRef.get()).data();
+    const r = await transferir(serviceId, pago, `recobro-${sesion.id}`, { recobro: '1' });
+    return r.estado === 'pagado' ? 'recobrado' : r.estado;
   }
 
   // --- Administración ---------------------------------------------------
 
   const segundos = (t) => (t ? t * 1000 : 0);
+  const milis = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : t instanceof Date ? t.getTime() : 0);
 
-  /** El pago de un servicio, su cargo y sus transferencias en Stripe. */
+  /** El pago de un servicio, sus cargos, el enlace de un nuevo cobro y sus transferencias en Stripe. */
   async function leerPagoCompleto(serviceId) {
     const [pagoSnap, servicioSnap] = await Promise.all([
       db.doc(`pagos/${serviceId}`).get(),
@@ -286,22 +349,26 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     ]);
     const pago = pagoSnap.data();
     const servicio = servicioSnap.data() || {};
-    if (!pago) return { pago: null, servicio, cargo: null, sesion: null, transferencias: [] };
-    const [cargo, sesion, lista] = await Promise.all([
-      pago.chargeId ? stripe.charges.retrieve(pago.chargeId, { expand: ['refunds'] }) : null,
+    if (!pago) return { pago: null, servicio, cargo: null, cargos: [], sesion: null, recobro: null, transferencias: [] };
+    const idsCargos = [...new Set([pago.chargeIdOriginal, pago.chargeId].filter(Boolean))];
+    const [cargos, sesion, recobro, lista] = await Promise.all([
+      Promise.all(idsCargos.map((id) => stripe.charges.retrieve(id, { expand: ['refunds'] }))),
       !pago.chargeId && pago.checkoutSessionId ? stripe.checkout.sessions.retrieve(pago.checkoutSessionId).catch(() => null) : null,
+      pago.recobro?.estado === 'esperando' ? stripe.checkout.sessions.retrieve(pago.recobro.checkoutSessionId).catch(() => null) : null,
       stripe.transfers.list({ transfer_group: serviceId, limit: 20 }),
     ]);
-    return { pago, servicio, cargo, sesion, transferencias: lista?.data || [] };
+    const cargo = cargos.find((c) => c.id === pago.chargeId) || null;
+    return { pago, servicio, cargo, cargos, sesion, recobro, transferencias: lista?.data || [] };
   }
 
   /**
-   * Si se puede volver a intentar pagar a quien ayudó y de dónde saldría el
-   * dinero: del cobro, si aún lo tiene; si se devolvió a quien pidió, del
-   * saldo de Neighborhub. Si Stripe ya tiene la transferencia, solo falta
-   * apuntarla.
+   * Si se puede volver a intentar pagar a quien ayudó, y cómo. El dinero
+   * siempre es de quien pidió: si el cobro aún lo tiene, se transfiere desde
+   * él; si se le devolvió, tiene que volver a pagar (un enlace nuevo de
+   * Stripe, porque su tarjeta no se guarda). Si Stripe ya tiene la
+   * transferencia, solo falta apuntarla.
    */
-  function planReintento({ pago, servicio, cargo, transferencias }) {
+  function planReintento({ pago, servicio, cargo, recobro, transferencias }) {
     const no = (motivo) => ({ posible: false, motivo });
     if (!pago) return no('Este servicio no tiene pago.');
     if (pago.estado === 'pagado') return no('Ya está pagado a quien ayudó.');
@@ -311,31 +378,47 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     if (hecha) return { posible: true, origen: 'existente', transferId: hecha.id };
     if (!pago.cuentaDestino) return no('Quien ayudó no tiene cuenta de cobro.');
     const disponible = cargo && cargo.status === 'succeeded' ? cargo.amount - (cargo.amount_refunded || 0) : 0;
-    return { posible: true, origen: disponible >= pago.precio ? 'cobro' : 'saldo' };
+    if (disponible >= pago.precio) return { posible: true, origen: 'cobro' };
+    const plan = { posible: true, origen: 'cobrarDeNuevo' };
+    if (pago.recobro?.estado === 'esperando') {
+      const expira = milis(pago.recobro.expira);
+      plan.enlace = { url: pago.recobro.url, expira, caducado: expira <= Date.now() || recobro?.status === 'expired' };
+    }
+    return plan;
   }
 
   /** Para la web de administración: el pago, sus movimientos y si se puede reintentar. */
   async function verPago(serviceId) {
     if (!serviceId) throw new ErrorPago('invalid-argument', 'Falta el servicio.', 'datos');
     const datos = await leerPagoCompleto(serviceId);
-    const { pago, cargo, sesion, transferencias } = datos;
+    const { pago, cargos, sesion, recobro, transferencias } = datos;
     if (!pago) return { pago: null, movimientos: [], intentos: [], reintento: planReintento(datos) };
 
     const movimientos = [];
-    if (cargo) {
-      movimientos.push({ tipo: 'cobro', id: cargo.id, importe: cargo.amount, estado: cargo.status, fecha: segundos(cargo.created) });
+    cargos.forEach((cargo) => {
+      const nuevo = pago.chargeIdOriginal && cargo.id === pago.chargeId;
+      movimientos.push({
+        tipo: 'cobro',
+        id: cargo.id,
+        importe: cargo.amount,
+        estado: cargo.status,
+        fecha: segundos(cargo.created),
+        detalle: nuevo ? 'nuevo pago de quien pidió' : '',
+      });
       (cargo.refunds?.data || []).forEach((r) =>
         movimientos.push({ tipo: 'reembolso', id: r.id, importe: r.amount, estado: r.status, fecha: segundos(r.created), detalle: r.reason || '' })
       );
-    } else if (sesion) {
+    });
+    [sesion, recobro].filter(Boolean).forEach((x) =>
       movimientos.push({
         tipo: 'checkout',
-        id: sesion.id,
-        importe: sesion.amount_total ?? pago.total,
-        estado: `${sesion.status} · ${sesion.payment_status}`,
-        fecha: segundos(sesion.created),
-      });
-    }
+        id: x.id,
+        importe: x.amount_total ?? pago.total,
+        estado: `${x.status} · ${x.payment_status}`,
+        fecha: segundos(x.created),
+        detalle: x === recobro ? 'enlace para volver a pagar' : '',
+      })
+    );
     transferencias.forEach((t) =>
       movimientos.push({
         tipo: 'transferencia',
@@ -348,7 +431,6 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     );
     movimientos.sort((a, b) => a.fecha - b.fecha);
 
-    const milis = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : t instanceof Date ? t.getTime() : 0);
     return {
       pago: {
         estado: pago.estado,
@@ -359,19 +441,19 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
         requesterName: pago.requesterName || datos.servicio.requesterName || '',
         helperName: pago.helperName || datos.servicio.helperName || '',
         error: pago.error || '',
-        origenPago: pago.origenPago || '',
         creado: milis(pago.creado),
         actualizado: milis(pago.actualizado),
         ids: {
           checkout: pago.checkoutSessionId || '',
           paymentIntent: pago.paymentIntentId || '',
           cargo: pago.chargeId || '',
+          cargoOriginal: pago.chargeIdOriginal || '',
           cuentaDestino: pago.cuentaDestino || '',
           transferencia: pago.transferId || '',
         },
       },
       movimientos,
-      intentos: (pago.intentos || []).map((i) => ({ ...i, fecha: milis(i.fecha) })),
+      intentos: (pago.intentos || []).map((i) => ({ ...i, fecha: milis(i.fecha), expira: milis(i.expira) })),
       reintento: planReintento(datos),
     };
   }
@@ -379,55 +461,70 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
   /**
    * Vuelve a intentar pagar a quien ayudó. origen es el que enseñó verPago y
    * aceptó la persona de administración: si ha cambiado, no se hace nada.
+   * cobrarDeNuevo no mueve dinero: crea el enlace (24 h) y la app avisa a
+   * quien pidió; al pagarlo, alPagarRecobro transfiere.
    */
   async function reintentarPago(adminUid, { serviceId, origen } = {}) {
-    if (!serviceId || !origen) throw new ErrorPago('invalid-argument', 'Falta el servicio o el origen del dinero.', 'datos');
+    if (!serviceId || !origen) throw new ErrorPago('invalid-argument', 'Falta el servicio o cómo pagar.', 'datos');
     const datos = await leerPagoCompleto(serviceId);
     const plan = planReintento(datos);
     if (!plan.posible) throw new ErrorPago('failed-precondition', plan.motivo, 'noDisponible');
     if (plan.origen !== origen) {
       throw new ErrorPago('failed-precondition', 'El pago ha cambiado desde que lo abriste: vuelve a abrirlo.', 'cambiado');
     }
-    const { pago, cargo } = datos;
+    const { pago, servicio } = datos;
     const pagoRef = db.doc(`pagos/${serviceId}`);
     const intentos = pago.intentos || [];
-    const intento = { fecha: new Date(), origen, por: adminUid };
+    const apuntar = (extra) => [...intentos, { fecha: new Date(), origen, por: adminUid, ...extra }];
 
-    let transferId = plan.transferId;
-    if (origen !== 'existente') {
-      try {
-        const transferencia = await stripe.transfers.create(
-          {
-            amount: pago.precio,
-            currency: 'chf',
-            destination: pago.cuentaDestino,
-            transfer_group: serviceId,
-            ...(origen === 'cobro' ? { source_transaction: pago.chargeId } : {}),
-            metadata: { serviceId, helperId: pago.helperId, reintento: String(intentos.length + 1), origen },
-          },
-          // Cada intento con su clave: Stripe recuerda los fallos de la anterior.
-          { idempotencyKey: `reintento-${serviceId}-${intentos.length + 1}` }
-        );
-        transferId = transferencia.id;
-      } catch (e) {
-        const error = String(e.message || e).slice(0, 300);
-        await pagoRef.update({ intentos: [...intentos, { ...intento, resultado: 'error', error }], error, actualizado: ahora() });
-        throw new ErrorPago('failed-precondition', `Stripe no hizo la transferencia: ${error}`, 'stripe');
-      }
+    if (origen === 'existente') {
+      await pagoRef.update({
+        estado: 'pagado',
+        transferId: plan.transferId,
+        error: '',
+        intentos: apuntar({ resultado: 'pagado', transferId: plan.transferId }),
+        actualizado: ahora(),
+      });
+      await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': 'pagado', 'pago.porPagar': false });
+      return { estado: 'pagado', origen };
     }
 
+    if (origen === 'cobro') {
+      // Cada intento con su clave: Stripe recuerda los fallos de la anterior.
+      const r = await transferir(serviceId, pago, `reintento-${serviceId}-${intentos.length + 1}`, {
+        reintento: String(intentos.length + 1),
+      });
+      await pagoRef.update({
+        intentos: apuntar(r.estado === 'pagado' ? { resultado: 'pagado', transferId: r.transferId } : { resultado: 'error', error: r.error }),
+      });
+      if (r.estado !== 'pagado') throw new ErrorPago('failed-precondition', `Stripe no hizo la transferencia: ${r.error}`, 'stripe');
+      return { estado: 'pagado', origen };
+    }
+
+    // cobrarDeNuevo: el enlace anterior (si lo hay) deja de valer; así nunca se cobra dos veces.
+    if (pago.recobro?.checkoutSessionId) {
+      await stripe.checkout.sessions.expire(pago.recobro.checkoutSessionId).catch(() => {});
+    }
+    const quienPide = (await db.doc(`users/${pago.requesterId}`).get()).data() || {};
+    const sesion = await abrirCheckout({
+      serviceId,
+      helperId: pago.helperId,
+      requesterId: pago.requesterId,
+      email: quienPide.email,
+      titulo: pago.titulo || servicio.title,
+      precio: pago.precio,
+      gestion: pago.comision,
+      recobro: true,
+    });
+    const expira = sesion.expires_at ? new Date(sesion.expires_at * 1000) : new Date(Date.now() + 24 * 3600 * 1000);
     await pagoRef.update({
-      estado: 'pagado',
-      transferId,
-      origenPago: origen,
-      // Del saldo: quien pidió recuperó su dinero y lo sigue viendo así.
-      ...(origen === 'saldo' && cargo?.amount_refunded ? { devueltoAQuienPide: true } : {}),
-      intentos: [...intentos, { ...intento, resultado: 'pagado', transferId }],
-      error: '',
+      recobro: { checkoutSessionId: sesion.id, url: sesion.url, creado: new Date(), expira, estado: 'esperando', por: adminUid },
+      intentos: apuntar({ resultado: 'enlace', checkoutSessionId: sesion.id, expira }),
       actualizado: ahora(),
     });
-    await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': 'pagado' });
-    return { estado: 'pagado', origen };
+    // La app de quien pidió le avisa y le enseña el botón para pagar.
+    await db.doc(`helpRequests/${serviceId}`).update({ 'pago.porPagar': true });
+    return { estado: 'esperando', origen, url: sesion.url, expira: expira.getTime() };
   }
 
   /**
@@ -440,11 +537,13 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
       db.collection('pagos').where('requesterId', '==', uid).get(),
       db.collection('pagos').where('helperId', '==', uid).get(),
     ]);
-    const milis = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
     const filas = [
       ...pagados.docs.map((d) => ({ d: d.data(), rol: 'pagado' })),
       ...cobrados.docs.map((d) => ({ d: d.data(), rol: 'cobrado' })).filter((f) => f.d.estado !== 'pendiente'),
     ];
+    // Administración pidió volver a pagar y el enlace aún vale: quien pidió lo ve para pagarlo.
+    const porPagar = (d, rol) =>
+      rol === 'pagado' && d.estado !== 'pagado' && d.recobro?.estado === 'esperando' && milis(d.recobro.expira) > Date.now();
     // Pagos antiguos sin título ni nombres: se completan con el servicio.
     const sinTitulo = [...new Set(filas.filter((f) => !f.d.titulo).map((f) => f.d.serviceId))];
     const servicios = new Map(
@@ -456,8 +555,8 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
         return {
           serviceId: d.serviceId,
           rol,
-          // Si se pagó a quien ayudó desde el saldo de Neighborhub, quien pidió sigue con su reembolso.
-          estado: rol === 'pagado' && d.devueltoAQuienPide ? 'reembolsado' : d.estado,
+          estado: porPagar(d, rol) ? 'pendiente' : d.estado,
+          ...(porPagar(d, rol) ? { urlPago: d.recobro.url } : {}),
           importe: rol === 'pagado' ? d.total : d.precio,
           precio: d.precio,
           comision: d.comision,

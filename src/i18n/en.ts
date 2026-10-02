@@ -365,6 +365,10 @@ const en = {
   },
   pagos: {
     reembolsado: '{total} refunded to you.',
+    porPagar: 'Payment needed',
+    porPagarTexto: 'Your payment was refunded, so {nombre} hasn’t been paid yet. Pay {total} again so they get it.',
+    pagarAhora: 'Pay {total}',
+    enlaceCaducado: 'The payment link has expired. Write to us from Help and we’ll send you a new one.',
     problema: "There was a problem releasing the payment. We're looking into it.",
     titulo: 'Payments',
     verTodos: 'See all ({n})',

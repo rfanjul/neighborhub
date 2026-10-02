@@ -1,5 +1,6 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { AppState, Linking } from 'react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import PaymentsScreen from '../PaymentsScreen';
 import { api } from '../../firebase/data';
 import { pago } from '../../test-utils/pago';
@@ -52,5 +53,27 @@ describe('PaymentsScreen', () => {
 
     await fireEvent.press(screen.getByLabelText('Back'));
     expect(navigation.goBack).toHaveBeenCalled();
+  });
+
+  it('si hay que volver a pagar, lo marca y el botón abre el enlace de Stripe; al volver, se actualiza', async () => {
+    const abrir = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    let alCambiar: (estado: string) => void = () => {};
+    const suscribir = jest.spyOn(AppState, 'addEventListener').mockImplementation((_tipo, f) => {
+      alCambiar = f as (estado: string) => void;
+      return { remove: jest.fn() } as never;
+    });
+    mockedApi.misPagos.mockResolvedValue([pago({ estado: 'pendiente', urlPago: 'https://checkout.stripe.com/c/pay/cs_2' })]);
+    await renderPagos();
+
+    expect(await screen.findByText('Payment needed')).toBeTruthy();
+    await fireEvent.press(screen.getByText(/^Pay CHF\s43\.20$/));
+    expect(abrir).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_2');
+
+    mockedApi.misPagos.mockResolvedValue([pago({ estado: 'pagado' })]);
+    await act(async () => alCambiar('active'));
+    await waitFor(() => expect(screen.getByText('Paid to Luis')).toBeTruthy());
+    expect(screen.queryByText(/^Pay CHF/)).toBeNull();
+    abrir.mockRestore();
+    suscribir.mockRestore();
   });
 });

@@ -329,6 +329,44 @@ describe('servicios con precio: se paga en Stripe al elegir', () => {
     expect(await screen.findByText(/CHF\s43\.20 refunded to you\./)).toBeTruthy();
   });
 
+  it('si hay que volver a pagar, lo explica y abre el enlace de Stripe', async () => {
+    const abrir = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    mockedApi.getService.mockResolvedValue(
+      servicio({
+        status: 'rated', priceCents: 4000, helperId: 'luis', helperName: 'Luis',
+        pago: { estado: 'reembolsado', precio: 4000, comision: 320, total: 4320, porPagar: true },
+      })
+    );
+    mockedApi.misPagos.mockResolvedValueOnce([
+      { serviceId: 's1', rol: 'pagado', estado: 'pendiente', importe: 4320, precio: 4000, comision: 320, titulo: 'Subir un sofá', otraPersona: 'Luis', fecha: 1, urlPago: 'https://checkout.stripe.com/c/pay/cs_2' },
+    ]);
+    await renderOfertas();
+
+    expect(await screen.findByText(/Your payment was refunded, so Luis hasn’t been paid yet\. Pay CHF\s43\.20 again/)).toBeTruthy();
+    expect(screen.queryByText(/refunded to you/)).toBeNull();
+    await fireEvent.press(screen.getByText(/^Pay CHF\s43\.20$/));
+
+    await waitFor(() => expect(abrir).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_2'));
+    abrir.mockRestore();
+  });
+
+  it('si el enlace para volver a pagar ya no vale, lo dice', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.getService.mockResolvedValue(
+      servicio({
+        status: 'rated', priceCents: 4000, helperId: 'luis', helperName: 'Luis',
+        pago: { estado: 'reembolsado', precio: 4000, comision: 320, total: 4320, porPagar: true },
+      })
+    );
+    mockedApi.misPagos.mockResolvedValueOnce([]);
+    await renderOfertas();
+
+    await fireEvent.press(await screen.findByText(/^Pay CHF\s43\.20$/));
+
+    await waitFor(() => expect(alerta).toHaveBeenCalledWith(expect.any(String), expect.stringMatching(/link has expired/)));
+    alerta.mockRestore();
+  });
+
   it('con la transferencia fallida avisa de que se está revisando', async () => {
     mockedApi.getService.mockResolvedValue(
       servicio({ status: 'rated', priceCents: 4000, helperId: 'luis', helperName: 'Luis', pago: { estado: 'error', precio: 4000, comision: 320, total: 4320 } })

@@ -45,6 +45,8 @@ export type PagoMovimiento = {
   titulo: string;
   otraPersona: string;
   fecha: number;
+  /** Solo a quien pidió, si tiene que volver a pagar: el enlace de Stripe Checkout. */
+  urlPago?: string;
 };
 
 /** Por qué se denuncia algo: lo revisa el equipo en menos de 24 horas. */
@@ -272,7 +274,15 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
     description: d.description ?? '',
     distanceKm: parseFloat(d.locationLabel) || 0,
     priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
-    pago: d.pago?.estado ? { estado: d.pago.estado, precio: d.pago.precio, comision: d.pago.comision, total: d.pago.total } : null,
+    pago: d.pago?.estado
+      ? {
+          estado: d.pago.estado,
+          precio: d.pago.precio,
+          comision: d.pago.comision,
+          total: d.pago.total,
+          ...(d.pago.porPagar ? { porPagar: true } : {}),
+        }
+      : null,
     postedLabel: d.availableLabel ?? '',
     status: d.status ?? 'pending',
     durationLabel: d.durationLabel ?? '',

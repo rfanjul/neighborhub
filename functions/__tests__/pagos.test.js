@@ -35,22 +35,29 @@ function stripeFalso() {
     },
     checkout: {
       sessions: {
-        create: apuntar('checkout.create', () => ({ id: `cs_${++sesiones}`, url: `https://checkout.stripe.com/c/pay/cs_${sesiones}` })),
+        create: apuntar('checkout.create', () => ({
+          id: `cs_${++sesiones}`,
+          url: `https://checkout.stripe.com/c/pay/cs_${sesiones}`,
+          expires_at: 1900000000,
+        })),
         expire: apuntar('checkout.expire', {}),
         retrieve: apuntar('checkout.retrieve', (id) => ({ id, status: 'open', payment_status: 'unpaid', amount_total: 4320, created: 1700000000 })),
       },
     },
-    paymentIntents: { retrieve: apuntar('paymentIntents.retrieve', { id: 'pi_1', latest_charge: 'ch_1' }) },
+    paymentIntents: { retrieve: apuntar('paymentIntents.retrieve', (id) => ({ id, latest_charge: id === 'pi_2' ? 'ch_2' : 'ch_1' })) },
     charges: {
-      retrieve: apuntar('charges.retrieve', () => ({
-        id: 'ch_1',
-        status: 'succeeded',
-        amount: 4320,
-        amount_refunded: cargoReembolsado ? 4320 : 0,
-        refunded: cargoReembolsado,
-        created: 1700000100,
-        refunds: { data: cargoReembolsado ? [{ id: 're_1', amount: 4320, status: 'succeeded', created: 1700000200, reason: 'duplicate' }] : [] },
-      })),
+      retrieve: apuntar('charges.retrieve', (id) => {
+        const devuelto = id === 'ch_1' && cargoReembolsado;
+        return {
+          id,
+          status: 'succeeded',
+          amount: 4320,
+          amount_refunded: devuelto ? 4320 : 0,
+          refunded: devuelto,
+          created: id === 'ch_1' ? 1700000100 : 1700000400,
+          refunds: { data: devuelto ? [{ id: 're_1', amount: 4320, status: 'succeeded', created: 1700000200, reason: 'duplicate' }] : [] },
+        };
+      }),
     },
     refunds: { create: apuntar('refunds.create', { id: 're_1' }) },
     transfers: {
@@ -373,6 +380,7 @@ describe('administración: ver y reintentar el pago', () => {
   /** Pagado y terminado, pero la transferencia falló (como «Move TV»). */
   async function terminadoSinPagar({ reembolsado = true } = {}) {
     await servicioConOfertas();
+    await db.doc('users/ana').set({ name: 'Ana', email: 'ana@ejemplo.test' });
     await pagos.pagarOferta('ana', null, { serviceId: 's1', applicantId: 'luis' });
     await pagos.alCompletarCheckout(sesionPagada());
     cargoReembolsado = reembolsado;
@@ -380,6 +388,12 @@ describe('administración: ver y reintentar el pago', () => {
     await db.doc('helpRequests/s1').update({ status: 'rated' });
     await pagos.liberarPago('s1', { status: 'accepted' }, { status: 'rated' });
   }
+  const sesionRecobro = (id) => ({
+    id,
+    payment_status: 'paid',
+    payment_intent: 'pi_2',
+    metadata: { serviceId: 's1', helperId: 'luis', requesterId: 'ana', proyecto: 'demo-pagos', recobro: '1' },
+  });
 
   it('enseña el pago con el cobro, el reembolso y las transferencias, en orden', async () => {
     await terminadoSinPagar();
@@ -396,7 +410,7 @@ describe('administración: ver y reintentar el pago', () => {
       ['transferencia', 4000, 'revertida'],
     ]);
     expect(stripe.transfers.list).toHaveBeenCalledWith({ transfer_group: 's1', limit: 20 });
-    expect(r.reintento).toEqual({ posible: true, origen: 'saldo' });
+    expect(r.reintento).toEqual({ posible: true, origen: 'cobrarDeNuevo' });
   });
 
   it('sin pago, o aún sin terminar, o ya pagado, no deja reintentar', async () => {
@@ -427,44 +441,107 @@ describe('administración: ver y reintentar el pago', () => {
       { idempotencyKey: 'reintento-s1-1' }
     );
     const pago = (await db.doc('pagos/s1').get()).data();
-    expect(pago).toMatchObject({ estado: 'pagado', transferId: 'tr_1', origenPago: 'cobro', error: '' });
-    expect(pago.devueltoAQuienPide).toBeUndefined();
+    expect(pago).toMatchObject({ estado: 'pagado', transferId: 'tr_1', error: '' });
     expect(pago.intentos).toEqual([expect.objectContaining({ origen: 'cobro', resultado: 'pagado', por: 'admin', transferId: 'tr_1' })]);
     expect((await db.doc('helpRequests/s1').get()).data().pago.estado).toBe('pagado');
   });
 
-  it('si el cobro se devolvió, paga desde el saldo de Neighborhub y quien pidió sigue viendo su reembolso', async () => {
+  it('si el cobro se devolvió, no paga Neighborhub: pide a quien pidió que vuelva a pagar', async () => {
     await terminadoSinPagar();
+    const transferenciasAntes = stripe.transfers.create.mock.calls.length;
 
-    await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'saldo' });
+    const r = await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' });
 
-    const [, opciones] = stripe.transfers.create.mock.calls.at(-1);
-    const datos = stripe.transfers.create.mock.calls.at(-1)[0];
-    expect(datos).toMatchObject({ amount: 4000, destination: 'acct_luis', transfer_group: 's1' });
-    expect(datos.source_transaction).toBeUndefined();
-    expect(opciones).toEqual({ idempotencyKey: 'reintento-s1-1' });
-    expect((await db.doc('pagos/s1').get()).data()).toMatchObject({ estado: 'pagado', origenPago: 'saldo', devueltoAQuienPide: true });
+    expect(r).toEqual({ estado: 'esperando', origen: 'cobrarDeNuevo', url: 'https://checkout.stripe.com/c/pay/cs_2', expira: 1900000000000 });
+    expect(stripe.transfers.create.mock.calls.length).toBe(transferenciasAntes);
+    expect(stripe.checkout.sessions.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        customer_email: 'ana@ejemplo.test',
+        line_items: [
+          expect.objectContaining({ price_data: expect.objectContaining({ unit_amount: 4000 }) }),
+          expect.objectContaining({ price_data: expect.objectContaining({ unit_amount: 320 }) }),
+        ],
+        metadata: { serviceId: 's1', helperId: 'luis', requesterId: 'ana', proyecto: 'demo-pagos', recobro: '1' },
+        payment_intent_data: expect.objectContaining({ transfer_group: 's1' }),
+      })
+    );
+    const pago = (await db.doc('pagos/s1').get()).data();
+    expect(pago).toMatchObject({ estado: 'reembolsado', recobro: expect.objectContaining({ checkoutSessionId: 'cs_2', estado: 'esperando', por: 'admin' }) });
+    expect(pago.intentos).toEqual([expect.objectContaining({ origen: 'cobrarDeNuevo', resultado: 'enlace', checkoutSessionId: 'cs_2' })]);
+    expect((await db.doc('helpRequests/s1').get()).data().pago).toMatchObject({ estado: 'reembolsado', porPagar: true });
 
-    const [deAna] = await pagos.misPagos('ana');
+    // Quien pidió lo ve para pagarlo; quien ayudó, aún sin cobrar.
+    expect((await pagos.misPagos('ana'))[0]).toMatchObject({ estado: 'pendiente', urlPago: 'https://checkout.stripe.com/c/pay/cs_2' });
     const [deLuis] = await pagos.misPagos('luis');
-    expect(deAna).toMatchObject({ rol: 'pagado', estado: 'reembolsado' });
-    expect(deLuis).toMatchObject({ rol: 'cobrado', estado: 'pagado', importe: 4000 });
+    expect(deLuis.estado).toBe('reembolsado');
+    expect(deLuis.urlPago).toBeUndefined();
+    expect((await pagos.verPago('s1')).reintento).toMatchObject({
+      origen: 'cobrarDeNuevo',
+      enlace: { url: 'https://checkout.stripe.com/c/pay/cs_2', expira: 1900000000000, caducado: false },
+    });
   });
 
-  it('si Stripe falla, apunta el intento con su error y el siguiente usa otra clave', async () => {
+  it('al pagar el enlace, el precio va a quien ayudó desde ese nuevo cobro, una sola vez', async () => {
     await terminadoSinPagar();
-    stripe.transfers.create.mockRejectedValueOnce(new Error('Insufficient funds in Stripe account'));
+    await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' });
 
-    await expect(pagos.reintentarPago('admin', { serviceId: 's1', origen: 'saldo' })).rejects.toMatchObject({
+    expect(await pagos.alCompletarCheckout(sesionRecobro('cs_2'))).toBe('recobrado');
+
+    expect(stripe.transfers.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ amount: 4000, destination: 'acct_luis', source_transaction: 'ch_2', transfer_group: 's1' }),
+      { idempotencyKey: 'recobro-cs_2' }
+    );
+    const pago = (await db.doc('pagos/s1').get()).data();
+    expect(pago).toMatchObject({
+      estado: 'pagado',
+      chargeId: 'ch_2',
+      chargeIdOriginal: 'ch_1',
+      paymentIntentId: 'pi_2',
+      recobro: expect.objectContaining({ estado: 'pagado', pagadoCon: 'cs_2' }),
+    });
+    expect((await db.doc('helpRequests/s1').get()).data().pago).toMatchObject({ estado: 'pagado', porPagar: false });
+    expect((await pagos.misPagos('ana'))[0]).toMatchObject({ estado: 'pagado' });
+    expect((await pagos.misPagos('luis'))[0]).toMatchObject({ estado: 'pagado', importe: 4000 });
+
+    // Los dos cobros (el devuelto y el nuevo) se ven en la administración.
+    expect((await pagos.verPago('s1')).movimientos.filter((m) => m.tipo === 'cobro').map((m) => [m.id, m.detalle])).toEqual([
+      ['ch_1', ''],
+      ['ch_2', 'nuevo pago de quien pidió'],
+    ]);
+
+    const llamadas = stripe.transfers.create.mock.calls.length;
+    expect(await pagos.alCompletarCheckout(sesionRecobro('cs_2'))).toBe('repetido');
+    expect(stripe.transfers.create.mock.calls.length).toBe(llamadas);
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it('un enlace nuevo anula el anterior; si alguien paga el viejo, se le devuelve', async () => {
+    await terminadoSinPagar();
+    await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' });
+    await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' });
+
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith('cs_2');
+    expect((await db.doc('pagos/s1').get()).data().recobro.checkoutSessionId).toBe('cs_3');
+
+    expect(await pagos.alCompletarCheckout(sesionRecobro('cs_2'))).toBe('reembolsar');
+    expect(stripe.refunds.create).toHaveBeenCalledWith({ payment_intent: 'pi_2', reason: 'duplicate' }, { idempotencyKey: 'reembolso-cs_2' });
+    expect((await db.doc('pagos/s1').get()).data().estado).toBe('reembolsado');
+  });
+
+  it('si Stripe falla al reintentar desde el cobro, apunta el intento y el siguiente usa otra clave', async () => {
+    await terminadoSinPagar({ reembolsado: false });
+    stripe.transfers.create.mockRejectedValueOnce(new Error('account not ready'));
+
+    await expect(pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobro' })).rejects.toMatchObject({
       motivo: 'stripe',
-      message: expect.stringContaining('Insufficient funds'),
+      message: expect.stringContaining('account not ready'),
     });
     let pago = (await db.doc('pagos/s1').get()).data();
-    expect(pago).toMatchObject({ estado: 'reembolsado', error: 'Insufficient funds in Stripe account' });
-    expect(pago.intentos).toEqual([expect.objectContaining({ resultado: 'error', error: 'Insufficient funds in Stripe account' })]);
+    expect(pago).toMatchObject({ estado: 'error', error: 'account not ready' });
+    expect(pago.intentos).toEqual([expect.objectContaining({ resultado: 'error', error: 'account not ready' })]);
     expect((await pagos.verPago('s1')).intentos[0].fecha).toEqual(expect.any(Number));
 
-    await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'saldo' });
+    await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobro' });
     expect(stripe.transfers.create).toHaveBeenLastCalledWith(expect.anything(), { idempotencyKey: 'reintento-s1-2' });
     pago = (await db.doc('pagos/s1').get()).data();
     expect(pago.estado).toBe('pagado');
@@ -487,6 +564,7 @@ describe('administración: ver y reintentar el pago', () => {
     await terminadoSinPagar();
 
     await expect(pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobro' })).rejects.toMatchObject({ motivo: 'cambiado' });
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledTimes(1);
     expect((await db.doc('pagos/s1').get()).data().estado).toBe('reembolsado');
   });
 });

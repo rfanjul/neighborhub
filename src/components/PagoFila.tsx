@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 import type { PagoMovimiento } from '../firebase/data';
 import { formatearPrecio } from '../pagos/precio';
@@ -12,6 +12,7 @@ function estado(p: PagoMovimiento): { texto: string; fondo: string; tinta: strin
   const verde = { fondo: colors.greenTint, tinta: colors.green };
   const clave = `pagos.estados.${p.rol}.${p.estado}` as Clave;
   const rojo = { fondo: colors.accentTint, tinta: colors.accentDark };
+  if (p.urlPago) return { texto: t('pagos.porPagar'), ...rojo };
   const color =
     p.estado === 'pagado'
       ? verde
@@ -51,6 +52,16 @@ export default function PagoFila({ pago, onPress }: { pago: PagoMovimiento; onPr
         <View style={[styles.chip, { backgroundColor: e.fondo }]}>
           <Text style={[styles.chipTexto, { color: e.tinta }]}>{e.texto}</Text>
         </View>
+        {pago.urlPago ? (
+          <Pressable
+            style={styles.pagar}
+            onPress={() => Linking.openURL(pago.urlPago!).catch(() => {})}
+            accessibilityRole="button"
+            hitSlop={6}
+          >
+            <Text style={styles.pagarTexto}>{t('pagos.pagarAhora', { total: formatearPrecio(pago.importe, { exacto: true }) })}</Text>
+          </Pressable>
+        ) : null}
       </View>
       <Text style={[styles.importe, pago.rol === 'cobrado' && { color: colors.green }]}>
         {signo}
@@ -75,5 +86,7 @@ const styles = StyleSheet.create({
   meta: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
   chip: { alignSelf: 'flex-start', marginTop: 2, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 },
   chipTexto: { fontFamily: fonts.bodySemiBold, fontSize: 13 },
+  pagar: { alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: colors.accent },
+  pagarTexto: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: '#fff' },
   importe: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.ink },
 });

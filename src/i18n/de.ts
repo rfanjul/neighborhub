@@ -363,6 +363,10 @@ const de: Diccionario = {
   },
   pagos: {
     reembolsado: '{total} wurden dir zurückerstattet.',
+    porPagar: 'Zahlung offen',
+    porPagarTexto: 'Deine Zahlung wurde erstattet, daher hat {nombre} noch nichts erhalten. Bezahle {total} erneut, damit es ankommt.',
+    pagarAhora: '{total} bezahlen',
+    enlaceCaducado: 'Der Zahlungslink ist abgelaufen. Schreib uns über die Hilfe, dann senden wir dir einen neuen.',
     problema: 'Bei der Freigabe der Zahlung gab es ein Problem. Wir kümmern uns darum.',
     titulo: 'Zahlungen',
     verTodos: 'Alle ansehen ({n})',

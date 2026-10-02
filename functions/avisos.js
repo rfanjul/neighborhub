@@ -14,6 +14,7 @@
  *  - marcado como hecho      → quien pide (para que valore)
  *  - te han valorado         → quien ayuda
  *  - pago transferido        → quien ayuda (cobrado) y quien pide
+ *  - hay que volver a pagar  → quien pide (administración pidió un pago nuevo)
  *  - cobros activados        → quien ayuda
  */
 
@@ -32,6 +33,7 @@ const TEXTOS = {
     valorado: ['New review ⭐️', '{nombre} rated your help with “{titulo}”: {estrellas}/5.'],
     cobrado: ['You’ve been paid 💰', '{precio} for “{titulo}” is on its way to your bank account.'],
     pagoTransferido: ['Payment released', '{precio} was paid to {nombre} for “{titulo}”.'],
+    pagoPendiente: ['Payment needed 💳', 'Your payment for “{titulo}” was refunded, so {nombre} hasn’t been paid yet. Tap to pay {total}.'],
     cobrosActivos: ['Payouts set up ✅', 'You can now help with paid requests and get paid.'],
   },
   de: {
@@ -45,6 +47,7 @@ const TEXTOS = {
     valorado: ['Neue Bewertung ⭐️', '{nombre} hat deine Hilfe bei „{titulo}“ bewertet: {estrellas}/5.'],
     cobrado: ['Zahlung erhalten 💰', '{precio} für „{titulo}“ sind unterwegs auf dein Bankkonto.'],
     pagoTransferido: ['Zahlung freigegeben', '{precio} wurden für „{titulo}“ an {nombre} ausgezahlt.'],
+    pagoPendiente: ['Zahlung offen 💳', 'Deine Zahlung für „{titulo}“ wurde erstattet, daher hat {nombre} noch nichts erhalten. Tippe, um {total} zu bezahlen.'],
     cobrosActivos: ['Auszahlungen eingerichtet ✅', 'Du kannst jetzt bei bezahlten Anfragen helfen und Geld erhalten.'],
   },
   es: {
@@ -58,6 +61,7 @@ const TEXTOS = {
     valorado: ['Nueva valoración ⭐️', '{nombre} ha valorado tu ayuda con «{titulo}»: {estrellas}/5.'],
     cobrado: ['Has cobrado 💰', '{precio} por «{titulo}» van de camino a tu cuenta.'],
     pagoTransferido: ['Pago liberado', 'Se han pagado {precio} a {nombre} por «{titulo}».'],
+    pagoPendiente: ['Falta tu pago 💳', 'Tu pago de «{titulo}» se devolvió y {nombre} aún no ha cobrado. Toca para pagar {total}.'],
     cobrosActivos: ['Cobros activados ✅', 'Ya puedes ayudar en servicios con precio y cobrar por ello.'],
   },
 };
@@ -143,6 +147,9 @@ function crearAvisos({ db, fetch, quitarToken }) {
     if (de !== 'rated' && a_ === 'rated') {
       const resena = (await db.doc(`reviews/${serviceId}`).get()).data();
       a(despues.helperId, 'valorado', { nombre: despues.requesterName, estrellas: resena?.rating ?? '' }, 'ServiceDetail');
+    }
+    if (!antes.pago?.porPagar && despues.pago?.porPagar) {
+      a(despues.requesterId, 'pagoPendiente', { total: despues.pago.total, nombre: despues.helperName }, 'Payments');
     }
     if (antes.pago?.estado !== 'pagado' && despues.pago?.estado === 'pagado') {
       a(despues.helperId, 'cobrado', { precio: despues.pago.precio }, 'Payments');

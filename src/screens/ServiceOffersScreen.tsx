@@ -135,6 +135,24 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     }
   }, [servicio]);
 
+  /** El cobro se devolvió y hay que volver a pagar: el enlace lo da misPagos (solo a quien pidió). */
+  const volverAPagar = async () => {
+    setOcupado(true);
+    try {
+      const url = (await api.misPagos()).find((p) => p.serviceId === serviceId && p.urlPago)?.urlPago;
+      if (!url) {
+        Alert.alert(t('pagos.errorPagar'), t('pagos.enlaceCaducado'));
+        return;
+      }
+      pagando.current = true;
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert(t('pagos.errorPagar'), pagoErrorMessage(e));
+    } finally {
+      setOcupado(false);
+    }
+  };
+
   /** Con precio: se paga en Stripe y el servidor acepta el servicio al confirmarse. */
   const pagarYElegir = (oferta: Application, precio: number) => {
     const exacto = { exacto: true };
@@ -245,7 +263,21 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
               ? t('ofertas.completadoCon', { nombre: servicio.helperName })
               : t('ofertas.teAyuda', { nombre: servicio.helperName })}
           </Text>
-          {servicio.pago && (
+          {servicio.pago?.porPagar && servicio.pago.estado !== 'pagado' ? (
+            <View style={{ gap: 10 }}>
+              <Text style={[styles.pagoTexto, { color: colors.accentDark }]}>
+                {t('pagos.porPagarTexto', {
+                  total: formatearPrecio(servicio.pago.total, { exacto: true }),
+                  nombre: servicio.helperName,
+                })}
+              </Text>
+              <PillButton
+                label={t('pagos.pagarAhora', { total: formatearPrecio(servicio.pago.total, { exacto: true }) })}
+                onPress={volverAPagar}
+                disabled={ocupado}
+              />
+            </View>
+          ) : servicio.pago && (
             <Text style={styles.pagoTexto}>
               {servicio.pago.estado === 'pagado'
                 ? t('pagos.pagado', { precio: formatearPrecio(servicio.pago.precio, { exacto: true }), nombre: servicio.helperName })

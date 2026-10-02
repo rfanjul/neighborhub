@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -18,15 +18,21 @@ export default function PaymentsScreen({ navigation }: Props) {
   const [pagos, setPagos] = useState<PagoMovimiento[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      setError(null);
-      api
-        .misPagos()
-        .then(setPagos)
-        .catch((e) => setError(pagoErrorMessage(e)));
-    }, [])
-  );
+  const cargar = useCallback(() => {
+    setError(null);
+    api
+      .misPagos()
+      .then(setPagos)
+      .catch((e) => setError(pagoErrorMessage(e)));
+  }, []);
+  useFocusEffect(cargar);
+  // Al volver de pagar en Stripe, el estado ya habrá cambiado.
+  useEffect(() => {
+    const suscripcion = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active') cargar();
+    });
+    return () => suscripcion?.remove();
+  }, [cargar]);
 
   const abrir = (p: PagoMovimiento) =>
     p.rol === 'pagado'

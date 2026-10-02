@@ -12,13 +12,23 @@ Solo servidor y web (publicados; no hace falta build):
   Stripe (cobro, reembolsos, transferencias) con sus ids. Pestaña **Con pago**
   y chip del estado del pago en la lista.
 - **Reintentar el pago** a quien ayudó (servicio terminado y pago en error,
-  reembolsado o retenido): desde el cobro si aún tiene el dinero; si se
-  devolvió a quien pidió, desde el saldo de Neighborhub (lo avisa antes); si la
-  transferencia ya está en Stripe, solo la apunta. Cada intento queda en
-  `pagos/{id}.intentos` con su resultado. Functions `adminVerPago` y
-  `adminReintentarPago` (solo con el claim admin).
-- `misPagos`: si se pagó desde el saldo, quien pidió sigue viendo su
-  reembolso.
+  reembolsado o retenido). El dinero siempre es de quien pidió, nunca del
+  saldo de Neighborhub: si el cobro aún lo tiene, se transfiere desde él; si
+  se le devolvió, **se le pide que vuelva a pagar** con un enlace nuevo de
+  Stripe Checkout (24 h; la administración lo enseña con «Copiar enlace» y
+  puede generar otro, que anula el anterior). Al pagarlo, el precio va a quien
+  ayudó al momento desde ese nuevo cobro. Si la transferencia ya está en
+  Stripe, solo la apunta. Cada intento queda en `pagos/{id}.intentos`.
+  Functions `adminVerPago` y `adminReintentarPago` (solo con el claim admin).
+- Aviso push «Falta tu pago» a quien pidió (en/de/es), que abre Ajustes → Pagos.
+- `misPagos` da a quien pidió el enlace (`urlPago`) mientras vale.
+
+App (necesita build):
+- Ajustes → Pagos: «Falta tu pago» con el botón **Pagar CHF …**, y la lista se
+  actualiza al volver de Stripe.
+- Ofertas del servicio: si hay que volver a pagar, lo explica con el botón
+  para pagar (las builds anteriores siguen diciendo «reembolsado», que es
+  verdad).
 
 ## [1.1.0 (14)] — 2026-10-02 · TestFlight
 
