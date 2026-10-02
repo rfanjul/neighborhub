@@ -21,6 +21,12 @@ Solo servidor y web (publicados; no hace falta build):
   Stripe, solo la apunta. Cada intento queda en `pagos/{id}.intentos`.
   Functions `adminVerPago` y `adminReintentarPago` (solo con el claim admin).
 - Aviso push «Falta tu pago» a quien pidió (en/de/es), que abre Ajustes → Pagos.
+- **Servicios con precio elegidos sin pagar** (con los pagos apagados se eligen
+  como favor gratis y nadie cobra): salen en «Con pago» con el chip «Sin
+  cobrar», y la administración puede **pedir el pago** a quien pidió (precio +
+  gestión) con el mismo enlace. Se abre `pagos/{id}` (`sinPagoAlElegir`) hacia
+  la cuenta de cobro de quien ayudó; el servicio solo gana `cobroPedido` (aviso
+  «Falta tu pago» con su propio texto) y, al pagar, su resumen de pago entero.
 - `misPagos` da a quien pidió el enlace (`urlPago`) mientras vale.
 - Administración → pestaña **Usuarios**: las cuentas de Firebase Auth con su
   perfil (nombre, email, dónde, cómo entra —Apple, Google, email—, alta,

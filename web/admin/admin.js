@@ -355,8 +355,10 @@
     return li;
   }
 
+  // Terminado, con precio y sin pago: se eligió con los pagos apagados; se le puede pedir el pago.
+  const sinCobrar = (s) => !s.pago && s.priceCents != null && (s.status === 'completed' || s.status === 'rated');
   const enFiltro = (s, nombre) =>
-    nombre === 'pagos' ? Boolean(s.pago) : !FILTROS[nombre] || FILTROS[nombre].includes(s.status);
+    nombre === 'pagos' ? Boolean(s.pago) || sinCobrar(s) : !FILTROS[nombre] || FILTROS[nombre].includes(s.status);
 
   function pintar() {
     document.querySelectorAll('[data-filtro]').forEach((b) => {
@@ -430,6 +432,8 @@
     );
     if (s.pago && s.pago.estado) {
       lado.append(el('span', `chip chip-pago-${s.pago.estado}`, `Pago ${PAGO_ESTADOS[s.pago.estado] || s.pago.estado}`));
+    } else if (sinCobrar(s)) {
+      lado.append(el('span', 'chip chip-pago-error', s.cobroPedido ? 'Pago pedido' : 'Sin cobrar'));
     }
 
     boton.append(mini, texto, lado);
@@ -690,18 +694,35 @@
       });
   }
 
-  function pintarPago(s, { pago, movimientos, intentos, reintento }) {
+  function pintarPago(s, { pago, previsto, movimientos, intentos, reintento }) {
     const cuerpo = $('pago-cuerpo');
     cuerpo.textContent = '';
-    if (!pago) {
+    if (!pago && !previsto) {
       cuerpo.appendChild(el('p', 'admin-gris', 'Todavía no hay pago: nadie ha elegido una oferta pagando.'));
+      return;
+    }
+    if (!pago) {
+      cuerpo.appendChild(
+        el(
+          'p',
+          'admin-aviso error',
+          `Se eligió sin pagar (los pagos estaban apagados), así que ${previsto.helperName} no ha cobrado. Puedes pedir a ${
+            previsto.requesterName
+          } que pague ${chf(previsto.total)}: ${chf(previsto.precio)} para ${previsto.helperName} y ${chf(previsto.comision)} de gestión.`
+        )
+      );
+      const acciones = el('div', 'pago-acciones');
+      acciones.appendChild(botonReintento(s, Object.assign({ estado: 'sinPago' }, previsto), reintento));
+      cuerpo.appendChild(acciones);
       return;
     }
 
     const resumen = el('p', 'pago-resumen');
     resumen.append(
       el('span', `chip chip-pago-${pago.estado}`, PAGO_ESTADOS[pago.estado] || pago.estado),
-      ` ${chf(pago.precio)} para ${pago.helperName || '—'} · gestión ${chf(pago.comision)} · total ${chf(pago.total)} pagado por ${pago.requesterName || '—'}`
+      ` ${chf(pago.precio)} para ${pago.helperName || '—'} · gestión ${chf(pago.comision)} · total ${chf(pago.total)} ${
+        pago.estado === 'pendiente' ? 'a pagar por' : 'pagado por'
+      } ${pago.requesterName || '—'}`
     );
     cuerpo.appendChild(resumen);
     if (pago.error) cuerpo.appendChild(el('p', 'admin-aviso error', `Último error: ${pago.error}`));
@@ -737,7 +758,9 @@
             null,
             `${fechaMs(i.fecha)} · ${
               i.resultado === 'enlace'
-                ? `enlace para que ${pago.requesterName} vuelva a pagar (válido hasta ${fechaMs(i.expira)})`
+                ? `enlace para que ${pago.requesterName} ${pago.sinPagoAlElegir ? 'pague' : 'vuelva a pagar'} (válido hasta ${fechaMs(
+                    i.expira
+                  )})`
                 : `${i.origen === 'cobro' ? 'transferencia desde el cobro' : 'ya estaba en Stripe'}: ${
                     i.resultado === 'pagado' ? `pagado (${i.transferId})` : `error: ${i.error}`
                   }`
@@ -751,6 +774,7 @@
     const acciones = el('div', 'pago-acciones');
     if (reintento.posible) {
       const nombre = pago.requesterName || 'quien pidió';
+      const pague = reintento.motivoCobro === 'sinPago' ? 'pague' : 'vuelva a pagar';
       const enlace = reintento.enlace;
       if (enlace) {
         // Ya se pidió volver a pagar: el enlace, para mandárselo también por otro lado.
@@ -760,8 +784,8 @@
             'p',
             null,
             enlace.caducado
-              ? `El enlace para que ${nombre} vuelva a pagar ha caducado. Genera otro.`
-              : `Esperando a que ${nombre} vuelva a pagar ${chf(pago.total)}. Se le ha avisado en la app; el enlace vale hasta ${fechaMs(enlace.expira)}.`
+              ? `El enlace para que ${nombre} ${pague} ha caducado. Genera otro.`
+              : `Esperando a que ${nombre} ${pague} ${chf(pago.total)}. Se le ha avisado en la app; el enlace vale hasta ${fechaMs(enlace.expira)}.`
           )
         );
         if (!enlace.caducado) {
@@ -782,45 +806,7 @@
         }
         acciones.appendChild(caja);
       }
-      const textos = {
-        cobro: [
-          `Reintentar el pago (${chf(pago.precio)})`,
-          `¿Transferir ${chf(pago.precio)} a ${pago.helperName} desde el cobro de este servicio?`,
-          'Transferir',
-        ],
-        cobrarDeNuevo: [
-          enlace ? 'Generar un enlace nuevo' : `Pedir a ${nombre} que vuelva a pagar (${chf(pago.total)})`,
-          `El cobro se devolvió a ${nombre}, así que no queda dinero de este servicio. Se crea un enlace de pago de ${chf(
-            pago.total
-          )} para ${nombre} (vale 24 horas) y se le avisa en la app. En cuanto pague, ${pago.helperName} recibe ${chf(
-            pago.precio
-          )}.${enlace ? ' El enlace anterior deja de valer.' : ''}`,
-          enlace ? 'Generar enlace' : 'Pedir el pago',
-        ],
-        existente: [
-          'Marcar como pagado',
-          `Stripe ya tiene la transferencia ${reintento.transferId} a ${pago.helperName}. ¿Marcar el pago como hecho? No se mueve dinero.`,
-          'Marcar como pagado',
-        ],
-      }[reintento.origen];
-      const boton = el('button', `boton ${enlace ? 'boton-secundario' : 'boton-primario'}`, textos[0]);
-      boton.type = 'button';
-      boton.addEventListener('click', async () => {
-        if (!(await preguntar(textos[1], textos[2]))) return;
-        boton.disabled = true;
-        aviso('pago-aviso', reintento.origen === 'cobrarDeNuevo' ? 'Creando el enlace…' : 'Pagando…');
-        fns
-          .httpsCallable('adminReintentarPago')({ serviceId: s.id, origen: reintento.origen })
-          .then(({ data }) => {
-            flotante(data.estado === 'esperando' ? `Enlace creado: se ha avisado a ${nombre}` : `Pagado a ${pago.helperName}`);
-            if (abierto === s.id) cargarPago(s);
-          })
-          .catch((err) => {
-            aviso('pago-aviso', err.message || err.code, 'error');
-            if (abierto === s.id) setTimeout(() => cargarPago(s), 1500);
-          });
-      });
-      acciones.appendChild(boton);
+      acciones.appendChild(botonReintento(s, pago, reintento, enlace));
     } else if (pago.estado !== 'pagado') {
       acciones.appendChild(el('p', 'admin-gris', reintento.motivo));
     }
@@ -829,6 +815,56 @@
       .map(([k, v]) => `${k}: ${v}`)
       .join(' · ');
     cuerpo.append(acciones, el('p', 'pago-ids', ids));
+  }
+
+  /** El botón de reintentar, con su confirmación, según de dónde sale el dinero. */
+  function botonReintento(s, pago, reintento, enlace) {
+    const nombre = pago.requesterName || 'quien pidió';
+    const porQue =
+      reintento.motivoCobro === 'sinPago'
+        ? `Se eligió sin pagar (los pagos estaban apagados).`
+        : `El cobro se devolvió a ${nombre}, así que no queda dinero de este servicio.`;
+    const textos = {
+      cobro: [
+        `Reintentar el pago (${chf(pago.precio)})`,
+        `¿Transferir ${chf(pago.precio)} a ${pago.helperName} desde el cobro de este servicio?`,
+        'Transferir',
+      ],
+      cobrarDeNuevo: [
+        enlace
+          ? 'Generar un enlace nuevo'
+          : reintento.motivoCobro === 'sinPago'
+            ? `Pedir el pago a ${nombre} (${chf(pago.total)})`
+            : `Pedir a ${nombre} que vuelva a pagar (${chf(pago.total)})`,
+        `${porQue} Se crea un enlace de pago de ${chf(pago.total)} para ${nombre} (vale 24 horas) y se le avisa en la app. En cuanto pague, ${
+          pago.helperName
+        } recibe ${chf(pago.precio)}.${enlace ? ' El enlace anterior deja de valer.' : ''}`,
+        enlace ? 'Generar enlace' : 'Pedir el pago',
+      ],
+      existente: [
+        'Marcar como pagado',
+        `Stripe ya tiene la transferencia ${reintento.transferId} a ${pago.helperName}. ¿Marcar el pago como hecho? No se mueve dinero.`,
+        'Marcar como pagado',
+      ],
+    }[reintento.origen];
+    const boton = el('button', `boton ${enlace ? 'boton-secundario' : 'boton-primario'}`, textos[0]);
+    boton.type = 'button';
+    boton.addEventListener('click', async () => {
+      if (!(await preguntar(textos[1], textos[2]))) return;
+      boton.disabled = true;
+      aviso('pago-aviso', reintento.origen === 'cobrarDeNuevo' ? 'Creando el enlace…' : 'Pagando…');
+      fns
+        .httpsCallable('adminReintentarPago')({ serviceId: s.id, origen: reintento.origen })
+        .then(({ data }) => {
+          flotante(data.estado === 'esperando' ? `Enlace creado: se ha avisado a ${nombre}` : `Pagado a ${pago.helperName}`);
+          if (abierto === s.id) cargarPago(s);
+        })
+        .catch((err) => {
+          aviso('pago-aviso', err.message || err.code, 'error');
+          if (abierto === s.id) setTimeout(() => cargarPago(s), 1500);
+        });
+    });
+    return boton;
   }
 
   function cerrarEditor() {

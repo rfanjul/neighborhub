@@ -291,13 +291,19 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
       const estado = cargo?.refunded ? 'reembolsado' : 'error';
       const error = String(e.message || e).slice(0, 300);
       await pagoRef.update({ estado, error, actualizado: ahora() });
-      await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': estado });
+      await db.doc(`helpRequests/${serviceId}`).update(resumenServicio(pago, estado));
       return { estado, error };
     }
     await pagoRef.update({ estado: 'pagado', transferId: transferencia.id, error: '', actualizado: ahora() });
-    await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': 'pagado', 'pago.porPagar': false });
+    await db.doc(`helpRequests/${serviceId}`).update(resumenServicio(pago, 'pagado'));
     return { estado: 'pagado', transferId: transferencia.id };
   }
+
+  /** Lo que la app ve del pago en el servicio (entero: si se eligió sin pagar, no lo tenía). */
+  const resumenServicio = (pago, estado) => ({
+    pago: { estado, precio: pago.precio, comision: pago.comision, total: pago.total },
+    ...(pago.sinPagoAlElegir ? { cobroPedido: false } : {}),
+  });
 
   /**
    * Quien pidió ha pagado el enlace nuevo: el servicio ya está terminado, así
@@ -370,16 +376,22 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
    */
   function planReintento({ pago, servicio, cargo, recobro, transferencias }) {
     const no = (motivo) => ({ posible: false, motivo });
-    if (!pago) return no('Este servicio no tiene pago.');
+    if (!pago) {
+      // Con precio, terminado y sin pago: se eligió con los pagos apagados (gratis). Se le puede pedir.
+      if (terminado(servicio.status) && servicio.priceCents != null && servicio.helperId) {
+        return { posible: true, origen: 'cobrarDeNuevo', motivoCobro: 'sinPago' };
+      }
+      return no('Este servicio no tiene pago.');
+    }
     if (pago.estado === 'pagado') return no('Ya está pagado a quien ayudó.');
-    if (pago.estado === 'pendiente') return no('Quien pidió no llegó a pagar.');
+    if (pago.estado === 'pendiente' && !pago.recobro) return no('Quien pidió no llegó a pagar.');
     if (!terminado(servicio.status)) return no('El servicio aún no está terminado: se paga solo al marcarlo como hecho.');
     const hecha = transferencias.find((t) => !t.reversed && t.amount >= pago.precio);
     if (hecha) return { posible: true, origen: 'existente', transferId: hecha.id };
     if (!pago.cuentaDestino) return no('Quien ayudó no tiene cuenta de cobro.');
     const disponible = cargo && cargo.status === 'succeeded' ? cargo.amount - (cargo.amount_refunded || 0) : 0;
     if (disponible >= pago.precio) return { posible: true, origen: 'cobro' };
-    const plan = { posible: true, origen: 'cobrarDeNuevo' };
+    const plan = { posible: true, origen: 'cobrarDeNuevo', motivoCobro: pago.sinPagoAlElegir ? 'sinPago' : 'devuelto' };
     if (pago.recobro?.estado === 'esperando') {
       const expira = milis(pago.recobro.expira);
       plan.enlace = { url: pago.recobro.url, expira, caducado: expira <= Date.now() || recobro?.status === 'expired' };
@@ -392,7 +404,20 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     if (!serviceId) throw new ErrorPago('invalid-argument', 'Falta el servicio.', 'datos');
     const datos = await leerPagoCompleto(serviceId);
     const { pago, cargos, sesion, recobro, transferencias } = datos;
-    if (!pago) return { pago: null, movimientos: [], intentos: [], reintento: planReintento(datos) };
+    if (!pago) {
+      const reintento = planReintento(datos);
+      const { servicio } = datos;
+      const previsto = reintento.posible
+        ? {
+            precio: servicio.priceCents,
+            comision: comision(servicio.priceCents),
+            total: servicio.priceCents + comision(servicio.priceCents),
+            requesterName: servicio.requesterName || '',
+            helperName: servicio.helperName || '',
+          }
+        : null;
+      return { pago: null, previsto, movimientos: [], intentos: [], reintento };
+    }
 
     const movimientos = [];
     cargos.forEach((cargo) => {
@@ -416,7 +441,7 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
         importe: x.amount_total ?? pago.total,
         estado: `${x.status} · ${x.payment_status}`,
         fecha: segundos(x.created),
-        detalle: x === recobro ? 'enlace para volver a pagar' : '',
+        detalle: x === recobro ? (pago.sinPagoAlElegir ? 'enlace de pago para quien pidió' : 'enlace para volver a pagar') : '',
       })
     );
     transferencias.forEach((t) =>
@@ -441,6 +466,7 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
         requesterName: pago.requesterName || datos.servicio.requesterName || '',
         helperName: pago.helperName || datos.servicio.helperName || '',
         error: pago.error || '',
+        sinPagoAlElegir: pago.sinPagoAlElegir === true,
         creado: milis(pago.creado),
         actualizado: milis(pago.actualizado),
         ids: {
@@ -472,9 +498,10 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     if (plan.origen !== origen) {
       throw new ErrorPago('failed-precondition', 'El pago ha cambiado desde que lo abriste: vuelve a abrirlo.', 'cambiado');
     }
-    const { pago, servicio } = datos;
+    const { servicio } = datos;
+    let { pago } = datos;
     const pagoRef = db.doc(`pagos/${serviceId}`);
-    const intentos = pago.intentos || [];
+    const intentos = pago?.intentos || [];
     const apuntar = (extra) => [...intentos, { fecha: new Date(), origen, por: adminUid, ...extra }];
 
     if (origen === 'existente') {
@@ -501,6 +528,34 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
       return { estado: 'pagado', origen };
     }
 
+    if (!pago) {
+      // Elegido sin pagar: se abre el pago ahora, hacia la cuenta de cobro de quien ayudó.
+      let cuenta = (await db.doc(`cuentasCobro/${servicio.helperId}`).get()).data();
+      if (cuenta?.stripeAccountId && !cuenta.cobrosActivos) {
+        cuenta = { ...cuenta, cobrosActivos: (await estadoCobros(servicio.helperId)).activos };
+      }
+      if (!cuenta?.stripeAccountId || !cuenta.cobrosActivos) {
+        throw new ErrorPago('failed-precondition', `${servicio.helperName || 'Quien ayudó'} aún no ha activado los cobros.`, 'sinCobros');
+      }
+      const gestion = comision(servicio.priceCents);
+      pago = {
+        serviceId,
+        titulo: servicio.title || '',
+        requesterId: servicio.requesterId,
+        requesterName: servicio.requesterName || '',
+        helperId: servicio.helperId,
+        helperName: servicio.helperName || '',
+        cuentaDestino: cuenta.stripeAccountId,
+        precio: servicio.priceCents,
+        comision: gestion,
+        total: servicio.priceCents + gestion,
+        moneda: 'chf',
+        estado: 'pendiente',
+        sinPagoAlElegir: true,
+      };
+      await pagoRef.set({ ...pago, creado: ahora(), actualizado: ahora() });
+    }
+
     // cobrarDeNuevo: el enlace anterior (si lo hay) deja de valer; así nunca se cobra dos veces.
     if (pago.recobro?.checkoutSessionId) {
       await stripe.checkout.sessions.expire(pago.recobro.checkoutSessionId).catch(() => {});
@@ -522,8 +577,11 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
       intentos: apuntar({ resultado: 'enlace', checkoutSessionId: sesion.id, expira }),
       actualizado: ahora(),
     });
-    // La app de quien pidió le avisa y le enseña el botón para pagar.
-    await db.doc(`helpRequests/${serviceId}`).update({ 'pago.porPagar': true });
+    // La app de quien pidió le avisa y le enseña el botón para pagar. Si se eligió sin pagar,
+    // el servicio no tiene resumen de pago (las builds anteriores lo leerían como «retenido»).
+    await db
+      .doc(`helpRequests/${serviceId}`)
+      .update(pago.sinPagoAlElegir ? { cobroPedido: { total: pago.total, precio: pago.precio } } : { 'pago.porPagar': true });
     return { estado: 'esperando', origen, url: sesion.url, expira: expira.getTime() };
   }
 

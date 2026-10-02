@@ -153,6 +153,17 @@ describe('a quién y qué', () => {
     expect(enviados[0].body).toMatch(/Tu pago de «Subir un sofá» se devolvió y Luis aún no ha cobrado\. Toca para pagar 32,40\sCHF\./);
   });
 
+  it('pago pedido (se eligió sin pagar): solo quien pide, una vez', async () => {
+    const base = servicio({ status: 'rated', helperId: 'luis', helperName: 'Luis' });
+    const despues = { ...base, cobroPedido: { total: 2160, precio: 2000 } };
+    await avisos.cambioServicio('s1', base, despues);
+    await avisos.cambioServicio('s1', despues, { ...despues, updatedAt: 1 });
+
+    expect(enviados).toHaveLength(1);
+    expect(enviados[0]).toMatchObject({ to: 'ExponentPushToken[ana-iphone]', title: 'Falta tu pago 💳', data: { pantalla: 'Payments', serviceId: 's1' } });
+    expect(enviados[0].body).toMatch(/Luis te ayudó con «Subir un sofá»\. Toca para pagar 21,60\sCHF y que lo reciba\./);
+  });
+
   it('cobros activados: una sola vez, al pasar a activos', async () => {
     expect(await avisos.cambioPerfil('luis', { cobrosActivos: false }, { cobrosActivos: true })).toBe(2);
     expect(await avisos.cambioPerfil('luis', { cobrosActivos: true }, { cobrosActivos: true, name: 'Luis K.' })).toBe(0);

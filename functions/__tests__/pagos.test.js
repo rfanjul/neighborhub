@@ -410,7 +410,7 @@ describe('administración: ver y reintentar el pago', () => {
       ['transferencia', 4000, 'revertida'],
     ]);
     expect(stripe.transfers.list).toHaveBeenCalledWith({ transfer_group: 's1', limit: 20 });
-    expect(r.reintento).toEqual({ posible: true, origen: 'cobrarDeNuevo' });
+    expect(r.reintento).toEqual({ posible: true, origen: 'cobrarDeNuevo', motivoCobro: 'devuelto' });
   });
 
   it('sin pago, o aún sin terminar, o ya pagado, no deja reintentar', async () => {
@@ -499,7 +499,7 @@ describe('administración: ver y reintentar el pago', () => {
       paymentIntentId: 'pi_2',
       recobro: expect.objectContaining({ estado: 'pagado', pagadoCon: 'cs_2' }),
     });
-    expect((await db.doc('helpRequests/s1').get()).data().pago).toMatchObject({ estado: 'pagado', porPagar: false });
+    expect((await db.doc('helpRequests/s1').get()).data().pago).toEqual({ estado: 'pagado', precio: 4000, comision: 320, total: 4320 });
     expect((await pagos.misPagos('ana'))[0]).toMatchObject({ estado: 'pagado' });
     expect((await pagos.misPagos('luis'))[0]).toMatchObject({ estado: 'pagado', importe: 4000 });
 
@@ -558,6 +558,101 @@ describe('administración: ver y reintentar el pago', () => {
 
     expect(stripe.transfers.create.mock.calls.length).toBe(llamadas);
     expect((await db.doc('pagos/s1').get()).data()).toMatchObject({ estado: 'pagado', transferId: 'tr_hecha' });
+  });
+
+  describe('servicio con precio elegido sin pagar (pagos apagados)', () => {
+    async function terminadoGratis({ cobros = true } = {}) {
+      await db.doc('users/ana').set({ name: 'Ana', email: 'ana@ejemplo.test' });
+      await db.doc('helpRequests/s1').set({
+        title: 'Test', status: 'rated', priceCents: 2000, requesterId: 'ana', requesterName: 'Ana', helperId: 'luis', helperName: 'Luis',
+      });
+      if (cobros) await db.doc('cuentasCobro/luis').set({ stripeAccountId: 'acct_luis', cobrosActivos: true });
+    }
+
+    it('la administración ve lo que se cobraría y puede pedirlo', async () => {
+      await terminadoGratis();
+
+      expect(await pagos.verPago('s1')).toEqual({
+        pago: null,
+        previsto: { precio: 2000, comision: 160, total: 2160, requesterName: 'Ana', helperName: 'Luis' },
+        movimientos: [],
+        intentos: [],
+        reintento: { posible: true, origen: 'cobrarDeNuevo', motivoCobro: 'sinPago' },
+      });
+    });
+
+    it('al pedirlo abre el pago, manda el enlace a quien pidió y, al pagarlo, cobra quien ayudó', async () => {
+      await terminadoGratis();
+
+      const r = await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' });
+
+      expect(r).toMatchObject({ estado: 'esperando', url: 'https://checkout.stripe.com/c/pay/cs_1' });
+      expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_email: 'ana@ejemplo.test',
+          line_items: [
+            expect.objectContaining({ price_data: expect.objectContaining({ unit_amount: 2000, product_data: { name: 'Test' } }) }),
+            expect.objectContaining({ price_data: expect.objectContaining({ unit_amount: 160 }) }),
+          ],
+          metadata: expect.objectContaining({ serviceId: 's1', helperId: 'luis', requesterId: 'ana', recobro: '1' }),
+        })
+      );
+      expect((await db.doc('pagos/s1').get()).data()).toMatchObject({
+        estado: 'pendiente',
+        sinPagoAlElegir: true,
+        cuentaDestino: 'acct_luis',
+        precio: 2000,
+        comision: 160,
+        total: 2160,
+        recobro: expect.objectContaining({ checkoutSessionId: 'cs_1', estado: 'esperando' }),
+      });
+      // El servicio no gana un resumen de pago (las builds anteriores lo leerían como «retenido»).
+      const servicio = (await db.doc('helpRequests/s1').get()).data();
+      expect(servicio.pago).toBeUndefined();
+      expect(servicio.cobroPedido).toEqual({ total: 2160, precio: 2000 });
+      expect((await pagos.misPagos('ana'))[0]).toMatchObject({ estado: 'pendiente', importe: 2160, urlPago: 'https://checkout.stripe.com/c/pay/cs_1' });
+      expect(await pagos.misPagos('luis')).toEqual([]);
+      expect((await pagos.verPago('s1')).reintento).toMatchObject({ origen: 'cobrarDeNuevo', motivoCobro: 'sinPago', enlace: expect.anything() });
+
+      expect(await pagos.alCompletarCheckout(sesionRecobro('cs_1'))).toBe('recobrado');
+
+      expect(stripe.transfers.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ amount: 2000, destination: 'acct_luis', source_transaction: 'ch_2', transfer_group: 's1' }),
+        { idempotencyKey: 'recobro-cs_1' }
+      );
+      expect((await db.doc('pagos/s1').get()).data()).toMatchObject({ estado: 'pagado', chargeId: 'ch_2', transferId: 'tr_1' });
+      const despues = (await db.doc('helpRequests/s1').get()).data();
+      expect(despues.pago).toEqual({ estado: 'pagado', precio: 2000, comision: 160, total: 2160 });
+      expect(despues.cobroPedido).toBe(false);
+      expect((await pagos.misPagos('luis'))[0]).toMatchObject({ rol: 'cobrado', estado: 'pagado', importe: 2000, otraPersona: 'Ana' });
+      expect((await pagos.misPagos('ana'))[0]).toMatchObject({ rol: 'pagado', estado: 'pagado', importe: 2160 });
+    });
+
+    it('un enlace nuevo sustituye al anterior sin volver a crear el pago', async () => {
+      await terminadoGratis();
+      await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' });
+      await pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' });
+
+      expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith('cs_1');
+      const pago = (await db.doc('pagos/s1').get()).data();
+      expect(pago.recobro.checkoutSessionId).toBe('cs_2');
+      expect(pago.intentos.map((i) => i.resultado)).toEqual(['enlace', 'enlace']);
+    });
+
+    it('si quien ayudó no tiene cobros, no se pide nada', async () => {
+      await terminadoGratis({ cobros: false });
+
+      await expect(pagos.reintentarPago('admin', { serviceId: 's1', origen: 'cobrarDeNuevo' })).rejects.toMatchObject({ motivo: 'sinCobros' });
+      expect((await db.doc('pagos/s1').get()).exists).toBe(false);
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it('un favor gratis o sin terminar no se cobra', async () => {
+      await db.doc('helpRequests/s1').set({ status: 'rated', priceCents: null, requesterId: 'ana', helperId: 'luis' });
+      expect((await pagos.verPago('s1')).reintento.posible).toBe(false);
+      await db.doc('helpRequests/s1').set({ status: 'accepted', priceCents: 2000, requesterId: 'ana', helperId: 'luis' });
+      expect((await pagos.verPago('s1')).reintento.posible).toBe(false);
+    });
   });
 
   it('si el origen cambió desde que se abrió, no hace nada', async () => {

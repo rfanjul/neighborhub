@@ -15,6 +15,7 @@
  *  - te han valorado         → quien ayuda
  *  - pago transferido        → quien ayuda (cobrado) y quien pide
  *  - hay que volver a pagar  → quien pide (administración pidió un pago nuevo)
+ *  - pago pedido             → quien pide (se eligió sin pagar y administración lo pide)
  *  - cobros activados        → quien ayuda
  */
 
@@ -34,6 +35,7 @@ const TEXTOS = {
     cobrado: ['You’ve been paid 💰', '{precio} for “{titulo}” is on its way to your bank account.'],
     pagoTransferido: ['Payment released', '{precio} was paid to {nombre} for “{titulo}”.'],
     pagoPendiente: ['Payment needed 💳', 'Your payment for “{titulo}” was refunded, so {nombre} hasn’t been paid yet. Tap to pay {total}.'],
+    pagoPedido: ['Payment needed 💳', '{nombre} helped you with “{titulo}”. Tap to pay {total} so they get paid.'],
     cobrosActivos: ['Payouts set up ✅', 'You can now help with paid requests and get paid.'],
   },
   de: {
@@ -48,6 +50,7 @@ const TEXTOS = {
     cobrado: ['Zahlung erhalten 💰', '{precio} für „{titulo}“ sind unterwegs auf dein Bankkonto.'],
     pagoTransferido: ['Zahlung freigegeben', '{precio} wurden für „{titulo}“ an {nombre} ausgezahlt.'],
     pagoPendiente: ['Zahlung offen 💳', 'Deine Zahlung für „{titulo}“ wurde erstattet, daher hat {nombre} noch nichts erhalten. Tippe, um {total} zu bezahlen.'],
+    pagoPedido: ['Zahlung offen 💳', '{nombre} hat dir bei „{titulo}“ geholfen. Tippe, um {total} zu bezahlen, damit es ankommt.'],
     cobrosActivos: ['Auszahlungen eingerichtet ✅', 'Du kannst jetzt bei bezahlten Anfragen helfen und Geld erhalten.'],
   },
   es: {
@@ -62,6 +65,7 @@ const TEXTOS = {
     cobrado: ['Has cobrado 💰', '{precio} por «{titulo}» van de camino a tu cuenta.'],
     pagoTransferido: ['Pago liberado', 'Se han pagado {precio} a {nombre} por «{titulo}».'],
     pagoPendiente: ['Falta tu pago 💳', 'Tu pago de «{titulo}» se devolvió y {nombre} aún no ha cobrado. Toca para pagar {total}.'],
+    pagoPedido: ['Falta tu pago 💳', '{nombre} te ayudó con «{titulo}». Toca para pagar {total} y que lo reciba.'],
     cobrosActivos: ['Cobros activados ✅', 'Ya puedes ayudar en servicios con precio y cobrar por ello.'],
   },
 };
@@ -147,6 +151,9 @@ function crearAvisos({ db, fetch, quitarToken }) {
     if (de !== 'rated' && a_ === 'rated') {
       const resena = (await db.doc(`reviews/${serviceId}`).get()).data();
       a(despues.helperId, 'valorado', { nombre: despues.requesterName, estrellas: resena?.rating ?? '' }, 'ServiceDetail');
+    }
+    if (!antes.cobroPedido && despues.cobroPedido) {
+      a(despues.requesterId, 'pagoPedido', { total: despues.cobroPedido.total, nombre: despues.helperName }, 'Payments');
     }
     if (!antes.pago?.porPagar && despues.pago?.porPagar) {
       a(despues.requesterId, 'pagoPendiente', { total: despues.pago.total, nombre: despues.helperName }, 'Payments');
