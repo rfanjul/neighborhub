@@ -48,6 +48,7 @@ v<versión>-build.<build>        p. ej. v1.1.0-build.5
 
 | Versión | Build | Etiqueta | Destino |
 |---|---|---|---|
+| 1.1.0 | 14 | `v1.1.0-build.14` | TestFlight (Ajustes → Pagos con historial y pagos apagados) |
 | 1.1.0 | 13 | `v1.1.0-build.13` | TestFlight (igual que la 11) |
 | 1.1.0 | 12 | `v1.1.0-build.12` | TestFlight (igual que la 11) |
 | 1.1.0 | 11 | `v1.1.0-build.11` | Revisión de App Store (pagos apagados) |

@@ -6,12 +6,18 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-App:
+Nada todavía.
+
+## [1.1.0 (14)] — 2026-10-02 · TestFlight
+
+Build EAS `fade6f98` desde el commit `f5b4492`.
+
+### Cambiado
 - Ajustes → **Pagos** sale también con los pagos apagados si ya tienes
   pagos o cobros (antes desaparecía y no había forma de ver el historial).
   La cuenta de revisión de Apple no tiene, así que no lo ve.
 
-Solo web (Hosting, ya publicada; no hace falta build):
+### Solo web (Hosting, publicada aparte; no depende de la build)
 - Administración: el botón **Pagos** y *Despublicar* piden confirmación con un
   diálogo dentro de la página en vez de `confirm()`, que algunos navegadores
   bloquean (el botón parecía no hacer nada).
