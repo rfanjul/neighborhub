@@ -18,6 +18,12 @@ Solo web (Hosting, ya publicada; no hace falta build):
 - `/admin` se sirve sin caché (`Cache-Control: no-cache` en `firebase.json`,
   que ahora `scripts/deploy-hosting.js` también publica).
 
+## [1.1.0 (13)] — 2026-10-02 · TestFlight
+
+Build EAS `185ad3c9` desde el commit `8c1cedf`. La app es **igual que la
+11**: desde `39aa871` solo cambian la web de administración (Hosting),
+`firebase.json`, `scripts/deploy-hosting.js` y la documentación.
+
 ## [1.1.0 (12)] — 2026-10-02 · TestFlight
 
 Build EAS `b0f8b086` desde el commit `1ea3257`. La app es **igual que la
