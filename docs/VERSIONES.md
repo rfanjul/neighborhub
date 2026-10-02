@@ -48,6 +48,9 @@ v<versión>-build.<build>        p. ej. v1.1.0-build.5
 
 | Versión | Build | Etiqueta | Destino |
 |---|---|---|---|
+| 1.1.0 | 11 | `v1.1.0-build.11` | Revisión de App Store (pagos apagados) |
+| 1.1.0 | 10 | `v1.1.0-build.10` | TestFlight (bloquear y denunciar) |
+| 1.1.0 | 8, 9 | `v1.1.0-build.9` | TestFlight (notificaciones, pagos en el perfil) |
 | 1.1.0 | 6 | `v1.1.0-build.6` | TestFlight (pagos con Stripe en modo test, administración) |
 | 1.1.0 | 5 | `v1.1.0-build.5` | TestFlight (prueba interna de pagos, fase 1) |
 | 1.0.0 | 4 | `v1.0.0-build.4` | Revisión de App Store |

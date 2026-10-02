@@ -6,6 +6,22 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
+Nada todavía.
+
+## [1.1.0 (11)] — 2026-10-02 · TestFlight → revisión de App Store
+
+Rama `feature/pagos`. Build EAS `9e38810d` desde el commit `39aa871`. Es la
+que se manda a revisión con la respuesta a la Guideline 2.1
+([docs/APP_REVIEW.md](docs/APP_REVIEW.md)), con los **pagos apagados** en
+`config/app`.
+
+Builds intermedias desde la 6:
+| Build | Commit | Qué añadía |
+|---|---|---|
+| 8 y 9 | `aa909a3` | Pagos en el perfil y notificaciones push |
+| 10 | `c820f98` | Bloquear y denunciar, pagos en ajustes y el arreglo del reembolso |
+| 11 | `39aa871` | Interruptor de pagos |
+
 ### Añadido
 - **Interruptor de pagos** (`config/app.pagosActivos`, en la web de
   administración): apagados, la app no enseña precios, cobros ni pagos y
