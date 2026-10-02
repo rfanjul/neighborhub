@@ -11,7 +11,17 @@ function estado(p: PagoMovimiento): { texto: string; fondo: string; tinta: strin
   const azul = { fondo: colors.blueTint, tinta: colors.blue };
   const verde = { fondo: colors.greenTint, tinta: colors.green };
   const clave = `pagos.estados.${p.rol}.${p.estado}` as Clave;
-  const color = p.estado === 'pagado' ? verde : p.estado === 'retenido' ? (p.rol === 'pagado' ? azul : ambar) : ambar;
+  const rojo = { fondo: colors.accentTint, tinta: colors.accentDark };
+  const color =
+    p.estado === 'pagado'
+      ? verde
+      : p.estado === 'retenido'
+        ? p.rol === 'pagado'
+          ? azul
+          : ambar
+        : p.estado === 'error'
+          ? rojo
+          : ambar;
   return { texto: t(clave, { nombre: p.otraPersona }), ...color };
 }
 

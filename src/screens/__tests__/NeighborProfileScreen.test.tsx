@@ -1,5 +1,7 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { Alert } from 'react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { pulsarEnAlerta } from '../../test-utils/alerta';
 import NeighborProfileScreen from '../NeighborProfileScreen';
 import { api } from '../../firebase/data';
 import { servicio } from '../../test-utils/servicio';
@@ -115,16 +117,58 @@ describe('NeighborProfileScreen', () => {
     expect(await screen.findByText("We couldn't find this neighbor.")).toBeTruthy();
   });
 
-  it('se puede denunciar al vecino', async () => {
-    const abrir = jest.spyOn(require('react-native').Linking, 'openURL').mockResolvedValue(true);
+  it('se denuncia al vecino desde la app, con un motivo, y se le da las gracias', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await renderPerfil();
 
-    await fireEvent.press(await screen.findByText(/Report this user/));
+    await fireEvent.press(await screen.findByText(/Report Luis/));
+    expect(alerta).toHaveBeenLastCalledWith('Report', expect.stringMatching(/within 24 hours/), expect.any(Array));
+    await pulsarEnAlerta(alerta, 'Harassment or threats');
 
-    expect(abrir).toHaveBeenCalledWith(
-      'https://neighborhood-c4dc9.web.app/en/support?origen=app&tipo=reportar&ref=user%3Aluis#contacto'
-    );
-    abrir.mockRestore();
+    expect(mockedApi.denunciar).toHaveBeenCalledWith('user', 'luis', 'acoso');
+    expect(alerta).toHaveBeenLastCalledWith('Thanks for letting us know', expect.any(String));
+    alerta.mockRestore();
+  });
+
+  it('bloquear pide confirmación, lo avisa y se puede deshacer', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderPerfil();
+
+    await fireEvent.press(await screen.findByText(/Block Luis/));
+    expect(alerta).toHaveBeenLastCalledWith('Block Luis?', expect.stringMatching(/won't be notified/), expect.any(Array));
+    await pulsarEnAlerta(alerta, 'Block');
+
+    expect(mockedApi.bloquear).toHaveBeenCalledWith('luis');
+    expect(await screen.findByText(/You've blocked Luis/)).toBeTruthy();
+    await fireEvent.press(screen.getByText(/Unblock Luis/));
+    await waitFor(() => expect(mockedApi.desbloquear).toHaveBeenCalledWith('luis'));
+    expect(screen.queryByText(/You've blocked Luis/)).toBeNull();
+    alerta.mockRestore();
+  });
+
+  it('si ya estaba bloqueado, lo dice al entrar', async () => {
+    mockedApi.misBloqueos.mockResolvedValueOnce(['luis']);
+    await renderPerfil();
+
+    expect(await screen.findByText(/You've blocked Luis/)).toBeTruthy();
+    expect(screen.getByText(/Unblock Luis/)).toBeTruthy();
+  });
+
+  it('si no se puede denunciar o bloquear, lo explica', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.denunciar.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'permission-denied' }));
+    mockedApi.bloquear.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'permission-denied' }));
+    await renderPerfil();
+
+    await fireEvent.press(await screen.findByText(/Report Luis/));
+    await pulsarEnAlerta(alerta, 'Spam or scam');
+    expect(alerta).toHaveBeenLastCalledWith("Couldn't send the report", expect.any(String));
+
+    await fireEvent.press(screen.getByText(/Block Luis/));
+    await pulsarEnAlerta(alerta, 'Block');
+    expect(alerta).toHaveBeenLastCalledWith("Couldn't update the block", expect.any(String));
+    expect(screen.queryByText(/You've blocked Luis/)).toBeNull();
+    alerta.mockRestore();
   });
 
   it('vuelve atrás', async () => {

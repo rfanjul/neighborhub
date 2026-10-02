@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
@@ -11,6 +11,7 @@ import { dataErrorMessage } from '../firebase/errors';
 import { useAuth } from '../auth/AuthContext';
 import { t } from '../i18n';
 import Avatar from '../components/Avatar';
+import { confirmarBloqueo, denunciar } from '../moderacion/acciones';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
@@ -23,6 +24,7 @@ export default function ChatScreen({ navigation, route }: Props) {
   const { user } = useAuth();
   const [servicio, setServicio] = useState<ServiceRequest | null>(null);
   const [fotoOtra, setFotoOtra] = useState<string | null>(null);
+  const [bloqueada, setBloqueada] = useState(false);
   const [mensajes, setMensajes] = useState<ChatMessage[]>([]);
   const [borrador, setBorrador] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +70,24 @@ export default function ChatScreen({ navigation, route }: Props) {
 
   // Con quién se habla: si lo publiqué yo, con quien ayuda; si no, con quien lo publicó.
   const otraPersona = soyQuienPide ? servicio?.helperName ?? '' : servicio?.requester.name ?? '';
+  const otraId = soyQuienPide ? servicio?.helperId ?? null : servicio?.requesterId ?? null;
+
+  useEffect(() => {
+    if (!otraId) return;
+    api
+      .misBloqueos()
+      .then((b) => setBloqueada(b.includes(otraId)))
+      .catch(() => setBloqueada(false));
+  }, [otraId]);
+
+  const masOpciones = () =>
+    Alert.alert(otraPersona, undefined, [
+      { text: t('moderacion.denunciarChat'), onPress: () => denunciar('message', serviceId) },
+      ...(otraId && !bloqueada
+        ? [{ text: t('moderacion.bloquearA', { nombre: otraPersona }), style: 'destructive' as const, onPress: () => confirmarBloqueo(otraPersona, otraId, () => setBloqueada(true)) }]
+        : []),
+      { text: t('comun.cancelar'), style: 'cancel' as const },
+    ]);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -82,7 +102,13 @@ export default function ChatScreen({ navigation, route }: Props) {
             {servicio ? t('chat.sobre', { titulo: servicio.title }) : ''}
           </Text>
         </View>
+        {servicio && (
+          <Pressable onPress={masOpciones} accessibilityRole="button" accessibilityLabel={t('moderacion.masOpciones')} hitSlop={10}>
+            <Text style={styles.mas}>⋯</Text>
+          </Pressable>
+        )}
       </View>
+      {bloqueada && <Text style={styles.avisoBloqueo}>{t('moderacion.chatBloqueado', { nombre: otraPersona })}</Text>}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
@@ -105,7 +131,8 @@ export default function ChatScreen({ navigation, route }: Props) {
 
         <View style={styles.inputBar}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, bloqueada && { opacity: 0.5 }]}
+            editable={!bloqueada}
             placeholder={t('chat.mensaje')}
             placeholderTextColor={colors.mutedLight}
             value={borrador}
@@ -113,7 +140,7 @@ export default function ChatScreen({ navigation, route }: Props) {
             onSubmitEditing={enviar}
             returnKeyType="send"
           />
-          <Pressable style={styles.sendButton} onPress={enviar} accessibilityRole="button" accessibilityLabel={t('chat.enviar')}>
+          <Pressable style={styles.sendButton} onPress={enviar} disabled={bloqueada} accessibilityRole="button" accessibilityLabel={t('chat.enviar')}>
             <SendIcon size={18} />
           </Pressable>
         </View>
@@ -123,6 +150,8 @@ export default function ChatScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  mas: { fontFamily: fonts.bodySemiBold, fontSize: 24, color: colors.ink, paddingHorizontal: 6 },
+  avisoBloqueo: { padding: 12, backgroundColor: colors.amberTint, fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.amberDark, textAlign: 'center' },
   screen: { flex: 1, backgroundColor: colors.background },
   header: {
     backgroundColor: colors.card,

@@ -7,12 +7,11 @@ import type { RootStackParamList } from '../navigation/types';
 import { colors, fonts, radii, shadow } from '../theme';
 import { SettingsIcon } from '../icons';
 import { currentUser as mockCurrentUser } from '../data/mock';
-import { api, type PagoMovimiento } from '../firebase/data';
+import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
 import CobrosTarjeta from '../components/CobrosTarjeta';
-import PagoFila from '../components/PagoFila';
 import { cambiarIdioma, decimal, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 import { authErrorMessage } from '../auth/errors';
@@ -28,14 +27,15 @@ export default function MyProfileScreen() {
   // la base de las insignias. Se calcula, no se guarda en el perfil.
   const [ayudas, setAyudas] = useState(0);
   const [cobros, setCobros] = useState(false);
-  const [pagos, setPagos] = useState<PagoMovimiento[]>([]);
 
   const handleSettingsPress = () => {
     Alert.alert(t('miPerfil.cuenta'), undefined, [
       { text: t('comun.cancelar'), style: 'cancel' },
       { text: t('miPerfil.editarDatos'), onPress: () => navigation.navigate('ProfileDetails') },
       { text: t('idioma.titulo'), onPress: elegirIdioma },
+      { text: t('pagos.titulo'), onPress: () => navigation.navigate('Payments') },
       { text: t('cuenta.legal'), onPress: ayudaYLegal },
+      { text: t('moderacion.bloqueadosTitulo'), onPress: () => navigation.navigate('Blocked') },
       { text: t('miPerfil.salir'), onPress: () => logout() },
       { text: t('cuenta.borrar'), style: 'destructive', onPress: confirmarBorrado },
     ]);
@@ -107,10 +107,6 @@ export default function MyProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      api
-        .misPagos()
-        .then(setPagos)
-        .catch(() => setPagos([]));
       api
         .countCompletedHelps()
         .then(setAyudas)
@@ -202,33 +198,6 @@ export default function MyProfileScreen() {
           <CobrosTarjeta activos={cobros} onCambio={setCobros} />
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.pagosCabecera}>
-            <Text style={styles.sectionTitle}>{t('pagos.titulo')}</Text>
-            {pagos.length > 3 && (
-              <Pressable onPress={() => navigation.navigate('Payments')} accessibilityRole="button" hitSlop={8}>
-                <Text style={styles.verTodos}>{t('pagos.verTodos', { n: pagos.length })}</Text>
-              </Pressable>
-            )}
-          </View>
-          {pagos.length === 0 ? (
-            <Text style={styles.pagosVacio}>{t('pagos.vacio')}</Text>
-          ) : (
-            <View style={{ gap: 8 }}>
-              {pagos.slice(0, 3).map((p) => (
-                <PagoFila
-                  key={`${p.rol}-${p.serviceId}`}
-                  pago={p}
-                  onPress={() =>
-                    p.rol === 'pagado'
-                      ? navigation.navigate('ServiceOffers', { serviceId: p.serviceId })
-                      : navigation.navigate('ServiceDetail', { serviceId: p.serviceId })
-                  }
-                />
-              ))}
-            </View>
-          )}
-        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('miPerfil.insignias')}</Text>
@@ -286,9 +255,6 @@ const styles = StyleSheet.create({
   statLabel: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   section: { marginHorizontal: 20, marginTop: 20 },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.muted },
-  pagosCabecera: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  verTodos: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.accentDark },
-  pagosVacio: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.muted },
   badgesRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   badgeItem: { width: 72, alignItems: 'center', gap: 6 },
   badgeIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

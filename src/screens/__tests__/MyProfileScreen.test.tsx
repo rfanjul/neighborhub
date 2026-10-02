@@ -78,27 +78,29 @@ describe('MyProfileScreen', () => {
     expect(screen.queryByText('30')).toBeNull();
   });
 
-  it('enseña los últimos pagos con su estado y, si hay más, lleva a verlos todos', async () => {
-    const { pago } = require('../../test-utils/pago');
-    mockedApi.misPagos.mockResolvedValue([
-      pago(),
-      pago({ serviceId: 's2', titulo: 'Pasear a Toby' }),
-      pago({ serviceId: 's3', titulo: 'Pintar' }),
-      pago({ serviceId: 's4', titulo: 'Regar' }),
-    ]);
+  it('los pagos están en ajustes, no a la vista del perfil', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await render(<MyProfileScreen />);
 
-    expect(await screen.findByText('Subir un sofá')).toBeTruthy();
-    expect(screen.queryByText('Regar')).toBeNull();
-    await fireEvent.press(screen.getByText('See all (4)'));
+    await screen.findByText('Ruben');
+    expect(mockedApi.misPagos).not.toHaveBeenCalled();
+    expect(screen.queryByText('Payments')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Payments')!.onPress!());
+
     expect(mockNavigate).toHaveBeenCalledWith('Payments');
+    alerta.mockRestore();
   });
 
-  it('sin pagos lo explica', async () => {
-    mockedApi.misPagos.mockResolvedValue([]);
+  it('en ajustes están los vecinos bloqueados', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     await render(<MyProfileScreen />);
 
-    expect(await screen.findByText(/No payments yet/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Blocked neighbors')!.onPress!());
+
+    expect(mockNavigate).toHaveBeenCalledWith('Blocked');
+    alerta.mockRestore();
   });
 
   it('ofrece activar los cobros y, si ya están, lo dice', async () => {

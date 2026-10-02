@@ -27,7 +27,13 @@ const WEB = 'https://neighborhood-c4dc9.web.app';
 let stripe;
 function pagos() {
   stripe = stripe || new Stripe(STRIPE_SECRET_KEY.value());
-  return crearPagos({ stripe, db: getFirestore(), ahora: () => FieldValue.serverTimestamp(), web: WEB });
+  return crearPagos({
+    stripe,
+    db: getFirestore(),
+    ahora: () => FieldValue.serverTimestamp(),
+    web: WEB,
+    proyecto: process.env.GCLOUD_PROJECT,
+  });
 }
 
 /** Funciones que llama la app: con sesión, y con errores que la app entiende. */

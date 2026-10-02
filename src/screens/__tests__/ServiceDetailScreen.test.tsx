@@ -1,5 +1,7 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { pulsarEnAlerta } from '../../test-utils/alerta';
 import ServiceDetailScreen, { accionPrincipal, resumenAutor } from '../ServiceDetailScreen';
 import { api, type Application } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
@@ -224,17 +226,29 @@ describe('autor del servicio', () => {
 });
 
 describe('denunciar', () => {
-  it('un servicio ajeno se puede denunciar desde el detalle', async () => {
-    const abrir = jest.spyOn(require('react-native').Linking, 'openURL').mockResolvedValue(true);
+  it('un servicio ajeno se denuncia desde el detalle, con un motivo', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockedApi.getService.mockResolvedValue(servicio({ id: 's1', requesterId: 'ana' }));
     await renderDetalle('luis');
 
     await fireEvent.press(await screen.findByText(/Report this request/));
+    await pulsarEnAlerta(alerta, 'Inappropriate or offensive');
 
-    expect(abrir).toHaveBeenCalledWith(
-      'https://neighborhood-c4dc9.web.app/en/support?origen=app&tipo=reportar&ref=service%3As1#contacto'
-    );
-    abrir.mockRestore();
+    expect(mockedApi.denunciar).toHaveBeenCalledWith('service', 's1', 'inapropiado');
+    alerta.mockRestore();
+  });
+
+  it('desde el detalle se puede bloquear a quien lo publicó, y se sale', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.getService.mockResolvedValue(servicio({ id: 's1', requesterId: 'ana' }));
+    const navigation = await renderDetalle('luis');
+
+    await fireEvent.press(await screen.findByText(/Block Ana/));
+    await pulsarEnAlerta(alerta, 'Block');
+
+    expect(mockedApi.bloquear).toHaveBeenCalledWith('ana');
+    expect(navigation.goBack).toHaveBeenCalled();
+    alerta.mockRestore();
   });
 
   it('el propio no', async () => {

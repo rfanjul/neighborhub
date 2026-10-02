@@ -247,7 +247,11 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
             <Text style={styles.pagoTexto}>
               {servicio.pago.estado === 'pagado'
                 ? t('pagos.pagado', { precio: formatearPrecio(servicio.pago.precio, { exacto: true }), nombre: servicio.helperName })
-                : t('pagos.retenido', {
+                : servicio.pago.estado === 'reembolsado'
+                  ? t('pagos.reembolsado', { total: formatearPrecio(servicio.pago.total, { exacto: true }) })
+                  : servicio.pago.estado === 'error'
+                    ? t('pagos.problema')
+                    : t('pagos.retenido', {
                     total: formatearPrecio(servicio.pago.total, { exacto: true }),
                     precio: formatearPrecio(servicio.pago.precio, { exacto: true }),
                     nombre: servicio.helperName,

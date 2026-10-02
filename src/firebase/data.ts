@@ -37,7 +37,7 @@ export type PagoMovimiento = {
   /** pagado: lo pagué yo (quien pide). cobrado: lo cobro yo (quien ayuda). */
   rol: 'pagado' | 'cobrado';
   /** pendiente: Checkout sin terminar; retenido: pagado y guardado; pagado: transferido a quien ayudó. */
-  estado: 'pendiente' | 'retenido' | 'pagado';
+  estado: 'pendiente' | 'retenido' | 'pagado' | 'reembolsado' | 'error';
   /** Céntimos: lo pagado con la gestión, o lo que cobra quien ayuda. */
   importe: number;
   precio: number;
@@ -46,6 +46,14 @@ export type PagoMovimiento = {
   otraPersona: string;
   fecha: number;
 };
+
+/** Por qué se denuncia algo: lo revisa el equipo en menos de 24 horas. */
+export type MotivoDenuncia = 'spam' | 'inapropiado' | 'acoso' | 'otro';
+/** Qué se denuncia: un servicio, un vecino o una conversación. */
+export type TipoDenuncia = 'service' | 'user' | 'message';
+
+/** Vecinos bloqueados por quien tiene la sesión (se lee una vez por sesión). */
+let bloqueos: { uid: string; usuarios: Set<string> } | null = null;
 
 export type ApplicationStatus = 'pending' | 'selected' | 'rejected';
 
@@ -356,13 +364,15 @@ export const api = {
    */
   async listServices(): Promise<ServiceRequest[]> {
     const uid = currentUid();
-    const [aprobados, mios] = await Promise.all([
+    const [aprobados, mios, bloqueados] = await Promise.all([
       getDocs(query(collection(db, 'helpRequests'), where('status', '==', 'approved'))),
       getDocs(query(collection(db, 'helpRequests'), where('requesterId', '==', uid))),
+      api.misBloqueos(),
     ]);
     const porId = new Map<string, any>();
     for (const d of [...aprobados.docs, ...mios.docs]) {
-      porId.set(d.id, d.data());
+      // Lo de vecinos bloqueados no se ve en el muro ni en el mapa.
+      if (!bloqueados.includes(d.data().requesterId)) porId.set(d.id, d.data());
     }
     return conAutores(
       [...porId.entries()]
@@ -500,6 +510,50 @@ export const api = {
    * y mi perfil. Lo que ya implica a otra persona (servicios en curso o
    * hechos, reseñas, chats) se conserva, como explica la política de privacidad.
    */
+  /** Los vecinos que he bloqueado (documento privado bloqueos/{uid}). */
+  async misBloqueos(): Promise<string[]> {
+    const uid = currentUid();
+    if (bloqueos?.uid !== uid) {
+      const snap = await getDoc(doc(db, 'bloqueos', uid));
+      const usuarios = snap.exists() && Array.isArray(snap.data().usuarios) ? snap.data().usuarios : [];
+      bloqueos = { uid, usuarios: new Set(usuarios) };
+    }
+    return [...bloqueos.usuarios];
+  },
+
+  /**
+   * Bloquear a un vecino: dejo de ver sus servicios y sus ofertas, y no me
+   * puede mandar mensajes ni ofertarse en lo mío (las reglas lo impiden).
+   */
+  async bloquear(otro: string): Promise<void> {
+    const uid = currentUid();
+    if (otro === uid) return;
+    const usuarios = new Set(await api.misBloqueos());
+    usuarios.add(otro);
+    await setDoc(doc(db, 'bloqueos', uid), { usuarios: [...usuarios], actualizado: serverTimestamp() });
+    bloqueos = { uid, usuarios };
+  },
+
+  async desbloquear(otro: string): Promise<void> {
+    const uid = currentUid();
+    const usuarios = new Set(await api.misBloqueos());
+    usuarios.delete(otro);
+    await setDoc(doc(db, 'bloqueos', uid), { usuarios: [...usuarios], actualizado: serverTimestamp() });
+    bloqueos = { uid, usuarios };
+  },
+
+  /** Denunciar un servicio, un vecino o una conversación: lo revisa el equipo. */
+  async denunciar(tipo: TipoDenuncia, objetoId: string, motivo: MotivoDenuncia): Promise<void> {
+    await addDoc(collection(db, 'reports'), {
+      reporterId: currentUid(),
+      tipo,
+      objetoId,
+      motivo,
+      estado: 'nuevo',
+      createdAt: serverTimestamp(),
+    });
+  },
+
   async deleteMyData(): Promise<void> {
     const uid = currentUid();
     const mios = await getDocs(query(collection(db, 'helpRequests'), where('requesterId', '==', uid)));
@@ -519,6 +573,8 @@ export const api = {
     }
     await deleteObject(ref(storage, `profile-photos/${uid}.jpg`)).catch(() => undefined);
     await deleteDoc(doc(db, 'dispositivos', uid)).catch(() => undefined);
+    await deleteDoc(doc(db, 'bloqueos', uid)).catch(() => undefined);
+    bloqueos = null;
     await deleteDoc(doc(db, 'users', uid));
   },
 
@@ -534,6 +590,7 @@ export const api = {
    */
   async listServicesBy(uid: string): Promise<ServiceRequest[]> {
     if (uid === currentUid()) return api.listMyServices();
+    if ((await api.misBloqueos()).includes(uid)) return [];
     const snap = await getDocs(
       query(collection(db, 'helpRequests'), where('requesterId', '==', uid), where('status', '==', 'approved'))
     );
@@ -572,10 +629,14 @@ export const api = {
 
   /** Ofertas recibidas en un servicio mío. */
   async listApplicationsForService(serviceId: string): Promise<Application[]> {
-    const snap = await getDocs(
-      query(collection(db, 'applications'), where('serviceId', '==', serviceId), where('requesterId', '==', currentUid()))
-    );
-    const ofertas = masNuevosPrimero(snap.docs).map((d) => applicationFromDoc(d.id, d.data()));
+    const [snap, bloqueados] = await Promise.all([
+      getDocs(query(collection(db, 'applications'), where('serviceId', '==', serviceId), where('requesterId', '==', currentUid()))),
+      api.misBloqueos(),
+    ]);
+    // Las ofertas de vecinos bloqueados no se ven.
+    const ofertas = masNuevosPrimero(snap.docs)
+      .map((d) => applicationFromDoc(d.id, d.data()))
+      .filter((o) => !bloqueados.includes(o.applicantId));
     // Con el perfil de cada vecino: foto, bio, valoración, ayudas… Un perfil
     // que no se pueda leer deja la oferta solo con el nombre.
     return Promise.all(

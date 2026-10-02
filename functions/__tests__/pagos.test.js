@@ -40,6 +40,7 @@ function stripeFalso() {
       },
     },
     paymentIntents: { retrieve: apuntar('paymentIntents.retrieve', { id: 'pi_1', latest_charge: 'ch_1' }) },
+    charges: { retrieve: apuntar('charges.retrieve', () => ({ id: 'ch_1', refunded: cargoReembolsado })) },
     refunds: { create: apuntar('refunds.create', { id: 're_1' }) },
     transfers: { create: apuntar('transfers.create', { id: 'tr_1' }) },
   };
@@ -48,6 +49,7 @@ function stripeFalso() {
 let stripe;
 let pagos;
 let estadoTransferencias = 'active';
+let cargoReembolsado = false;
 
 beforeAll(() => {
   app = initializeApp({ projectId }, 'pagos');
@@ -58,8 +60,9 @@ afterAll(() => deleteApp(app));
 beforeEach(async () => {
   await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${projectId}/databases/(default)/documents`, { method: 'DELETE' });
   estadoTransferencias = 'active';
+  cargoReembolsado = false;
   stripe = stripeFalso();
-  pagos = crearPagos({ stripe, db, ahora: () => FieldValue.serverTimestamp(), web: 'https://web.test' });
+  pagos = crearPagos({ stripe, db, ahora: () => FieldValue.serverTimestamp(), web: 'https://web.test', proyecto: 'demo-pagos' });
 });
 
 async function servicioConOfertas({ precio = 4000, status = 'approved', cobros = true } = {}) {
@@ -136,7 +139,10 @@ describe('pagar al elegir una oferta', () => {
     const pedido = stripe.checkout.sessions.create.mock.calls[0][0];
     expect(pedido.line_items.map((l) => l.price_data.unit_amount)).toEqual([4000, 320]);
     expect(pedido.line_items.every((l) => l.price_data.currency === 'chf')).toBe(true);
-    expect(pedido.payment_intent_data).toEqual({ transfer_group: 's1', metadata: { serviceId: 's1', helperId: 'luis', requesterId: 'ana' } });
+    expect(pedido.payment_intent_data).toEqual({
+      transfer_group: 's1',
+      metadata: { serviceId: 's1', helperId: 'luis', requesterId: 'ana', proyecto: 'demo-pagos' },
+    });
     expect((await db.doc('pagos/s1').get()).data()).toMatchObject({
       estado: 'pendiente', precio: 4000, comision: 320, total: 4320, cuentaDestino: 'acct_luis', checkoutSessionId: 'cs_1',
     });
@@ -229,6 +235,21 @@ describe('aviso de pago completado', () => {
     expect((await db.doc('helpRequests/s1').get()).data().status).toBe('approved');
   });
 
+  it('un pago de otro entorno (otro proyecto) ni se toca ni se devuelve', async () => {
+    const deFuera = { ...sesionPagada(), metadata: { ...sesionPagada().metadata, proyecto: 'neighborhood-c4dc9' } };
+
+    expect(await pagos.alCompletarCheckout(deFuera)).toBe('ajeno');
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect((await db.doc('helpRequests/s1').get()).data().status).toBe('approved');
+  });
+
+  it('sin registro de pago para ese servicio, no es nuestro: no se devuelve', async () => {
+    const otro = { ...sesionPagada('cs_x'), metadata: { serviceId: 'desconocido', helperId: 'luis', requesterId: 'ana' } };
+
+    expect(await pagos.alCompletarCheckout(otro)).toBe('ajeno');
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+  });
+
   it('ignora los Checkout sin pagar o que no son de un servicio', async () => {
     expect(await pagos.alCompletarCheckout({ ...sesionPagada(), payment_status: 'unpaid' })).toBe('ignorado');
     expect(await pagos.alCompletarCheckout({ id: 'cs_x', payment_status: 'paid', metadata: {} })).toBe('ignorado');
@@ -260,6 +281,22 @@ describe('liberar el pago al darlo por hecho', () => {
     expect(await pagos.liberarPago('s1', { status: 'accepted' }, { status: 'rated' })).toBe('nada');
 
     expect(stripe.transfers.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('si la transferencia falla porque el cargo ya se devolvió, queda «reembolsado»', async () => {
+    stripe.transfers.create.mockRejectedValueOnce(new Error('must not exceed the source amount of CHF 0.00'));
+    cargoReembolsado = true;
+
+    expect(await pagos.liberarPago('s1', { status: 'accepted' }, { status: 'rated' })).toBe('reembolsado');
+    expect((await db.doc('pagos/s1').get()).data()).toMatchObject({ estado: 'reembolsado', error: expect.stringContaining('source amount') });
+    expect((await db.doc('helpRequests/s1').get()).data().pago.estado).toBe('reembolsado');
+  });
+
+  it('si falla por otra cosa, queda «error» para revisarlo, no «retenido»', async () => {
+    stripe.transfers.create.mockRejectedValueOnce(new Error('account not ready'));
+
+    expect(await pagos.liberarPago('s1', { status: 'accepted' }, { status: 'rated' })).toBe('error');
+    expect((await db.doc('helpRequests/s1').get()).data().pago.estado).toBe('error');
   });
 
   it('los favores gratis no mueven dinero', async () => {

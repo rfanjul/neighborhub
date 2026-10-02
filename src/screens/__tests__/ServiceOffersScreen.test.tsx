@@ -321,6 +321,22 @@ describe('servicios con precio: se paga en Stripe al elegir', () => {
     alerta.mockRestore();
   });
 
+  it('si se devolvió el dinero o la transferencia falló, lo dice (no «retenido»)', async () => {
+    mockedApi.getService.mockResolvedValue(
+      servicio({ status: 'rated', priceCents: 4000, helperId: 'luis', helperName: 'Luis', pago: { estado: 'reembolsado', precio: 4000, comision: 320, total: 4320 } })
+    );
+    await renderOfertas();
+    expect(await screen.findByText(/CHF\s43\.20 refunded to you\./)).toBeTruthy();
+  });
+
+  it('con la transferencia fallida avisa de que se está revisando', async () => {
+    mockedApi.getService.mockResolvedValue(
+      servicio({ status: 'rated', priceCents: 4000, helperId: 'luis', helperName: 'Luis', pago: { estado: 'error', precio: 4000, comision: 320, total: 4320 } })
+    );
+    await renderOfertas();
+    expect(await screen.findByText(/problem releasing the payment/)).toBeTruthy();
+  });
+
   it('ya terminado dice que se pagó a quien ayudó', async () => {
     mockedApi.getService.mockResolvedValue(
       servicio({ status: 'rated', priceCents: 4000, helperId: 'luis', helperName: 'Luis', pago: { estado: 'pagado', precio: 4000, comision: 320, total: 4320 } })

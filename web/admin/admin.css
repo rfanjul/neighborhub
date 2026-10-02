@@ -37,6 +37,11 @@ body.admin { min-height: 100vh; background: var(--crema); }
 .admin-filtros button { border: 1px solid var(--borde); background: var(--tarjeta); color: var(--tinta); border-radius: 18px; padding: 8px 14px; font: 500 15px 'Work Sans', sans-serif; cursor: pointer; }
 .admin-filtros button[aria-selected=true] { background: var(--terracota); border-color: var(--terracota); color: #fff; }
 .admin-filtros .cuenta { margin-left: 4px; opacity: .75; }
+.admin-filtros .tab-denuncias { border-color: var(--terracota); color: var(--terracota-osc); }
+.denuncia { display: grid; gap: 8px; padding: 14px; background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 16px; }
+.denuncia-cabecera { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.denuncia-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+.denuncia-acciones .boton { min-height: 38px; padding: 0 14px; font-size: 15px; }
 #buscar { max-width: 340px; }
 
 .admin-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

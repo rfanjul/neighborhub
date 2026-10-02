@@ -16,7 +16,7 @@ import { api, type Application } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import { decimal, t } from '../i18n';
 import { comision, formatearPrecio, totalAPagar } from '../pagos/precio';
-import { abrirEnlace, enlaces } from '../config/enlaces';
+import { confirmarBloqueo, denunciar } from '../moderacion/acciones';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
 
@@ -165,13 +165,18 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
           {verAutor && <Text style={styles.chevron}>›</Text>}
         </Pressable>
         {verAutor && (
-          <Pressable
-            onPress={() => abrirEnlace(enlaces.contacto('reportar', `service:${service.id}`))}
-            accessibilityRole="link"
-            hitSlop={8}
-          >
-            <Text style={styles.reportar}>🚩 {t('cuenta.reportarServicio')}</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18 }}>
+            <Pressable onPress={() => denunciar('service', service.id)} accessibilityRole="button" hitSlop={8}>
+              <Text style={styles.reportar}>🚩 {t('cuenta.reportarServicio')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => confirmarBloqueo(service.requester.name, service.requesterId!, () => navigation.goBack())}
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <Text style={styles.reportar}>🚫 {t('moderacion.bloquearA', { nombre: service.requester.name })}</Text>
+            </Pressable>
+          </View>
         )}
 
         <Text style={styles.description}>{service.description}</Text>

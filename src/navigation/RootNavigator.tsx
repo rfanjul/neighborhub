@@ -19,6 +19,7 @@ import NeighborProfileScreen from '../screens/NeighborProfileScreen';
 import NeighborListScreen from '../screens/NeighborListScreen';
 import ChatScreen from '../screens/ChatScreen';
 import PaymentsScreen from '../screens/PaymentsScreen';
+import BlockedScreen from '../screens/BlockedScreen';
 import MainTabs from './MainTabs';
 import { t, useIdioma } from '../i18n';
 import { activarAvisos, alTocarAviso, type Destino } from '../notificaciones';
@@ -103,6 +104,7 @@ export default function RootNavigator() {
           <AppStack.Screen name="NeighborList" component={NeighborListScreen} />
           <AppStack.Screen name="Chat" component={ChatScreen} />
           <AppStack.Screen name="Payments" component={PaymentsScreen} />
+          <AppStack.Screen name="Blocked" component={BlockedScreen} />
           <AppStack.Screen
             name="CreateService"
             component={CreateServiceScreen}

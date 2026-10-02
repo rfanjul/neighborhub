@@ -1,5 +1,7 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { pulsarEnAlerta } from '../../test-utils/alerta';
 import ChatScreen from '../ChatScreen';
 import { api, type ChatMessage } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
@@ -144,5 +146,37 @@ describe('ChatScreen', () => {
     await vista.unmount();
 
     expect(dejarDeEscuchar).toHaveBeenCalled();
+  });
+});
+
+describe('denunciar y bloquear desde el chat', () => {
+  it('el menú ⋯ denuncia la conversación o bloquea a la otra persona', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderChat('ana');
+    await screen.findByText('Luis');
+
+    await fireEvent.press(screen.getByLabelText('More options'));
+    await pulsarEnAlerta(alerta, 'Report conversation');
+    await pulsarEnAlerta(alerta, 'Spam or scam');
+    expect(mockedApi.denunciar).toHaveBeenCalledWith('message', 's1', 'spam');
+
+    await fireEvent.press(screen.getByLabelText('More options'));
+    await pulsarEnAlerta(alerta, 'Block Luis');
+    await pulsarEnAlerta(alerta, 'Block');
+    expect(mockedApi.bloquear).toHaveBeenCalledWith('luis');
+    expect(await screen.findByText("You've blocked Luis, so you can't exchange messages.")).toBeTruthy();
+    expect(screen.getByPlaceholderText('Message...').props.editable).toBe(false);
+    alerta.mockRestore();
+  });
+
+  it('con la otra persona ya bloqueada no se puede escribir, ni se ofrece bloquear otra vez', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.misBloqueos.mockResolvedValueOnce(['luis']);
+    await renderChat('ana');
+
+    expect(await screen.findByText(/You've blocked Luis/)).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('More options'));
+    expect(alerta.mock.calls.at(-1)![2]!.map((b) => b.text)).toEqual(['Report conversation', 'Cancel']);
+    alerta.mockRestore();
   });
 });

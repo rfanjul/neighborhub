@@ -20,6 +20,8 @@
     completed: 'Completado',
     rated: 'Valorado',
   };
+  const MOTIVOS = { spam: 'Spam o estafa', inapropiado: 'Inapropiado u ofensivo', acoso: 'Acoso o amenazas', otro: 'Otro motivo' };
+  const TIPOS = { service: 'Servicio', user: 'Vecino', message: 'Conversación' };
   const FILTROS = {
     pendientes: ['pending'],
     publicados: ['approved'],
@@ -37,6 +39,8 @@
   let servicios = [];
   let filtro = 'pendientes';
   let dejarDeEscuchar = null;
+  let dejarDeEscucharDenuncias = null;
+  let denuncias = [];
   let abierto = null;
 
   function el(etiqueta, clase, texto) {
@@ -156,6 +160,10 @@
       dejarDeEscuchar();
       dejarDeEscuchar = null;
     }
+    if (dejarDeEscucharDenuncias) {
+      dejarDeEscucharDenuncias();
+      dejarDeEscucharDenuncias = null;
+    }
     if (!usuario) {
       $('quien').textContent = '';
       mostrarVista('login');
@@ -192,6 +200,66 @@
       },
       (err) => aviso('error-panel', `No se pudieron cargar los servicios (${err.code || err.message}).`, 'error')
     );
+    // Denuncias sin revisar: hay que atenderlas en menos de 24 horas.
+    dejarDeEscucharDenuncias = db
+      .collection('reports')
+      .where('estado', '==', 'nuevo')
+      .onSnapshot(
+        (snap) => {
+          denuncias = snap.docs
+            .map((d) => Object.assign({ id: d.id }, d.data()))
+            .sort((a, b) => milis(a.createdAt) - milis(b.createdAt));
+          pintar();
+        },
+        (err) => aviso('error-panel', `No se pudieron cargar las denuncias (${err.code || err.message}).`, 'error')
+      );
+  }
+
+  function revisar(denuncia, estado) {
+    return db.collection('reports').doc(denuncia.id).update({
+      estado,
+      revisadoPor: auth.currentUser.uid,
+      revisadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+
+  function filaDenuncia(d) {
+    const li = el('li', 'denuncia');
+    const cabecera = el('div', 'denuncia-cabecera');
+    cabecera.append(el('span', 'chip chip-pending', MOTIVOS[d.motivo] || d.motivo), el('strong', null, TIPOS[d.tipo] || d.tipo));
+    const servicio = d.tipo !== 'user' ? servicios.find((s) => s.id === d.objetoId) : null;
+    const que = servicio ? `«${servicio.title || ''}» de ${servicio.requesterName || '—'}` : d.objetoId;
+    const meta = el('span', 'fila-meta', `${que} · ${fecha(d.createdAt)}`);
+    const acciones = el('div', 'denuncia-acciones');
+    const boton = (texto, clase, accion) => {
+      const b = el('button', `boton ${clase}`, texto);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        b.disabled = true;
+        Promise.resolve(accion())
+          .then(() => flotante('Hecho'))
+          .catch((err) => aviso('error-panel', `No se pudo (${err.code || err.message}).`, 'error'))
+          .finally(() => (b.disabled = false));
+      });
+      return b;
+    };
+    if (servicio) {
+      acciones.append(boton('Abrir servicio', 'boton-secundario', () => abrir(servicio.id)));
+      if (servicio.status === 'approved') {
+        acciones.append(
+          boton('Despublicar', 'boton-primario', () =>
+            db
+              .collection('helpRequests')
+              .doc(servicio.id)
+              .update(Object.assign(revision('pending'), { updatedAt: firebase.firestore.FieldValue.serverTimestamp() }))
+              .then(() => revisar(d, 'retirado'))
+          )
+        );
+      }
+    }
+    acciones.append(boton('Revisada, sin cambios', 'boton-secundario', () => revisar(d, 'revisado')));
+    li.append(cabecera, meta, acciones);
+    return li;
   }
 
   const enFiltro = (s, nombre) => !FILTROS[nombre] || FILTROS[nombre].includes(s.status);
@@ -199,8 +267,20 @@
   function pintar() {
     document.querySelectorAll('[data-filtro]').forEach((b) => {
       b.setAttribute('aria-selected', String(b.dataset.filtro === filtro));
-      b.querySelector('.cuenta').textContent = servicios.filter((s) => enFiltro(s, b.dataset.filtro)).length;
+      b.querySelector('.cuenta').textContent =
+        b.dataset.filtro === 'denuncias' ? denuncias.length : servicios.filter((s) => enFiltro(s, b.dataset.filtro)).length;
     });
+    const verDenuncias = filtro === 'denuncias';
+    $('denuncias').hidden = !verDenuncias;
+    $('lista').hidden = verDenuncias;
+    $('buscar').hidden = verDenuncias;
+    if (verDenuncias) {
+      const lista = $('denuncias');
+      lista.textContent = '';
+      denuncias.forEach((d) => lista.appendChild(filaDenuncia(d)));
+      $('vacio').hidden = denuncias.length > 0;
+      return;
+    }
     const busqueda = $('buscar').value.trim().toLowerCase();
     const visibles = servicios.filter(
       (s) =>

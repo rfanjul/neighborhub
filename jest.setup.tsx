@@ -42,6 +42,10 @@ jest.mock('./src/firebase/data', () => ({
     pagarOferta: jest.fn(async () => 'https://checkout.stripe.com/c/pay/cs_test'),
     misPagos: jest.fn(async () => []),
     guardarDispositivo: jest.fn(async () => undefined),
+    misBloqueos: jest.fn(async () => []),
+    bloquear: jest.fn(async () => undefined),
+    desbloquear: jest.fn(async () => undefined),
+    denunciar: jest.fn(async () => undefined),
     olvidarDispositivo: jest.fn(async () => undefined),
   },
 }));

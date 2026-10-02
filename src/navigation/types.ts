@@ -35,6 +35,8 @@ export type RootStackParamList = {
   Chat: { serviceId: string };
   /** Todos mis pagos y cobros con su estado. */
   Payments: undefined;
+  /** Vecinos bloqueados (Perfil → ajustes), para desbloquearlos. */
+  Blocked: undefined;
   /** Sin serviceId crea uno nuevo; con él, edita ese servicio. */
   CreateService: { serviceId?: string } | undefined;
 };

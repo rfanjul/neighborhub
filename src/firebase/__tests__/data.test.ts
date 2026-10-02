@@ -782,3 +782,59 @@ describe('dispositivos para avisos push', () => {
     expect(mockStore.has('dispositivos/uid-1')).toBe(false);
   });
 });
+
+describe('bloquear y denunciar', () => {
+  // La lista se guarda en memoria por sesión: cada test con un usuario distinto.
+  let n = 0;
+  const nuevoUsuario = () => {
+    const uid = `bloq-${++n}`;
+    const { auth } = require('../index');
+    auth.currentUser.uid = uid;
+    return uid;
+  };
+  afterEach(() => {
+    require('../index').auth.currentUser.uid = 'uid-1';
+  });
+
+  it('bloquear y desbloquear guardan la lista privada, sin repetir ni bloquearse a uno mismo', async () => {
+    const yo = nuevoUsuario();
+    await api.bloquear('luis');
+    await api.bloquear('luis');
+    await api.bloquear(yo);
+    expect(mockStore.get(`bloqueos/${yo}`)?.usuarios).toEqual(['luis']);
+    expect(await api.misBloqueos()).toEqual(['luis']);
+
+    await api.desbloquear('luis');
+    expect(mockStore.get(`bloqueos/${yo}`)?.usuarios).toEqual([]);
+  });
+
+  it('lee la lista guardada la primera vez', async () => {
+    const yo = nuevoUsuario();
+    mockStore.set(`bloqueos/${yo}`, { usuarios: ['mia'] });
+
+    expect(await api.misBloqueos()).toEqual(['mia']);
+  });
+
+  it('el muro y las ofertas no enseñan a los bloqueados; sus servicios, vacíos', async () => {
+    const yo = nuevoUsuario();
+    mockStore.set(`bloqueos/${yo}`, { usuarios: ['malo'] });
+    mockStore.set('helpRequests/b1', { title: 'Del malo', status: 'approved', requesterId: 'malo' });
+    mockStore.set('helpRequests/b2', { title: 'De otra', status: 'approved', requesterId: 'buena' });
+    mockStore.set('applications/b2_malo', { serviceId: 'b2', applicantId: 'malo', requesterId: yo, status: 'pending' });
+    mockStore.set('applications/b2_buena', { serviceId: 'b2', applicantId: 'otra', requesterId: yo, status: 'pending' });
+
+    const titulos = (await api.listServices()).map((s) => s.title);
+    expect(titulos).toContain('De otra');
+    expect(titulos).not.toContain('Del malo');
+    expect((await api.listApplicationsForService('b2')).map((o) => o.applicantId)).toEqual(['otra']);
+    expect(await api.listServicesBy('malo')).toEqual([]);
+  });
+
+  it('denunciar deja la denuncia a nombre propio, nueva', async () => {
+    const yo = nuevoUsuario();
+    await api.denunciar('service', 's9', 'spam');
+
+    const denuncia = [...mockStore.entries()].find(([k, v]) => k.startsWith('reports/') && v.objetoId === 's9')?.[1];
+    expect(denuncia).toMatchObject({ reporterId: yo, tipo: 'service', objetoId: 's9', motivo: 'spam', estado: 'nuevo' });
+  });
+});

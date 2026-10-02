@@ -22,6 +22,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    /** quien está en la lista de bloqueados de uid (bloqueos/{uid}). */
+    function bloqueadoPor(uid, quien) {
+      let ruta = /databases/$(database)/documents/bloqueos/$(uid);
+      return uid != null && exists(ruta) && quien in get(ruta).data.usuarios;
+    }
+
     /** Campos que cambia esta escritura respecto al documento guardado. */
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
@@ -158,13 +164,19 @@ service cloud.firestore {
           let pedido = get(/databases/$(database)/documents/helpRequests/$(requestId)).data;
           return pedido.requesterId == request.auth.uid || pedido.helperId == request.auth.uid;
         }
+        function otraParte() {
+          let pedido = get(/databases/$(database)/documents/helpRequests/$(requestId)).data;
+          return pedido.requesterId == request.auth.uid ? pedido.helperId : pedido.requesterId;
+        }
 
         // Solo las dos partes del servicio leen y escriben la conversación,
         // y cada mensaje va firmado por quien lo manda.
         allow read: if signedIn() && isParticipant();
+        // Si la otra persona me ha bloqueado, no le llegan mis mensajes.
         allow create: if signedIn()
           && isParticipant()
-          && request.resource.data.senderId == request.auth.uid;
+          && request.resource.data.senderId == request.auth.uid
+          && !bloqueadoPor(otraParte(), request.auth.uid);
         allow update, delete: if false;
       }
     }
@@ -189,7 +201,9 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && servicio(request.resource.data.serviceId).status == 'approved'
         && servicio(request.resource.data.serviceId).requesterId != request.auth.uid
-        && request.resource.data.requesterId == servicio(request.resource.data.serviceId).requesterId;
+        && request.resource.data.requesterId == servicio(request.resource.data.serviceId).requesterId
+        // Quien publicó me ha bloqueado: no puedo ofertarme en lo suyo.
+        && !bloqueadoPor(request.resource.data.requesterId, request.auth.uid);
 
       // Solo quien publicó el servicio la selecciona o la rechaza.
       allow update: if signedIn()
@@ -219,6 +233,35 @@ service cloud.firestore {
         && request.resource.data.tokens is list
         && request.resource.data.tokens.size() <= 10
         && request.resource.data.idioma in ['en', 'de', 'es'];
+    }
+
+    // Vecinos bloqueados por cada uno: privado, solo su dueño. Las reglas lo
+    // consultan para frenar mensajes y ofertas de quien está bloqueado.
+    match /bloqueos/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['usuarios', 'actualizado'])
+        && request.resource.data.usuarios is list
+        && request.resource.data.usuarios.size() <= 500;
+    }
+
+    // Denuncias hechas desde la app: las crea quien denuncia, con su nombre;
+    // solo la administración las lee y las da por revisadas.
+    match /reports/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['reporterId', 'tipo', 'objetoId', 'motivo', 'estado', 'createdAt'])
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.tipo in ['service', 'user', 'message']
+        && request.resource.data.objetoId is string
+        && request.resource.data.objetoId.size() > 0
+        && request.resource.data.objetoId.size() <= 200
+        && request.resource.data.motivo in ['spam', 'inapropiado', 'acoso', 'otro']
+        && request.resource.data.estado == 'nuevo'
+        && request.resource.data.createdAt == request.time;
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'revisadoPor', 'revisadoEn', 'nota'])
+        && request.resource.data.estado in ['nuevo', 'revisado', 'retirado'];
     }
 
     match /contactMessages/{id} {

@@ -7,7 +7,15 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 ## Sin publicar
 
 ### Añadido
-- Perfil → **Pagos**: lo que has pagado y lo que cobras, con su estado
+- **Bloquear y denunciar** (normas de contenido de usuarios de Apple, 1.2):
+  denunciar un servicio, un vecino o una conversación con un motivo, desde
+  la app (queda en `reports/`); bloquear y desbloquear vecinos desde su
+  perfil, el detalle del servicio o el chat (⋯). A quien bloqueas no lo
+  ves en el muro, el mapa ni las ofertas, y no puede escribirte ni
+  ofertarse en lo tuyo (también en las reglas). Ajustes → Vecinos
+  bloqueados. La web de administración tiene una pestaña **Denuncias**
+  para revisarlas (despublicar el servicio o darla por revisada).
+- Ajustes → **Pagos**: lo que has pagado y lo que cobras, con su estado
   (sin completar, retenido, pagado/cobrado) y «Ver todos». Función
   `misPagos` (sin datos de Stripe). *Publicado; funciona con la app de la
   build 6.*
@@ -18,6 +26,14 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
   abre su pantalla. Los tokens van en `dispositivos/{uid}`, privado; se
   borran al cerrar sesión o si Expo los da por caducados. *Necesita build
   nueva (módulo nativo y capacidad Push en iOS).*
+
+### Corregido
+- Un pago real del Sandbox lo **devolvió el emulador local** (el reenvío de
+  `stripe listen` seguía abierto y el emulador no conocía el servicio), y
+  al completarlo la transferencia falló en silencio. Ahora cada pago lleva
+  su proyecto y el webhook ignora los de otro entorno; nunca se devuelve un
+  pago sin registro propio; y si la transferencia falla queda
+  «reembolsado» o «error» (la app lo dice) en vez de «retenido».
 
 ## [1.1.0 (6)] — 2026-10-01 · TestFlight, prueba interna de pagos
 

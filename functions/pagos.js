@@ -49,7 +49,7 @@ const cuentaActiva = (cuenta) =>
     ? cuenta.capabilities?.transfers === 'active'
     : cuenta?.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status === 'active';
 
-function crearPagos({ stripe, db, ahora, web }) {
+function crearPagos({ stripe, db, ahora, web, proyecto }) {
   async function guardarEstadoCuenta(uid, activos) {
     await db.doc(`cuentasCobro/${uid}`).set({ cobrosActivos: activos, actualizado: ahora() }, { merge: true });
     // El perfil público solo dice si puede cobrar; el id de Stripe no sale de cuentasCobro.
@@ -140,7 +140,9 @@ function crearPagos({ stripe, db, ahora, web }) {
 
     const precio = servicio.priceCents;
     const gestion = comision(precio);
-    const metadata = { serviceId, helperId: applicantId, requesterId: uid };
+    // proyecto: el Sandbox de Stripe lo comparten la app real y los
+    // emuladores; cada uno solo atiende sus propios pagos.
+    const metadata = { serviceId, helperId: applicantId, requesterId: uid, ...(proyecto ? { proyecto } : {}) };
     const linea = (nombre, importe) => ({
       quantity: 1,
       price_data: { currency: 'chf', unit_amount: importe, product_data: { name: nombre } },
@@ -180,8 +182,10 @@ function crearPagos({ stripe, db, ahora, web }) {
    * es un pago viejo), se devuelve el dinero.
    */
   async function alCompletarCheckout(sesion) {
-    const { serviceId, helperId } = sesion.metadata || {};
+    const { serviceId, helperId, proyecto: deProyecto } = sesion.metadata || {};
     if (!serviceId || !helperId || sesion.payment_status !== 'paid') return 'ignorado';
+    // Un pago de otro entorno (p. ej. la app real vista desde los emuladores): ni se toca.
+    if (deProyecto && proyecto && deProyecto !== proyecto) return 'ajeno';
     const intento = await stripe.paymentIntents.retrieve(sesion.payment_intent);
     const chargeId = typeof intento.latest_charge === 'string' ? intento.latest_charge : intento.latest_charge?.id;
 
@@ -194,6 +198,9 @@ function crearPagos({ stripe, db, ahora, web }) {
         tx.get(db.collection('applications').where('serviceId', '==', serviceId)),
       ]);
       const datosPago = pago.data();
+      // Sin registro de pago para ese servicio, no es un pago nuestro: nunca
+      // se devuelve dinero que no sabemos de dónde viene.
+      if (!datosPago) return 'ajeno';
       // Stripe reintenta los avisos: el segundo no hace nada.
       if (datosPago?.checkoutSessionId === sesion.id && datosPago.estado !== 'pendiente') return 'repetido';
       const elegida = ofertas.docs.find((o) => o.data().applicantId === helperId);
@@ -238,18 +245,28 @@ function crearPagos({ stripe, db, ahora, web }) {
     const pagoRef = db.doc(`pagos/${serviceId}`);
     const pago = (await pagoRef.get()).data();
     if (pago?.estado !== 'retenido') return 'nada';
-    const transferencia = await stripe.transfers.create(
-      {
-        amount: pago.precio,
-        currency: 'chf',
-        destination: pago.cuentaDestino,
-        transfer_group: serviceId,
-        // Del propio cargo: no hace falta esperar a tener saldo disponible.
-        source_transaction: pago.chargeId,
-        metadata: { serviceId, helperId: pago.helperId },
-      },
-      { idempotencyKey: `liberar-${serviceId}` }
-    );
+    let transferencia;
+    try {
+      transferencia = await stripe.transfers.create(
+        {
+          amount: pago.precio,
+          currency: 'chf',
+          destination: pago.cuentaDestino,
+          transfer_group: serviceId,
+          // Del propio cargo: no hace falta esperar a tener saldo disponible.
+          source_transaction: pago.chargeId,
+          metadata: { serviceId, helperId: pago.helperId },
+        },
+        { idempotencyKey: `liberar-${serviceId}` }
+      );
+    } catch (e) {
+      // Que no se quede «retenido» para siempre: o ya se devolvió, o hay que mirarlo.
+      const cargo = await stripe.charges.retrieve(pago.chargeId).catch(() => null);
+      const estado = cargo?.refunded ? 'reembolsado' : 'error';
+      await pagoRef.update({ estado, error: String(e.message || e).slice(0, 300), actualizado: ahora() });
+      await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': estado });
+      return estado;
+    }
     await pagoRef.update({ estado: 'pagado', transferId: transferencia.id, actualizado: ahora() });
     await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': 'pagado' });
     return 'pagado';

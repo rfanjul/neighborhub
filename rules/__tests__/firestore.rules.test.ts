@@ -383,6 +383,53 @@ describe('dispositivos (avisos push)', () => {
   });
 });
 
+describe('bloquear y denunciar (contenido de usuarios)', () => {
+  it('cada uno guarda y lee su lista de bloqueados; nadie más', async () => {
+    const ref = doc(como('ana'), 'bloqueos/ana');
+    await assertSucceeds(setDoc(ref, { usuarios: ['luis'], actualizado: serverTimestamp() }));
+    await assertSucceeds(getDoc(ref));
+    await assertFails(getDoc(doc(como('luis'), 'bloqueos/ana')));
+    await assertFails(setDoc(doc(como('luis'), 'bloqueos/ana'), { usuarios: [] }));
+    await assertFails(setDoc(ref, { usuarios: 'luis' }));
+  });
+
+  it('a quien me bloqueó ya no le llegan mis mensajes; el resto de la conversación sigue', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+    const mensaje = (uid: string) => ({ senderId: uid, senderName: uid, text: 'Hola', createdAt: serverTimestamp() });
+    await assertSucceeds(addDoc(collection(como('luis'), 'helpRequests/s1/messages'), mensaje('luis')));
+
+    await sembrar('bloqueos/ana', { usuarios: ['luis'] });
+
+    await assertFails(addDoc(collection(como('luis'), 'helpRequests/s1/messages'), mensaje('luis')));
+    await assertSucceeds(addDoc(collection(como('ana'), 'helpRequests/s1/messages'), mensaje('ana')));
+  });
+
+  it('quien me bloqueó no recibe mis ofertas', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+    const oferta = { serviceId: 's1', applicantId: 'luis', requesterId: 'ana', status: 'pending', comment: 'Yo puedo' };
+    await sembrar('bloqueos/ana', { usuarios: ['luis'] });
+
+    await assertFails(setDoc(doc(como('luis'), 'applications/s1_luis'), oferta));
+    await assertSucceeds(setDoc(doc(como('mia'), 'applications/s1_mia'), { ...oferta, applicantId: 'mia' }));
+  });
+
+  it('se denuncia a nombre propio, con un motivo conocido; solo la administración lo lee', async () => {
+    const denuncia = { reporterId: 'ana', tipo: 'user', objetoId: 'luis', motivo: 'acoso', estado: 'nuevo', createdAt: serverTimestamp() };
+    await assertSucceeds(addDoc(collection(como('ana'), 'reports'), denuncia));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, reporterId: 'luis' }));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, motivo: 'me cae mal' }));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, estado: 'revisado' }));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, extra: 1 }));
+
+    await sembrar('reports/r1', { ...denuncia, createdAt: new Date() });
+    await assertFails(getDoc(doc(como('ana'), 'reports/r1')));
+    const admin = env.authenticatedContext('jefa', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(admin, 'reports/r1')));
+    await assertSucceeds(updateDoc(doc(admin, 'reports/r1'), { estado: 'retirado', revisadoPor: 'jefa' }));
+    await assertFails(updateDoc(doc(admin, 'reports/r1'), { motivo: 'spam' }));
+  });
+});
+
 describe('administración', () => {
   const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
 

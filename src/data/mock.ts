@@ -4,7 +4,8 @@ export type ServiceStatus = 'pending' | 'approved' | 'accepted' | 'in_progress' 
 
 /** Lo que la app ve del pago (el detalle de Stripe solo lo tiene el servidor). */
 export type PagoResumen = {
-  estado: 'retenido' | 'pagado';
+  /** reembolsado: se devolvió a quien pagó; error: la transferencia falló y hay que revisarla. */
+  estado: 'retenido' | 'pagado' | 'reembolsado' | 'error';
   precio: number;
   comision: number;
   total: number;

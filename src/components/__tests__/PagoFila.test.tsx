@@ -10,6 +10,9 @@ describe('PagoFila', () => {
     [pago({ estado: 'pagado' }), /^−CHF\s43\.20$/, 'Paid to Luis', 'to Luis'],
     [pago({ rol: 'cobrado', estado: 'retenido', importe: 4000, otraPersona: 'Ana' }), /^\+CHF\s40\.00$/, "You'll get it when it's done", 'from Ana'],
     [pago({ rol: 'cobrado', estado: 'pagado', importe: 4000, otraPersona: 'Ana' }), /^\+CHF\s40\.00$/, 'Received', 'from Ana'],
+    [pago({ estado: 'reembolsado' }), /^−CHF\s43\.20$/, 'Refunded', 'to Luis'],
+    [pago({ estado: 'error' }), /^−CHF\s43\.20$/, "Payment issue · we're on it", 'to Luis'],
+    [pago({ rol: 'cobrado', estado: 'reembolsado', importe: 4000, otraPersona: 'Ana' }), /^\+CHF\s40\.00$/, 'Cancelled · refunded', 'from Ana'],
   ])('%#: importe con signo, estado y con quién', async (p, importe, estado, quien) => {
     await render(<PagoFila pago={p} />);
 
