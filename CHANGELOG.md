@@ -6,7 +6,15 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Solo servidor y web (publicados; no hace falta build):
+Nada todavía.
+
+## [1.1.0 (15)] — 2026-10-02 · TestFlight
+
+Build EAS `210d4690` desde el commit `2d4f468`. Trae a la app el botón para
+volver a pagar (abajo, «App»); lo de servidor y web se publicó aparte y no
+depende de la build.
+
+### Solo servidor y web (publicados aparte)
 - Administración → cada servicio con precio tiene una sección **Pago**: estado,
   importes, quién paga y quién cobra, el último error y los movimientos en
   Stripe (cobro, reembolsos, transferencias) con sus ids. Pestaña **Con pago**
@@ -36,7 +44,7 @@ Solo servidor y web (publicados; no hace falta build):
   final como ficticios. Function `adminUsuarios` (solo con el claim admin; no
   devuelve fecha de nacimiento ni bio).
 
-App (necesita build):
+### App
 - Ajustes → Pagos: «Falta tu pago» con el botón **Pagar CHF …**, y la lista se
   actualiza al volver de Stripe.
 - Ofertas del servicio: si hay que volver a pagar, lo explica con el botón
