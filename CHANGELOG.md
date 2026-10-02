@@ -13,6 +13,12 @@ Solo web (Hosting, ya publicada; no hace falta build):
 - `/admin` se sirve sin caché (`Cache-Control: no-cache` en `firebase.json`,
   que ahora `scripts/deploy-hosting.js` también publica).
 
+## [1.1.0 (12)] — 2026-10-02 · TestFlight
+
+Build EAS `b0f8b086` desde el commit `1ea3257`. La app es **igual que la
+11**: entre los dos commits solo cambian `CHANGELOG.md` y
+`docs/VERSIONES.md`. Para la revisión vale cualquiera de las dos.
+
 ## [1.1.0 (11)] — 2026-10-02 · TestFlight → revisión de App Store
 
 Rama `feature/pagos`. Build EAS `9e38810d` desde el commit `39aa871`. Es la
@@ -26,6 +32,7 @@ Builds intermedias desde la 6:
 | 8 y 9 | `aa909a3` | Pagos en el perfil y notificaciones push |
 | 10 | `c820f98` | Bloquear y denunciar, pagos en ajustes y el arreglo del reembolso |
 | 11 | `39aa871` | Interruptor de pagos |
+| 12 | `1ea3257` | Nada en la app (solo documentación) |
 
 ### Añadido
 - **Interruptor de pagos** (`config/app.pagosActivos`, en la web de
