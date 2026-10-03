@@ -2,7 +2,7 @@
  * Lista de usuarios para la web de administración: las cuentas de Firebase
  * Auth (cómo entran, último acceso, si están desactivadas o son admin) con
  * su perfil público de users/. Los vecinos de ejemplo (seed) tienen perfil
- * pero no cuenta: salen como ficticios.
+ * pero no cuenta: salen como ficticios, con el email de privado/.
  *
  * Recibe auth y db de fuera para poder probarlo sin red.
  */
@@ -25,13 +25,19 @@ function crearUsuarios({ auth, db }) {
   }
 
   async function listar() {
-    const [cuentas, perfiles] = await Promise.all([todasLasCuentas(), db.collection('users').get()]);
+    const [cuentas, perfiles, privados] = await Promise.all([
+      todasLasCuentas(),
+      db.collection('users').get(),
+      db.collection('privado').get(),
+    ]);
     const porUid = new Map(perfiles.docs.map((d) => [d.id, d.data()]));
+    // Solo el email: la fecha de nacimiento no hace falta aquí.
+    const emails = new Map(privados.docs.map((d) => [d.id, d.get('email')]));
 
     const usuario = (uid, cuenta, p = {}) => ({
       uid,
       nombre: p.name || cuenta?.displayName || '',
-      email: cuenta?.email || p.email || '',
+      email: cuenta?.email || emails.get(uid) || '',
       foto: p.photoURL || cuenta?.photoURL || '',
       ciudad: p.city || '',
       codigoPostal: p.postalCode || '',

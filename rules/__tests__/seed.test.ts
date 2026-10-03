@@ -4,7 +4,7 @@
  * muro y los perfiles se ven como en la app. Luego limpia.
  */
 import { readFileSync } from 'fs';
-import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
+import { assertFails, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { deleteApp, initializeApp, type App } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
@@ -13,7 +13,8 @@ const { sembrar, limpiar, ofertar, demo, revision } = require('../../scripts/see
 const { construir } = require('../../scripts/seed-data');
 
 const { resenas } = construir({ fecha: (d: Date) => d });
-const sembrados = 10 + 30 + resenas.length;
+// 10 perfiles públicos y sus 10 documentos privados, 30 servicios y las reseñas.
+const sembrados = 10 + 10 + 30 + resenas.length;
 
 // Proyecto propio: los otros tests limpian demo-neighborhub en paralelo.
 const projectId = 'demo-seed';
@@ -59,10 +60,22 @@ test('crea 10 vecinos y 30 servicios aprobados, visibles en el muro', async () =
 
   const perfil = await getDoc(doc(vecino(), 'users', 'seed-user-01'));
   expect(perfil.data()).toMatchObject({ name: 'Anna Weber', onboardingCompleted: true, city: 'Zürich' });
+  expect(perfil.data()).not.toHaveProperty('email');
+  expect(perfil.data()).not.toHaveProperty('dateOfBirth');
   // La valoración cuadra con sus reseñas, para que las nuevas sumen bien.
   const { rating, ratingSum, ratingCount, servicesCompleted } = perfil.data()!;
   expect(ratingCount).toBe(servicesCompleted);
   expect(rating).toBe(Math.round((ratingSum / ratingCount) * 10) / 10);
+});
+
+test('el email de cada vecino va en privado/, que otro vecino no puede leer', async () => {
+  await sembrar(getFirestore(admin), { Timestamp });
+
+  const privado = await getFirestore(admin).doc('privado/seed-user-01').get();
+  expect(privado.data()).toEqual({ email: 'anna.weber@example.com', dateOfBirth: null, seed: true });
+  await assertFails(getDoc(doc(vecino(), 'privado', 'seed-user-01')));
+  const jefa = env.authenticatedContext('jefa', { admin: true }).firestore();
+  expect((await getDoc(doc(jefa, 'privado', 'seed-user-01'))).data()?.email).toBe('anna.weber@example.com');
 });
 
 test('cada vecino tiene tantas reseñas como ayudas, y suman su valoración', async () => {
@@ -107,6 +120,7 @@ test('limpiar borra lo sembrado y respeta los datos reales', async () => {
   const db = getFirestore(admin);
   await sembrar(db, { Timestamp });
   await db.doc('users/ruben').set({ name: 'Ruben' });
+  await db.doc('privado/ruben').set({ email: 'ruben@example.com' });
   await db.doc('helpRequests/real').set({ title: 'Real', status: 'approved', requesterId: 'ruben' });
   await db.doc('applications/seed-service-01-1_ruben').set({ serviceId: 'seed-service-01-1', applicantId: 'ruben' });
 
@@ -114,6 +128,7 @@ test('limpiar borra lo sembrado y respeta los datos reales', async () => {
 
   expect((await db.collection('helpRequests').get()).docs.map((d) => d.id)).toEqual(['real']);
   expect((await db.collection('users').get()).docs.map((d) => d.id)).toEqual(['ruben']);
+  expect((await db.collection('privado').get()).docs.map((d) => d.id)).toEqual(['ruben']);
   expect((await db.collection('applications').get()).size).toBe(0);
 });
 
@@ -193,14 +208,17 @@ describe('cuenta para la revisión de Apple', () => {
       expect.objectContaining({ uid: 'app-review', email: r.email, password: r.password, emailVerified: true })
     );
     expect((await db.doc('users/app-review').get()).data()).toMatchObject({ name: 'Alex Demo', onboardingCompleted: true });
+    expect((await db.doc('users/app-review').get()).data()).not.toHaveProperty('email');
+    expect((await db.doc('privado/app-review').get()).data()).toMatchObject({ email: 'appreview@neighborhub.test' });
     expect((await db.doc('helpRequests/demo-move-table').get()).data()).toMatchObject({ status: 'approved', requesterId: 'app-review' });
     const ofertas = await db.collection('applications').where('serviceId', '==', 'demo-move-table').get();
     expect(ofertas.size).toBe(3);
     expect((await db.doc('helpRequests/demo-mirror').get()).data()).toMatchObject({ status: 'accepted', helperId: 'seed-user-08' });
 
-    // Y quien revisa, con las reglas activas, ve su perfil y el chat.
+    // Y quien revisa, con las reglas activas, ve su perfil, sus datos privados y el chat.
     const suya = env.authenticatedContext('app-review').firestore();
     expect((await getDoc(doc(suya, 'users/app-review'))).exists()).toBe(true);
+    expect((await getDoc(doc(suya, 'privado/app-review'))).exists()).toBe(true);
     expect((await getDocs(collection(suya, 'helpRequests/demo-mirror/messages'))).size).toBe(3);
   });
 
@@ -247,6 +265,7 @@ describe('cuenta para la revisión de Apple', () => {
     await limpiar(db);
 
     expect((await db.doc('users/app-review').get()).exists).toBe(false);
+    expect((await db.doc('privado/app-review').get()).exists).toBe(false);
     expect((await db.collection('applications').get()).size).toBe(0);
   });
 });

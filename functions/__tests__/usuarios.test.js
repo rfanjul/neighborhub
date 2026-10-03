@@ -43,9 +43,10 @@ function authFalso(cuentas, porPagina = 1000) {
 describe('usuarios de la administración', () => {
   it('junta la cuenta (cómo entra, último acceso, admin) con su perfil', async () => {
     await db.doc('users/ana').set({
-      name: 'Ana', email: 'ana@ejemplo.test', city: 'Zürich', postalCode: '8004', country: 'CH', photoURL: 'https://foto/ana.jpg',
-      rating: 4.5, ratingCount: 2, servicesCompleted: 3, cobrosActivos: true, onboardingCompleted: true, dateOfBirth: '1990-01-01',
+      name: 'Ana', city: 'Zürich', postalCode: '8004', country: 'CH', photoURL: 'https://foto/ana.jpg',
+      rating: 4.5, ratingCount: 2, servicesCompleted: 3, cobrosActivos: true, onboardingCompleted: true,
     });
+    await db.doc('privado/ana').set({ email: 'ana@vieja.test', dateOfBirth: '1990-01-01' });
     const auth = authFalso([
       cuenta('ana', { providerData: [{ providerId: 'apple.com' }, { providerId: 'password' }] }),
       cuenta('jefa', { customClaims: { admin: true }, disabled: true }),
@@ -56,6 +57,7 @@ describe('usuarios de la administración', () => {
     expect(ana).toEqual({
       uid: 'ana',
       nombre: 'Ana',
+      // El de la cuenta de Auth manda sobre el guardado en privado/.
       email: 'ana@ejemplo.test',
       foto: 'https://foto/ana.jpg',
       ciudad: 'Zürich',
@@ -97,6 +99,15 @@ describe('usuarios de la administración', () => {
     expect(lista[2]).toMatchObject({ nombre: 'Mia', email: '', proveedores: [], creado: Date.UTC(2026, 0, 1), ultimoAcceso: 0 });
   });
 
+  it('el email de quien no tiene cuenta sale de sus datos privados', async () => {
+    await db.doc('users/vecino').set({ name: 'Mia', seed: true });
+    await db.doc('privado/vecino').set({ email: 'mia@example.com', dateOfBirth: null });
+
+    const [mia] = await crearUsuarios({ auth: authFalso([]), db }).listar();
+
+    expect(mia).toMatchObject({ uid: 'vecino', email: 'mia@example.com', ficticio: true });
+  });
+
   it('recorre todas las páginas de cuentas', async () => {
     const auth = authFalso([cuenta('a'), cuenta('b'), cuenta('c')], 2);
 
@@ -106,6 +117,7 @@ describe('usuarios de la administración', () => {
 
   it('no devuelve datos que no hacen falta (fecha de nacimiento, bio)', async () => {
     await db.doc('users/ana').set({ name: 'Ana', dateOfBirth: '1990-01-01', bio: 'hola' });
+    await db.doc('privado/ana').set({ email: 'ana@ejemplo.test', dateOfBirth: '1990-01-01' });
     const [ana] = await crearUsuarios({ auth: authFalso([cuenta('ana')]), db }).listar();
 
     expect(JSON.stringify(ana)).not.toMatch(/1990|hola/);

@@ -1,12 +1,10 @@
-import type { ApiUserProfile, Review } from '../firebase/data';
+import type { ApiUserProfile, MiPerfil, Review } from '../firebase/data';
 
 /** Perfil completo de un vecino para tests; se sobrescribe lo que haga falta. */
 export const perfil = (cambios: Partial<ApiUserProfile> = {}): ApiUserProfile => ({
   id: 'luis',
   name: 'Luis',
-  email: 'luis@example.com',
   bio: 'Carpintero jubilado, tengo de todo en el taller.',
-  dateOfBirth: null,
   city: 'Zürich',
   postalCode: '8003',
   country: 'Switzerland',
@@ -24,6 +22,14 @@ export const perfil = (cambios: Partial<ApiUserProfile> = {}): ApiUserProfile =>
   hasPhoto: false,
   photoURL: null,
   memberSince: Date.UTC(2026, 6, 15),
+  ...cambios,
+});
+
+/** Mi perfil (el de quien tiene la sesión): el público más los datos privados. */
+export const miPerfil = (cambios: Partial<MiPerfil> = {}): MiPerfil => ({
+  ...perfil(),
+  email: 'luis@example.com',
+  dateOfBirth: null,
   ...cambios,
 });
 

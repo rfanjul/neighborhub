@@ -39,6 +39,9 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // Perfil público: lo lee cualquiera con sesión (muro, ofertas, reseñas),
+    // así que no lleva nada personal. El email y la fecha de nacimiento van
+    // en privado/{uid}.
     match /users/{userId} {
       allow read: if signedIn();
 
@@ -46,6 +49,7 @@ service cloud.firestore {
       // nivel o verificación que no se haya ganado.
       allow create: if signedIn()
         && request.auth.uid == userId
+        && !request.resource.data.keys().hasAny(['email', 'dateOfBirth'])
         && request.resource.data.credits == 0
         && request.resource.data.rating == 0
         && request.resource.data.level == 1
@@ -77,7 +81,7 @@ service cloud.firestore {
       allow update: if signedIn() && (
         (request.auth.uid == userId
           && changedKeys().hasOnly([
-            'name', 'bio', 'dateOfBirth', 'city', 'postalCode', 'country',
+            'name', 'bio', 'city', 'postalCode', 'country',
             'languages', 'onboardingCompleted', 'photoURL'
           ]))
         || recibeValoracion()
@@ -85,6 +89,32 @@ service cloud.firestore {
 
       // Borrar la cuenta desde la app: cada uno borra solo su perfil.
       allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Datos personales de cada uno (email y fecha de nacimiento): solo los
+    // lee y escribe su dueño; la administración los lee. Las Functions y los
+    // scripts usan el Admin SDK.
+    match /privado/{uid} {
+      function fechaValida(d) {
+        return d.get('dateOfBirth', null) == null
+          || (d.dateOfBirth is string && d.dateOfBirth.size() <= 50);
+      }
+
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email', 'dateOfBirth'])
+        && request.resource.data.get('email', '') is string
+        && request.resource.data.get('email', '').size() <= 200
+        && fechaValida(request.resource.data);
+
+      // El email se apunta al crear la cuenta; después solo cambia la fecha.
+      allow update: if signedIn() && request.auth.uid == uid
+        && changedKeys().hasOnly(['dateOfBirth'])
+        && fechaValida(request.resource.data);
+
+      // Al borrar la cuenta desde la app.
+      allow delete: if signedIn() && request.auth.uid == uid;
     }
 
     match /helpRequests/{requestId} {

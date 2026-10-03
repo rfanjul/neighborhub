@@ -560,7 +560,8 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     if (pago.recobro?.checkoutSessionId) {
       await stripe.checkout.sessions.expire(pago.recobro.checkoutSessionId).catch(() => {});
     }
-    const quienPide = (await db.doc(`users/${pago.requesterId}`).get()).data() || {};
+    // El email de quien pidió está en sus datos privados, no en el perfil público.
+    const quienPide = (await db.doc(`privado/${pago.requesterId}`).get()).data() || {};
     const sesion = await abrirCheckout({
       serviceId,
       helperId: pago.helperId,

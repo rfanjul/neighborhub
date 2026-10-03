@@ -618,14 +618,17 @@
     const vecino = $('editor-vecino');
     vecino.textContent = `Lo pide ${s.requesterName || '—'}`;
     if (s.requesterId) {
-      db.collection('users')
-        .doc(s.requesterId)
-        .get()
-        .then((d) => {
+      // El perfil es público; el email está en privado/ (las reglas dejan leerlo a admin).
+      Promise.all([
+        db.collection('users').doc(s.requesterId).get(),
+        db.collection('privado').doc(s.requesterId).get().catch(() => null),
+      ])
+        .then(([d, privado]) => {
           if (abierto !== id || !d.exists) return;
           const p = d.data();
+          const email = privado && privado.exists ? privado.get('email') : null;
           const lugar = [p.postalCode, p.city].filter(Boolean).join(' ');
-          vecino.textContent = [`Lo pide ${p.name || s.requesterName || '—'}`, p.email, lugar].filter(Boolean).join(' · ');
+          vecino.textContent = [`Lo pide ${p.name || s.requesterName || '—'}`, email, lugar].filter(Boolean).join(' · ');
         })
         .catch(() => {});
     }

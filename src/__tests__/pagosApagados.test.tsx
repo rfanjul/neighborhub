@@ -14,7 +14,7 @@ import { api, type Application } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import { authValue } from '../test-utils/renderWithAuth';
 import { servicio } from '../test-utils/servicio';
-import { perfil } from '../test-utils/perfil';
+import { miPerfil, perfil } from '../test-utils/perfil';
 import { pulsarEnAlerta } from '../test-utils/alerta';
 
 jest.mock('@react-navigation/native', () => ({
@@ -81,7 +81,7 @@ it('un servicio con precio se elige sin pagar', async () => {
 
 it('ofrecerse en uno con precio no exige activar cobros', async () => {
   mockedApi.getService.mockResolvedValue(servicio({ title: 'Subir un sofá', priceCents: 4000 }));
-  mockedApi.getMe.mockResolvedValue(perfil({ cobrosActivos: false }));
+  mockedApi.getMe.mockResolvedValue(miPerfil({ cobrosActivos: false }));
   await render(<ApplyScreen navigation={navegacion() as never} route={{ params: { serviceId: 's1' } } as never} />);
 
   await screen.findByText('Subir un sofá');

@@ -380,7 +380,8 @@ describe('administración: ver y reintentar el pago', () => {
   /** Pagado y terminado, pero la transferencia falló (como «Move TV»). */
   async function terminadoSinPagar({ reembolsado = true } = {}) {
     await servicioConOfertas();
-    await db.doc('users/ana').set({ name: 'Ana', email: 'ana@ejemplo.test' });
+    await db.doc('users/ana').set({ name: 'Ana' });
+    await db.doc('privado/ana').set({ email: 'ana@ejemplo.test' });
     await pagos.pagarOferta('ana', null, { serviceId: 's1', applicantId: 'luis' });
     await pagos.alCompletarCheckout(sesionPagada());
     cargoReembolsado = reembolsado;
@@ -562,7 +563,8 @@ describe('administración: ver y reintentar el pago', () => {
 
   describe('servicio con precio elegido sin pagar (pagos apagados)', () => {
     async function terminadoGratis({ cobros = true } = {}) {
-      await db.doc('users/ana').set({ name: 'Ana', email: 'ana@ejemplo.test' });
+      await db.doc('users/ana').set({ name: 'Ana' });
+      await db.doc('privado/ana').set({ email: 'ana@ejemplo.test' });
       await db.doc('helpRequests/s1').set({
         title: 'Test', status: 'rated', priceCents: 2000, requesterId: 'ana', requesterName: 'Ana', helperId: 'luis', helperName: 'Luis',
       });

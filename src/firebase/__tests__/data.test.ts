@@ -77,6 +77,10 @@ jest.mock('@firebase/firestore', () => {
     writeBatch: () => {
       const operaciones: Array<() => void> = [];
       return {
+        set(r: { path: string }, data: Doc, opciones?: { merge?: boolean }) {
+          validar(data);
+          operaciones.push(() => mockStore.set(r.path, { ...(opciones?.merge ? mockStore.get(r.path) : {}), ...data }));
+        },
         update(r: { path: string }, data: Doc) {
           validar(data);
           operaciones.push(() => {
@@ -208,6 +212,67 @@ describe('perfil', () => {
     const perfil = await api.updateMe({ name: 'Ana', city: undefined, bio: 'Hola' });
 
     expect(perfil).toMatchObject({ name: 'Ana', bio: 'Hola', city: null });
+  });
+
+  describe('datos privados (email y fecha de nacimiento)', () => {
+    it('el email va a privado/, nunca al perfil público', async () => {
+      await ensureUserDocument('uid-1', { name: 'Ana', email: 'ana@example.com' });
+
+      expect(mockStore.get('privado/uid-1')).toEqual({ email: 'ana@example.com', dateOfBirth: null });
+      expect(mockStore.get('users/uid-1')).not.toHaveProperty('email');
+      expect(mockStore.get('users/uid-1')).not.toHaveProperty('dateOfBirth');
+      expect(await api.getMe()).toMatchObject({ name: 'Ana', email: 'ana@example.com', dateOfBirth: null });
+    });
+
+    it('la fecha de nacimiento se guarda en privado/ sin tocar el email', async () => {
+      await ensureUserDocument('uid-1', { name: 'Ana', email: 'ana@example.com' });
+
+      const perfil = await api.updateMe({ dateOfBirth: '08/07/1979', city: 'Zurich' });
+
+      expect(mockStore.get('privado/uid-1')).toEqual({ email: 'ana@example.com', dateOfBirth: '08/07/1979' });
+      expect(mockStore.get('users/uid-1')).not.toHaveProperty('dateOfBirth');
+      expect(perfil).toMatchObject({ city: 'Zurich', dateOfBirth: '08/07/1979', email: 'ana@example.com' });
+    });
+
+    it('crea privado/ si la cuenta aún no lo tenía, y con el email de la cuenta', async () => {
+      const { auth } = require('../index');
+      auth.currentUser.email = 'vieja@example.com';
+      mockStore.set('users/uid-1', { name: 'Ana' });
+
+      expect(await api.getMe()).toMatchObject({ email: 'vieja@example.com', dateOfBirth: null });
+      await api.updateMe({ dateOfBirth: '1990-01-01' });
+
+      expect(mockStore.get('privado/uid-1')).toEqual({ dateOfBirth: '1990-01-01' });
+      expect(mockStore.get('users/uid-1')).toEqual({ name: 'Ana' });
+      delete auth.currentUser.email;
+    });
+
+    it('si no se pueden leer, el perfil carga igual con el email de la cuenta', async () => {
+      const firestore = require('@firebase/firestore');
+      const getDocReal = firestore.getDoc;
+      jest.spyOn(firestore, 'getDoc').mockImplementation((r: any) =>
+        r.path.startsWith('privado/') ? Promise.reject(new Error('Missing or insufficient permissions.')) : getDocReal(r)
+      );
+      const { auth } = require('../index');
+      auth.currentUser.email = 'ana@example.com';
+      mockStore.set('users/uid-1', { name: 'Ana' });
+
+      expect(await api.getMe()).toMatchObject({ name: 'Ana', email: 'ana@example.com', dateOfBirth: null });
+
+      delete auth.currentUser.email;
+      jest.restoreAllMocks();
+    });
+
+    it('el perfil de otro vecino no trae su email ni su fecha de nacimiento', async () => {
+      // Un perfil de antes de la migración, que aún los tiene en users/.
+      mockStore.set('users/luis', { name: 'Luis', email: 'luis@example.com', dateOfBirth: '1950-01-01' });
+      mockStore.set('privado/luis', { email: 'luis@example.com', dateOfBirth: '1950-01-01' });
+
+      const luis = await api.getUserProfile('luis');
+
+      expect(luis).toMatchObject({ id: 'luis', name: 'Luis' });
+      expect(JSON.stringify(luis)).not.toMatch(/luis@example\.com|1950/);
+    });
   });
 
   it('sube la foto de perfil con el uid como nombre y guarda la URL', async () => {
@@ -660,7 +725,9 @@ describe('sin sesión', () => {
 describe('borrar mis datos', () => {
   beforeEach(() => {
     mockStore.set('users/uid-1', { name: 'Yo' });
+    mockStore.set('privado/uid-1', { email: 'yo@example.com', dateOfBirth: '1990-01-01' });
     mockStore.set('users/otro', { name: 'Otro' });
+    mockStore.set('privado/otro', { email: 'otro@example.com' });
     // Mis servicios: uno abierto con fotos y ofertas, uno pendiente y uno ya en curso.
     mockStore.set('helpRequests/abierto', {
       ...servicioBase, status: 'approved', requesterId: 'uid-1',
@@ -679,6 +746,7 @@ describe('borrar mis datos', () => {
     await api.deleteMyData();
 
     expect(mockStore.has('users/uid-1')).toBe(false);
+    expect(mockStore.has('privado/uid-1')).toBe(false);
     expect(mockStore.has('helpRequests/abierto')).toBe(false);
     expect(mockStore.has('helpRequests/pendiente')).toBe(false);
     expect(mockStore.has('applications/abierto_otro')).toBe(false);
@@ -688,6 +756,7 @@ describe('borrar mis datos', () => {
     expect(mockStore.has('applications/viejo_uid-1')).toBe(true);
     expect(mockStore.has('helpRequests/ajeno')).toBe(true);
     expect(mockStore.has('users/otro')).toBe(true);
+    expect(mockStore.has('privado/otro')).toBe(true);
   });
 
   it('borra también las fotos de esos servicios y la de perfil', async () => {

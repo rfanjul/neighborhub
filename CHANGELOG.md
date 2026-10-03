@@ -6,7 +6,36 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+### Privacidad: email y fecha de nacimiento fuera del perfil público
+Cualquier vecino con sesión podía leer `users/{uid}` entero, y con él el email
+y la fecha de nacimiento de todos (la app no los enseñaba, pero las reglas lo
+permitían). Ahora van en `privado/{uid}`.
+
+#### Servidor y web (se publican aparte)
+- Reglas de Firestore: `privado/{uid}` (`email`, `dateOfBirth`) lo lee y
+  escribe solo su dueño; la administración lo lee. El email se apunta al
+  crear la cuenta y ya no cambia desde la app. `users/` ya no admite `email`
+  ni `dateOfBirth`, ni al crear ni al editar.
+- Functions: `adminReintentarPago` saca el email de quien pidió de
+  `privado/`; `adminUsuarios`, el de los vecinos de ejemplo (sin cuenta).
+- Administración: el editor de servicios lee el email de `privado/`.
+- `npm run seed` los siembra en `privado/` (con `seed: true`, así que
+  `seed:clean` se los lleva).
+- `npm run migrar:privado` mueve los de los perfiles existentes: simulacro
+  por defecto, `-- --aplicar` para escribir; respeta lo que ya haya en
+  `privado/`. **Aún sin ejecutar en producción.**
+
+#### App
+- El alta crea el perfil público y `privado/` en la misma escritura; la fecha
+  de nacimiento de *Datos personales* se guarda en `privado/`, y *Borrar
+  cuenta* también lo borra (si no puede, no sigue).
+- El perfil de otros vecinos ya no trae email ni fecha de nacimiento.
+
+#### Al publicar
+Primero reglas y Functions, luego la migración. Con las reglas nuevas, las
+builds anteriores (hasta la 1.1.0 (15)) no pueden crear el perfil de una
+cuenta nueva (escriben el email en `users/`) ni guardar una fecha de
+nacimiento; la build nueva necesita las reglas nuevas para dar de alta.
 
 ## [1.1.0 (15)] — 2026-10-02 · TestFlight
 

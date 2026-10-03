@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import ApplyScreen from '../ApplyScreen';
 import { api } from '../../firebase/data';
 import { servicio } from '../../test-utils/servicio';
-import { perfil } from '../../test-utils/perfil';
+import { miPerfil } from '../../test-utils/perfil';
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
@@ -84,7 +84,7 @@ describe('servicios con precio', () => {
   });
 
   it('sin cobros activos pide activarlos antes y no deja enviar', async () => {
-    mockedApi.getMe.mockResolvedValue(perfil({ cobrosActivos: false }));
+    mockedApi.getMe.mockResolvedValue(miPerfil({ cobrosActivos: false }));
     await renderOferta();
 
     expect(await screen.findByText(/set up payouts before offering your help/)).toBeTruthy();
@@ -95,7 +95,7 @@ describe('servicios con precio', () => {
   });
 
   it('con cobros activos se oferta como siempre', async () => {
-    mockedApi.getMe.mockResolvedValue(perfil({ cobrosActivos: true }));
+    mockedApi.getMe.mockResolvedValue(miPerfil({ cobrosActivos: true }));
     await renderOferta();
 
     await screen.findByText('Subir un sofá');

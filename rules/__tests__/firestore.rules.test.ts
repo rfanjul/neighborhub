@@ -11,7 +11,6 @@ let env: RulesTestEnvironment;
 
 const perfilInicial = {
   name: 'Ana',
-  email: 'ana@example.com',
   credits: 0,
   level: 1,
   levelLabel: 'New neighbor',
@@ -81,12 +80,26 @@ describe('users', () => {
     await assertFails(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, identityVerified: true }));
   });
 
+  it('el perfil público no lleva email ni fecha de nacimiento (van en privado/)', async () => {
+    await assertFails(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, email: 'ana@example.com' }));
+    await assertFails(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, dateOfBirth: null }));
+  });
+
   it('cada uno edita sus datos personales', async () => {
     await sembrar('users/ana', perfilInicial);
 
     await assertSucceeds(
       updateDoc(doc(como('ana'), 'users/ana'), { city: 'Zurich', bio: 'Hola', languages: 'German', photoURL: 'https://x' })
     );
+  });
+
+  it.each([
+    ['email', 'ana@example.com'],
+    ['dateOfBirth', '08/07/1979'],
+  ])('nadie pone su %s en el perfil público', async (campo, valor) => {
+    await sembrar('users/ana', perfilInicial);
+
+    await assertFails(updateDoc(doc(como('ana'), 'users/ana'), { [campo]: valor }));
   });
 
   it.each([
@@ -113,6 +126,83 @@ describe('users', () => {
     await assertFails(deleteDoc(doc(como('luis'), 'users/ana')));
     await assertFails(deleteDoc(doc(anonimo(), 'users/ana')));
     await assertSucceeds(deleteDoc(doc(como('ana'), 'users/ana')));
+  });
+});
+
+describe('privado (email y fecha de nacimiento)', () => {
+  const privados = { email: 'ana@example.com', dateOfBirth: null };
+  const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
+
+  it('al entrar por primera vez se crean el perfil y los datos privados a la vez', async () => {
+    const ana = como('ana');
+    const lote = writeBatch(ana);
+    lote.set(doc(ana, 'privado/ana'), privados);
+    lote.set(doc(ana, 'users/ana'), perfilInicial);
+
+    await assertSucceeds(lote.commit());
+  });
+
+  it('cada uno lee los suyos, cambia su fecha de nacimiento y los borra', async () => {
+    const ref = doc(como('ana'), 'privado/ana');
+    await assertSucceeds(setDoc(ref, privados));
+
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(updateDoc(ref, { dateOfBirth: '08/07/1979' }));
+    await assertSucceeds(updateDoc(ref, { dateOfBirth: null }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('la fecha se guarda aunque el documento aún no exista (cuentas sin migrar)', async () => {
+    await assertSucceeds(setDoc(doc(como('ana'), 'privado/ana'), { dateOfBirth: '08/07/1979' }, { merge: true }));
+  });
+
+  it('ningún otro vecino los lee, ni sin sesión, ni listando la colección', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertFails(getDoc(doc(como('luis'), 'privado/ana')));
+    await assertFails(getDoc(doc(anonimo(), 'privado/ana')));
+    await assertFails(getDocs(collection(como('luis'), 'privado')));
+    await assertFails(getDoc(doc(env.authenticatedContext('luis', { admin: false }).firestore(), 'privado/ana')));
+  });
+
+  it('nadie crea, cambia ni borra los de otro', async () => {
+    await assertFails(setDoc(doc(como('luis'), 'privado/ana'), privados));
+    await sembrar('privado/ana', privados);
+
+    await assertFails(updateDoc(doc(como('luis'), 'privado/ana'), { dateOfBirth: '01/01/2000' }));
+    await assertFails(deleteDoc(doc(como('luis'), 'privado/ana')));
+  });
+
+  it('la administración los lee (también listando) pero no los cambia ni los borra', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertSucceeds(getDoc(doc(admin(), 'privado/ana')));
+    await assertSucceeds(getDocs(collection(admin(), 'privado')));
+    await assertFails(updateDoc(doc(admin(), 'privado/ana'), { dateOfBirth: '01/01/2000' }));
+    await assertFails(setDoc(doc(admin(), 'privado/jefa2'), privados));
+    await assertFails(deleteDoc(doc(admin(), 'privado/ana')));
+  });
+
+  it('el email no se cambia desde la app', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertFails(updateDoc(doc(como('ana'), 'privado/ana'), { email: 'otra@example.com' }));
+  });
+
+  it.each([
+    ['otros campos', { ...privados, admin: true }],
+    ['un email que no es texto', { ...privados, email: 42 }],
+    ['un email larguísimo', { ...privados, email: `${'a'.repeat(200)}@example.com` }],
+    ['una fecha que no es texto', { ...privados, dateOfBirth: 1979 }],
+    ['una fecha larguísima', { ...privados, dateOfBirth: 'x'.repeat(51) }],
+  ])('no se guardan %s', async (_caso, datos) => {
+    await assertFails(setDoc(doc(como('ana'), 'privado/ana'), datos));
+  });
+
+  it('tampoco se cuela una fecha que no es texto al cambiarla', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertFails(updateDoc(doc(como('ana'), 'privado/ana'), { dateOfBirth: 1979 }));
   });
 });
 
@@ -697,7 +787,7 @@ describe('mensajes de un servicio', () => {
 });
 
 describe('reseñas', () => {
-  const luis = { ...perfilInicial, name: 'Luis', email: 'luis@example.com', ratingSum: 8, ratingCount: 2, servicesCompleted: 2 };
+  const luis = { ...perfilInicial, name: 'Luis', ratingSum: 8, ratingCount: 2, servicesCompleted: 2 };
 
   beforeEach(async () => {
     await sembrar('users/ana', perfilInicial);

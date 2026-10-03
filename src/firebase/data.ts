@@ -127,12 +127,15 @@ function masNuevosPrimero<T extends { data: () => any }>(docs: T[]): T[] {
   return [...docs].sort((a, b) => milisegundos(b.data().createdAt) - milisegundos(a.data().createdAt));
 }
 
+/**
+ * Perfil público de un vecino (users/{uid}): lo lee cualquiera con sesión,
+ * así que aquí no va nada personal. El email y la fecha de nacimiento van
+ * aparte, en privado/{uid} (ver DatosPrivados).
+ */
 export type ApiUserProfile = {
   id: string;
   name: string;
-  email: string;
   bio: string | null;
-  dateOfBirth: string | null;
   city: string | null;
   postalCode: string | null;
   country: string | null;
@@ -156,22 +159,34 @@ export type ApiUserProfile = {
   memberSince: number | null;
 };
 
+/** Datos personales (privado/{uid}): solo los lee su dueño (y la administración). */
+export type DatosPrivados = {
+  email: string;
+  dateOfBirth: string | null;
+};
+
+/** Mi perfil: el público más mis datos privados. */
+export type MiPerfil = ApiUserProfile & DatosPrivados;
+
 function currentUid(): string {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   return uid;
 }
 
-/** Creates the Firestore profile doc on a user's very first sign-in. */
+/**
+ * Creates the Firestore profile docs on a user's very first sign-in: el
+ * perfil público en users/ y el email en privado/, en la misma escritura.
+ */
 export async function ensureUserDocument(uid: string, defaults: { name: string; email: string }) {
   const userRef = doc(db, 'users', uid);
   const snap = await getDoc(userRef);
   if (snap.exists()) return;
-  await setDoc(userRef, {
+  const lote = writeBatch(db);
+  lote.set(doc(db, 'privado', uid), { email: defaults.email, dateOfBirth: null });
+  lote.set(userRef, {
     name: defaults.name || 'New neighbor',
-    email: defaults.email,
     bio: null,
-    dateOfBirth: null,
     city: null,
     postalCode: null,
     country: null,
@@ -187,6 +202,7 @@ export async function ensureUserDocument(uid: string, defaults: { name: string; 
     photoURL: null,
     createdAt: serverTimestamp(),
   });
+  await lote.commit();
 }
 
 /**
@@ -203,9 +219,7 @@ function profileFromDoc(id: string, d: any): ApiUserProfile {
     cobrosActivos: d.cobrosActivos === true,
     id,
     name: d.name,
-    email: d.email,
     bio: d.bio ?? null,
-    dateOfBirth: d.dateOfBirth ?? null,
     city: d.city ?? null,
     postalCode: d.postalCode ?? null,
     country: d.country ?? null,
@@ -304,11 +318,23 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
 }
 
 export const api = {
-  async getMe(): Promise<ApiUserProfile> {
+  /** Mi perfil público (users/) junto con mis datos privados (privado/). */
+  async getMe(): Promise<MiPerfil> {
     const uid = currentUid();
-    const snap = await getDoc(doc(db, 'users', uid));
+    const [snap, privado] = await Promise.all([
+      getDoc(doc(db, 'users', uid)),
+      // Sin poder leerlos (sin red o sin permiso) el perfil sigue valiendo: la
+      // fecha sale vacía y un campo vacío del formulario no se guarda.
+      getDoc(doc(db, 'privado', uid)).catch(() => null),
+    ]);
     if (!snap.exists()) throw new Error(t('erroresDatos.perfilNoEncontrado'));
-    return profileFromDoc(uid, snap.data());
+    const p = privado?.data();
+    return {
+      ...profileFromDoc(uid, snap.data()),
+      // Sin documento privado (cuentas aún sin migrar) el email es el de la cuenta.
+      email: p?.email || auth.currentUser?.email || '',
+      dateOfBirth: p?.dateOfBirth ?? null,
+    };
   },
 
   /** Perfil de otro vecino, o null si no existe. */
@@ -326,12 +352,17 @@ export const api = {
     country: string;
     languages: string;
     onboardingCompleted: boolean;
-  }>): Promise<ApiUserProfile> {
+  }>): Promise<MiPerfil> {
     const uid = currentUid();
     // Firestore rechaza undefined; un campo vacío del formulario simplemente
     // no se toca.
-    const cambios = Object.fromEntries(Object.entries(input).filter(([, valor]) => valor !== undefined));
-    await updateDoc(doc(db, 'users', uid), cambios);
+    const { dateOfBirth, ...publicos } = input;
+    const cambios = Object.fromEntries(Object.entries(publicos).filter(([, valor]) => valor !== undefined));
+    const lote = writeBatch(db);
+    if (Object.keys(cambios).length) lote.update(doc(db, 'users', uid), cambios);
+    // La fecha de nacimiento es privada: va a privado/, que se crea si aún no existe.
+    if (dateOfBirth !== undefined) lote.set(doc(db, 'privado', uid), { dateOfBirth }, { merge: true });
+    await lote.commit();
     return api.getMe();
   },
 
@@ -352,7 +383,7 @@ export const api = {
   },
 
   /** `localUri` is a file:// path from expo-camera's takePictureAsync(). */
-  async uploadMyPhoto(localUri: string): Promise<ApiUserProfile> {
+  async uploadMyPhoto(localUri: string): Promise<MiPerfil> {
     const uid = currentUid();
     const response = await fetch(localUri);
     const blob = await response.blob();
@@ -585,6 +616,9 @@ export const api = {
     await deleteDoc(doc(db, 'dispositivos', uid)).catch(() => undefined);
     await deleteDoc(doc(db, 'bloqueos', uid)).catch(() => undefined);
     bloqueos = null;
+    // Email y fecha de nacimiento: si no se pueden borrar, mejor fallar y
+    // reintentar que borrar la cuenta y dejarlos atrás.
+    await deleteDoc(doc(db, 'privado', uid));
     await deleteDoc(doc(db, 'users', uid));
   },
 

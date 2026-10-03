@@ -337,7 +337,27 @@ porque la 14 en adelante exige Java 21; en CI se usa Java 21 igualmente.
 
 Cubren, entre otras cosas, que nadie pueda darse créditos, valoración o
 verificación a sí mismo, aprobarse sus propios servicios o escribir en
-conversaciones ajenas.
+conversaciones ajenas, y que el email y la fecha de nacimiento solo los lean
+su dueño y la administración.
+
+### Datos privados (`privado/{uid}`)
+
+El perfil de `users/{uid}` lo lee cualquier vecino con sesión, así que solo
+lleva lo público (nombre, foto, bio, ciudad, valoración…). El email y la
+fecha de nacimiento van en `privado/{uid}`: los lee y escribe su dueño, la
+administración solo los lee y las Functions usan el Admin SDK. Las reglas no
+dejan guardarlos en `users/`.
+
+Los perfiles creados antes los tenían en `users/`. Para moverlos, con
+`service-account.json` (como `npm run seed`):
+
+```bash
+npm run migrar:privado              # simulacro: cuenta lo que movería, sin escribir
+npm run migrar:privado -- --aplicar # lo mueve de verdad (se puede repetir)
+```
+
+Primero las reglas (`npm run rules:deploy`) y las Functions, luego la
+migración: así ninguna build vieja vuelve a escribirlos en `users/`.
 
 ## Versiones
 

@@ -254,11 +254,11 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
     const rating = Math.round((ratingSum / ratingCount) * 10) / 10;
     usuarios.push({
       id: uid,
+      // Datos personales aparte, en privado/{uid}: users/ lo lee cualquiera.
+      privado: { email, dateOfBirth: null, seed: true },
       data: {
         name: v.nombre,
-        email,
         bio: v.bio,
-        dateOfBirth: null,
         city: 'Zürich',
         postalCode: v.cp,
         country: 'Switzerland',

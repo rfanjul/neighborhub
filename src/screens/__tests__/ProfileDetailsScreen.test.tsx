@@ -35,6 +35,8 @@ describe('ProfileDetailsScreen', () => {
     expect(screen.getByDisplayValue('Zurich')).toBeTruthy();
     expect(screen.getByDisplayValue('8048')).toBeTruthy();
     expect(screen.getByDisplayValue('Hola')).toBeTruthy();
+    // La fecha de nacimiento viene de los datos privados (privado/{uid}).
+    expect(screen.getByDisplayValue('08/07/1979')).toBeTruthy();
     expect(screen.getByLabelText('Spanish').props.accessibilityState.checked).toBe(true);
     expect(screen.getByLabelText('English').props.accessibilityState.checked).toBe(false);
   });
@@ -58,6 +60,15 @@ describe('ProfileDetailsScreen', () => {
     await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
     expect(mockedApi.updateMe).toHaveBeenCalledWith(expect.objectContaining({ name: 'Ruben', city: 'Zurich' }));
     expect(auth.refreshProfile).toHaveBeenCalled();
+  });
+
+  it('guarda la fecha de nacimiento escrita', async () => {
+    await renderDatos({ profile: { name: 'Ruben', dateOfBirth: null } as never });
+
+    await fireEvent.changeText(screen.getByPlaceholderText('DD / MM / YYYY'), ' 08/07/1979 ');
+    await fireEvent.press(screen.getByText('Save'));
+
+    await waitFor(() => expect(mockedApi.updateMe).toHaveBeenCalledWith(expect.objectContaining({ dateOfBirth: '08/07/1979' })));
   });
 
   it('avisa si no se puede guardar y no se va de la pantalla', async () => {

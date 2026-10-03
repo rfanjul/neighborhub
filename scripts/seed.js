@@ -32,7 +32,10 @@ async function sembrar(db, { Timestamp } = {}) {
   // Fechas relativas al momento de sembrar: el muro siempre parece reciente.
   const { usuarios, servicios, resenas } = construir({ fecha, ahora: new Date() });
   const batch = db.batch();
-  for (const u of usuarios) batch.set(db.collection('users').doc(u.id), u.data);
+  for (const u of usuarios) {
+    batch.set(db.collection('users').doc(u.id), u.data);
+    batch.set(db.collection('privado').doc(u.id), u.privado);
+  }
   for (const s of servicios) batch.set(db.collection('helpRequests').doc(s.id), s.data);
   for (const r of resenas) batch.set(db.collection('reviews').doc(r.id), r.data);
   await batch.commit();
@@ -99,7 +102,7 @@ async function limpiar(db) {
     await o.ref.delete();
     borrados++;
   }
-  for (const coleccion of ['reviews', 'helpRequests', 'users']) {
+  for (const coleccion of ['reviews', 'helpRequests', 'users', 'privado']) {
     const snap = await db.collection(coleccion).where('seed', '==', true).get();
     for (const d of snap.docs) {
       // Las ofertas y mensajes que otros hayan hecho sobre servicios de prueba.
@@ -179,9 +182,10 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
   const photoURL = avatar(nombre);
   const b = db.batch();
   const yo = { requesterId: uid, requesterName: nombre, requesterRating: 4.5, requesterResponseLabel: '< 1h', requesterPhotoURL: photoURL };
+  b.set(db.doc(`privado/${uid}`), { email, dateOfBirth: null, seed: true });
   b.set(db.doc(`users/${uid}`), {
-    name: nombre, email, bio: 'Designer, new in Langstrasse. Happy to help with anything creative or techy.',
-    dateOfBirth: null, city: 'Zürich', postalCode: '8004', country: 'Switzerland', languages: 'English, German, Spanish',
+    name: nombre, bio: 'Designer, new in Langstrasse. Happy to help with anything creative or techy.',
+    city: 'Zürich', postalCode: '8004', country: 'Switzerland', languages: 'English, German, Spanish',
     credits: 20, level: 2, levelLabel: 'Helpful neighbor', servicesCompleted: 2, rating: 4.5, ratingSum: 9, ratingCount: 2,
     responseLabel: '< 1h', identityVerified: true, onboardingCompleted: true, photoURL, seed: true, createdAt: hace(24 * 40),
   });
