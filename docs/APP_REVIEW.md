@@ -66,105 +66,39 @@ con el enlace»).
 
 ---
 
-## 2. Respuesta para App Store Connect (copiar y pegar)
+## 2. Respuesta a Apple y Notes (el mismo texto, copiar y pegar)
 
-> Hello, thank you for reviewing Neighborhub. Please find the requested
-> information below. The screen recording is attached.
->
-> **1. Screen recording**
-> Attached: recorded on an iPhone with the latest iOS, starting from launching
-> the app. It shows account registration, sign-in, the main flow (browsing
-> requests, offering help, choosing a helper, chatting, marking a request as
-> done and rating), posting a request, reporting content, blocking and
-> unblocking a user, and deleting the account (Profile → Settings → Delete
-> account).
->
-> **2. Purpose and audience**
-> Neighborhub connects neighbors who need a hand with small everyday tasks
-> (carrying furniture, walking a dog, shopping, small repairs) with
-> neighbors nearby who can help. It is for adults (16+) living in the same
-> area, starting in Zurich, Switzerland. It solves the problem of not knowing
-> who around you could help, and of trusting someone you don't know: every
-> request is checked by our moderators before it is published, helpers have
-> public profiles with ratings and reviews, and the chat between the two
-> people only opens once a helper is chosen.
->
-> **3. How to use the app (demo account)**
-> Sign in with the demo account provided in App Review Information
-> ("Sign in with email"). It already has content on every screen:
-> - Home: requests from neighbors nearby. Open one and tap "Apply to help".
-> - Activity → My services → "Move a table to the balcony": offers from three
->   neighbors. Tap a neighbor to see their profile and reviews, choose one and
->   open the chat.
-> - "Hang a big mirror in the hallway": a request in progress with its chat;
->   "Mark as completed" lets you rate the helper.
-> - "+" posts a new request (it goes to moderation first).
-> - Reporting and blocking: "Report this request" / "Block" on any request,
->   "Report" / "Block" on any profile, and the "⋯" menu in a chat. Blocked
->   users are listed in Profile → Settings → Blocked neighbors.
-> - Account deletion: Profile → Settings → Delete account.
-> The sample neighborhood is in Zurich: distances look large from other
-> locations, and the map opens where you are (move it to Zurich).
->
-> **4. External services**
-> - Google Firebase: Authentication (email/password, Sign in with Apple,
->   Google Sign-In), Cloud Firestore (data), Cloud Storage (photos), Cloud
->   Functions (server logic and notifications) and Hosting (website, support
->   and privacy pages).
-> - Stripe: payments for paid requests (Stripe Checkout) and payouts to
->   helpers (Stripe Connect).
-> - Apple: Sign in with Apple, MapKit (maps) and push notifications (through
->   Expo's push notification service).
-> - Google Sign-In SDK.
-> - Expo / EAS (build and push notification delivery).
-> - Sample content: placeholder photos from Picsum Photos and avatars from
->   DiceBear (only in the demo data).
->
-> **5. Regional differences**
-> The app works the same in all regions. Content is local by nature (users see
-> requests near them); the current community is in Zurich. The app is
-> available in English, German and Spanish.
->
-> **6. Regulated industry / third-party material**
-> Neighborhub does not operate in a regulated industry and does not include
-> protected third-party material. It has no in-app purchases or paid digital
-> content. Neighbors can pay each other for real-world help that takes place
-> outside the app (moving furniture, dog walking, small repairs); under
-> Guideline 3.1.3(e) these physical services are paid with Stripe Checkout,
-> and the money is only released to the helper when the person who asked
-> marks the job as done. During review Stripe is in test mode (card
-> 4242 4242 4242 4242).
->
-> **User-generated content (Guideline 1.2)**
-> Users must accept the Terms of Use, which have zero tolerance for
-> objectionable content and abusive users. Every new request is reviewed by a
-> moderator before it becomes visible. Users can report requests, users and
-> conversations in the app, and block users (blocked users can't message them
-> or offer on their requests, and their content is hidden). We review every
-> report within 24 hours and remove offending content and users. Contact:
-> https://neighborhood-c4dc9.web.app/en/support
-
----
-
-## 3. Notes de App Review Information (copiar y pegar)
-
-En App Store Connect → la versión 1.1.0 → *App Review Information* → *Notes*
-(el usuario y la contraseña de la cuenta de revisión van en sus campos):
+Apple pide la información en la respuesta **y** en *App Review Information →
+Notes* (máximo 4000 caracteres; este tiene 3256). Pega lo mismo en los dos
+sitios; en la respuesta, adjunta además el vídeo. El usuario y la contraseña de
+la cuenta de revisión van en sus campos de *App Review Information*, no aquí.
 
 ```text
-Demo account: username above; the password is the one already entered in App Review Information. The account has content on every screen.
+1. SCREEN RECORDING
+Attached, recorded on an iPhone with the latest iOS, starting from launching the app: account registration, sign-in, browsing and offering help, paying for a paid request (Stripe test card), choosing a helper, chat, marking the job as done and rating (the helper is paid), posting a request, reporting and blocking, and account deletion.
 
-PAYMENTS (Guideline 3.1.3(e)): Neighborhub lets neighbors pay each other for real-world help that happens outside the app (moving furniture, dog walking, small repairs). These physical services are paid with Stripe Checkout (card or Apple Pay in Safari), not In-App Purchase. During review Stripe runs in TEST mode: pay with card 4242 4242 4242 4242, any future expiry date, any CVC and name.
+2. PURPOSE AND AUDIENCE
+Neighborhub connects neighbors who need a hand with everyday tasks (carrying furniture, walking a dog, shopping, small repairs) with neighbors nearby who can help, as a favor or for a fair price agreed upfront. It is for adults (16+), starting in Zurich, Switzerland. It solves not knowing who around you could help and trusting a stranger: every request is moderated before it is published, helpers have public ratings and reviews, the chat only opens once a helper is chosen, and for paid requests the money is held until the job is done.
 
-Full payment flow with the demo account:
-1. Activity → My services → "Move a table to the balcony" (CHF 30). Tap "Pay CHF 32.40" and pay with the test card, then return to the app: it now says "paid and held".
-2. Choose one of the three offers. Nothing more is charged.
-3. Tap "Mark as completed" and rate the helper: the CHF 30 is transferred to them. Profile → Settings → Payments shows the payment.
-4. "+" posts a new request. With a price you pay when submitting and it goes to moderation; until someone is chosen it can be cancelled ("Cancel request") with a full refund.
-Free favors need no payment (e.g. "Hang a big mirror in the hallway", in progress with a chat).
+3. HOW TO USE IT (demo account in App Review Information, "Sign in with email")
+- Home: nearby requests; open one and tap "Apply to help".
+- Paid request: Activity > My services > "Move a table to the balcony" (CHF 30). Tap "Pay CHF 32.40" and pay with Stripe test card 4242 4242 4242 4242 (any future date, any CVC), then return to the app ("paid and held"). Choose one of the three offers (nothing more is charged), open the chat, then "Mark as completed" and rate: the CHF 30 goes to the helper. Profile > Settings > Payments shows it.
+- "Hang a big mirror in the hallway": a free favor in progress with its chat.
+- "+" posts a request (free or with a price paid when submitting); it goes to moderation. Before choosing someone it can be cancelled with a full refund ("Cancel request").
+- Report and block: on any request, profile and in the chat "..." menu. Blocked users: Profile > Settings > Blocked neighbors.
+- Account deletion: Profile > Settings > Delete account.
+Sample data is in Zurich (move the map there).
 
-Report and block: on any request ("Report this request" / "Block"), on any profile and in the chat "⋯" menu. Blocked users: Profile → Settings → Blocked neighbors. Reports are reviewed within 24 hours. Account deletion: Profile → Settings → Delete account.
-Sample data is in Zurich, Switzerland (move the map there). No in-app purchases. External services: Firebase, Stripe, Sign in with Apple, Google Sign-In, MapKit, Expo push. English, German and Spanish; works the same in all regions.
+4. EXTERNAL SERVICES
+Google Firebase (Authentication, Firestore, Storage, Cloud Functions, Hosting); Stripe (payments with Stripe Checkout, payouts to helpers with Stripe Connect); Sign in with Apple; Google Sign-In; Apple MapKit; Expo push notification service and EAS Build; Picsum Photos and DiceBear only for sample images.
+
+5. REGIONAL DIFFERENCES
+The app works the same in all regions. Content is local (users see requests near them); the community starts in Zurich. Prices are in Swiss francs. Available in English, German and Spanish.
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Not a regulated industry and no protected third-party material. No in-app purchases or paid digital content: neighbors pay each other for physical services performed outside the app, so under Guideline 3.1.3(e) they pay with Stripe Checkout (card or Apple Pay). Payments are processed by Stripe, a licensed payment provider; helpers are verified by Stripe before receiving payouts. During review Stripe runs in test mode.
+
+USER-GENERATED CONTENT (1.2): users accept Terms of Use with zero tolerance for objectionable content. Requests are moderated before publishing; users can report requests, users and chats and block users. Reports are reviewed within 24 hours. Support: https://neighborhood-c4dc9.web.app/en/support
 ```
 
 ---
@@ -178,9 +112,9 @@ Sample data is in Zurich, Switzerland (move the map there). No in-app purchases.
    identidad, para la funcionalidad de la app; sin seguimiento). Los datos de
    tarjeta y bancarios los recoge Stripe en su web, no la app.
 4. *App Review Information*: usuario `appreview@neighborhub.test`, su
-   contraseña, y las *Notes* de arriba.
+   contraseña, y en *Notes* el texto de la sección 2.
 5. Responder al mensaje de la Guideline 2.1 con el texto de la sección 2 y el
-   vídeo.
+   vídeo adjunto.
 6. **Pagos encendidos** en la administración y `seed:revision` ejecutado, y
    *Submit for Review*.
 
