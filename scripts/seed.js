@@ -349,7 +349,7 @@ async function main() {
     console.log(
       r.password
         ? `   Contraseña:  ${r.password}\n\n   Cópiala ahora en App Store Connect > App Review Information: no se guarda en ningún sitio.`
-        : '   Contraseña:  la que ya tenía (para generar otra: npm run seed:revision -- --nueva-clave)'
+        : '   Contraseña:  la que ya tenía (para generar otra: npm run seed:revision -- --cuenta-de <email> --nueva-clave)'
     );
     return;
   }
