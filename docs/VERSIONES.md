@@ -48,7 +48,8 @@ v<versión>-build.<build>        p. ej. v1.1.0-build.5
 
 | Versión | Build | Etiqueta | Destino |
 |---|---|---|---|
-| 1.1.0 | 17 | `v1.1.0-build.17` | Revisión de App Store (pagos encendidos, publicación manual) |
+| 1.1.0 | 18 | `v1.1.0-build.18` | Revisión de App Store (alta sin duración ni radio, perfil validado) |
+| 1.1.0 | 17 | `v1.1.0-build.17` | TestFlight (la anterior para la revisión) |
 | 1.1.0 | 16 | `v1.1.0-build.16` | TestFlight (pago al crear, cancelar con reembolso, privado/) |
 | 1.1.0 | 15 | `v1.1.0-build.15` | TestFlight (volver a pagar: «Falta tu pago» y botón Pagar) |
 | 1.1.0 | 14 | `v1.1.0-build.14` | TestFlight (Ajustes → Pagos con historial y pagos apagados) |

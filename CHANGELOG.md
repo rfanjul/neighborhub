@@ -6,6 +6,14 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
+Nada todavía.
+
+## [1.1.0 (18)] — 2026-10-03 · TestFlight → revisión de App Store
+
+Build EAS `fe181312` desde el commit `f3d3894`. Sustituye a la 17 para la
+revisión: misma funcionalidad de pagos, con el alta de servicio simplificada y
+el perfil validado. Reglas y cuenta de revisión ya publicadas.
+
 ### Alta de servicio más simple y datos del perfil validados
 - **Nuevo servicio**: sin «Duración» ni «Distancia máxima». Lo que cuenta es
   si es gratis o su precio, que pasa al sitio de la duración (debajo de las
