@@ -54,10 +54,9 @@ notificaciones de otras apps (modo Concentración).
 13. Parar la grabación.
 
 Antes de grabar (y antes de mandarla a revisión): los **pagos encendidos** en
-la web de administración, y `npm run seed:revision -- --cuenta acct_…` (datos
-de la cuenta de revisión sin cambiar su contraseña; `--cuenta` es una cuenta
-conectada del Sandbox de Stripe con cobros activos, a la que cobran los vecinos
-de prueba). Vuelve a ejecutarlo después de grabar para dejar «Move a table…»
+la web de administración, y `npm run seed:revision -- --cuenta-de rfanjul@gmail.com` (datos
+de la cuenta de revisión sin cambiar su contraseña; `--cuenta-de` es alguien con los cobros activos en el Sandbox de Stripe: los
+vecinos de prueba cobran en su cuenta). Vuelve a ejecutarlo después de grabar para dejar «Move a table…»
 sin pagar para Apple.
 
 Subir el vídeo en App Store Connect → la respuesta al mensaje de App Review

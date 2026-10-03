@@ -323,10 +323,20 @@ async function main() {
     const iEmail = process.argv.indexOf('--email');
     // La cuenta conectada (modo prueba) que cobra por los vecinos de prueba: sin
     // ella quien revisa no puede elegir a nadie en el servicio de pago.
+    // --cuenta acct_… directamente, o --cuenta-de email: la de cobros de esa persona.
     const iCuenta = process.argv.indexOf('--cuenta');
-    const cuentaCobro = iCuenta !== -1 ? process.argv[iCuenta + 1] : null;
+    const iDe = process.argv.indexOf('--cuenta-de');
+    let cuentaCobro = iCuenta !== -1 ? process.argv[iCuenta + 1] : null;
+    if (iDe !== -1) {
+      const persona = await getAuth().getUserByEmail(process.argv[iDe + 1] || '');
+      const cuenta = (await db.doc(`cuentasCobro/${persona.uid}`).get()).data();
+      if (!cuenta?.cobrosActivos) throw new Error(`${process.argv[iDe + 1]} no tiene los cobros activos`);
+      cuentaCobro = cuenta.stripeAccountId;
+    }
     if (!/^acct_\w+$/.test(cuentaCobro || '')) {
-      throw new Error('Falta la cuenta de cobro de prueba: npm run seed:revision -- --cuenta acct_… (una cuenta conectada del Sandbox con cobros activos)');
+      throw new Error(
+        'Falta la cuenta de cobro de prueba: npm run seed:revision -- --cuenta-de <email con cobros activos> (o --cuenta acct_…)'
+      );
     }
     const r = await revision(db, getAuth(), {
       email: iEmail !== -1 ? process.argv[iEmail + 1] : undefined,
