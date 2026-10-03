@@ -6,6 +6,14 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
+Nada todavía.
+
+## [1.1.0 (16)] — 2026-10-03 · TestFlight
+
+Build EAS `e06df070` desde el commit `a5be292`. Trae el pago al crear el
+servicio y la privacidad (email y fecha de nacimiento en `privado/`). Las
+reglas, Functions y web de abajo ya están publicadas (reglas en transición).
+
 ### Pagos: se paga al crear el servicio
 Nuevo flujo acordado: el dinero se cobra **al crear** un servicio con precio
 (precio + 8 %, mínimo CHF 1) y queda retenido en Neighborhub; al marcarlo como
