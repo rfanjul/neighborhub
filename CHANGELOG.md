@@ -69,10 +69,12 @@ permitían). Ahora van en `privado/{uid}`.
 - El perfil de otros vecinos ya no trae email ni fecha de nacimiento.
 
 #### Al publicar
-Primero reglas y Functions, luego la migración. Con las reglas nuevas, las
-builds anteriores (hasta la 1.1.0 (15)) no pueden crear el perfil de una
-cuenta nueva (escriben el email en `users/`) ni guardar una fecha de
-nacimiento; la build nueva necesita las reglas nuevas para dar de alta.
+Publicado el 2026-10-03 **en transición**: `privado/` ya está en las reglas
+(la build nueva lo necesita para dar de alta), pero `users/` aún admite el
+email y la fecha de nacimiento, porque las builds hasta la 1.1.0 (15) —la de la
+revisión de Apple incluida— los escriben ahí. Cuando ya no se usen: volver a
+prohibirlos (líneas `TRANSICIÓN` de `firestore.rules` y sus tests), publicar las
+reglas y ejecutar `npm run migrar:privado -- --aplicar`.
 
 ## [1.1.0 (15)] — 2026-10-02 · TestFlight
 

@@ -80,9 +80,12 @@ describe('users', () => {
     await assertFails(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, identityVerified: true }));
   });
 
-  it('el perfil público no lleva email ni fecha de nacimiento (van en privado/)', async () => {
-    await assertFails(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, email: 'ana@example.com' }));
-    await assertFails(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, dateOfBirth: null }));
+  // TRANSICIÓN: mientras haya builds hasta la 15 (escriben el email y la fecha
+  // en users/), las reglas aún lo admiten. Al quitarlo, estos dos tests vuelven
+  // a esperar assertFails (ver firestore.rules).
+  it('en transición: las builds antiguas aún crean el perfil con email y fecha', async () => {
+    await assertSucceeds(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, email: 'ana@example.com' }));
+    await assertSucceeds(setDoc(doc(como('luis'), 'users/luis'), { ...perfilInicial, dateOfBirth: null }));
   });
 
   it('cada uno edita sus datos personales', async () => {
@@ -93,13 +96,16 @@ describe('users', () => {
     );
   });
 
-  it.each([
-    ['email', 'ana@example.com'],
-    ['dateOfBirth', '08/07/1979'],
-  ])('nadie pone su %s en el perfil público', async (campo, valor) => {
+  it('nadie pone su email en el perfil público', async () => {
     await sembrar('users/ana', perfilInicial);
 
-    await assertFails(updateDoc(doc(como('ana'), 'users/ana'), { [campo]: valor }));
+    await assertFails(updateDoc(doc(como('ana'), 'users/ana'), { email: 'ana@example.com' }));
+  });
+
+  it('en transición: las builds antiguas aún guardan la fecha de nacimiento en el perfil', async () => {
+    await sembrar('users/ana', perfilInicial);
+
+    await assertSucceeds(updateDoc(doc(como('ana'), 'users/ana'), { dateOfBirth: '08/07/1979' }));
   });
 
   it.each([

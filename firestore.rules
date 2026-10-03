@@ -49,7 +49,10 @@ service cloud.firestore {
       // nivel o verificación que no se haya ganado.
       allow create: if signedIn()
         && request.auth.uid == userId
-        && !request.resource.data.keys().hasAny(['email', 'dateOfBirth'])
+        // TRANSICIÓN: las builds hasta la 1.1.0 (15) aún escriben aquí el
+        // email y la fecha de nacimiento al crear la cuenta. Cuando ya no se
+        // usen (y tras npm run migrar:privado), volver a prohibirlos:
+        //   && !request.resource.data.keys().hasAny(['email', 'dateOfBirth'])
         && request.resource.data.credits == 0
         && request.resource.data.rating == 0
         && request.resource.data.level == 1
@@ -82,7 +85,9 @@ service cloud.firestore {
         (request.auth.uid == userId
           && changedKeys().hasOnly([
             'name', 'bio', 'city', 'postalCode', 'country',
-            'languages', 'onboardingCompleted', 'photoURL'
+            'languages', 'onboardingCompleted', 'photoURL',
+            // TRANSICIÓN: las builds hasta la 15 guardan aquí la fecha de nacimiento. Quitar después.
+            'dateOfBirth'
           ]))
         || recibeValoracion()
       );
