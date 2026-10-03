@@ -1,5 +1,6 @@
 import React from 'react';
 import { Alert } from 'react-native';
+import { Linking } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -21,7 +22,7 @@ jest.mock('expo-location', () => ({
 const mockedApi = api as jest.Mocked<typeof api>;
 
 function renderScreen(serviceId?: string) {
-  const navigation = { goBack: jest.fn(), navigate: jest.fn() };
+  const navigation = { goBack: jest.fn(), navigate: jest.fn(), replace: jest.fn() };
   const route = { key: 'k', name: 'CreateService', params: serviceId ? { serviceId } : undefined };
   return render(<CreateServiceScreen navigation={navigation as never} route={route as never} />).then(() => navigation);
 }
@@ -58,18 +59,53 @@ describe('CreateServiceScreen', () => {
     expect(screen.getByText('A favor between neighbors: nobody pays anything.')).toBeTruthy();
   });
 
-  it('con precio enseña lo que se pagará y lo publica en céntimos', async () => {
+  it('con precio se paga al enviarlo: lo crea, abre Stripe y deja ver el servicio', async () => {
+    const abrir = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    mockedApi.createService.mockResolvedValue({ id: 'nuevo' } as never);
     const navigation = await renderScreen();
 
     await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Subir un sofá');
     await fireEvent.press(screen.getByText('Paid'));
     await fireEvent.changeText(screen.getByLabelText('Price'), '40');
 
-    expect(screen.getByText(/You'll pay CHF\s43\.20: CHF\s40\.00 for your neighbor plus a CHF\s3\.20 service fee/)).toBeTruthy();
-    await fireEvent.press(screen.getByText('Submit for review'));
+    expect(screen.getByText(/You'll pay CHF\s43\.20 now: CHF\s40\.00 for your neighbor plus a CHF\s3\.20 service fee/)).toBeTruthy();
+    expect(screen.getByText(/Cancel before choosing someone and you get it all back/)).toBeTruthy();
+    await fireEvent.press(screen.getByText(/^Pay CHF\s43\.20 and submit$/));
 
     await waitFor(() => expect(mockedApi.createService).toHaveBeenCalledWith(expect.objectContaining({ priceCents: 4000 })));
-    expect(navigation.goBack).toHaveBeenCalled();
+    expect(navigation.replace).toHaveBeenCalledWith('ServiceOffers', { serviceId: 'nuevo' });
+    expect(mockedApi.pagarServicio).toHaveBeenCalledWith('nuevo');
+    await waitFor(() => expect(abrir).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_crear'));
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    abrir.mockRestore();
+  });
+
+  it('si no se puede abrir el pago, el servicio queda creado y explica cómo pagarlo luego', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.createService.mockResolvedValue({ id: 'nuevo' } as never);
+    mockedApi.pagarServicio.mockRejectedValueOnce(new Error('sin red'));
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Subir un sofá');
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '40');
+    await fireEvent.press(screen.getByText(/^Pay CHF/));
+
+    await waitFor(() =>
+      expect(alerta).toHaveBeenCalledWith("Couldn't start the payment", expect.stringMatching(/pay it later from Activity → My services/))
+    );
+    expect(navigation.replace).toHaveBeenCalledWith('ServiceOffers', { serviceId: 'nuevo' });
+    alerta.mockRestore();
+  });
+
+  it('gratis no pide pago', async () => {
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Pasear a Toby');
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
+    expect(mockedApi.pagarServicio).not.toHaveBeenCalled();
   });
 
   it('acepta coma decimal y la gestión mínima es CHF 1', async () => {
@@ -78,7 +114,7 @@ describe('CreateServiceScreen', () => {
     await fireEvent.press(screen.getByText('Paid'));
     await fireEvent.changeText(screen.getByLabelText('Price'), '12,50');
 
-    expect(screen.getByText(/You'll pay CHF\s13\.50: CHF\s12\.50 for your neighbor plus a CHF\s1\.00 service fee/)).toBeTruthy();
+    expect(screen.getByText(/You'll pay CHF\s13\.50 now: CHF\s12\.50 for your neighbor plus a CHF\s1\.00 service fee/)).toBeTruthy();
   });
 
   it.each(['', '3', '2000', 'abc'])('con precio "%s" no publica y explica el rango', async (texto) => {

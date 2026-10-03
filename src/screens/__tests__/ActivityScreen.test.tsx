@@ -32,7 +32,7 @@ async function renderActividad(segmento?: 'services' | 'offers') {
 beforeEach(() => {
   jest.clearAllMocks();
   mockedApi.listMyServices.mockResolvedValue([
-    servicio({ id: 'p', title: 'Pintar pared', status: 'pending' }),
+    servicio({ id: 'p', title: 'Pintar pared', status: 'pending', priceCents: null }),
     servicio({ id: 'a', title: 'Montar armario', status: 'accepted', helperName: 'Marta' }),
   ]);
   mockedApi.listMyApplications.mockResolvedValue([
@@ -69,6 +69,19 @@ describe('My services', () => {
     await fireEvent.press(await screen.findByText('Montar armario'));
 
     expect(navigation.navigate).toHaveBeenCalledWith('ServiceOffers', { serviceId: 'a' });
+  });
+
+  it('con precio y sin pagar dice que falta el pago; cancelado, que se canceló', async () => {
+    mockedApi.listMyServices.mockResolvedValue([
+      servicio({ id: 'x', title: 'Sin pagar', status: 'pending', priceCents: 4000 }),
+      servicio({ id: 'y', title: 'Pagado', status: 'pending', priceCents: 4000, pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 } }),
+      servicio({ id: 'z', title: 'Cancelado', status: 'cancelled', priceCents: null }),
+    ]);
+    await renderActividad();
+
+    expect(await screen.findByText('Payment pending')).toBeTruthy();
+    expect(screen.getByText('Pending review')).toBeTruthy();
+    expect(screen.getByText('Cancelled')).toBeTruthy();
   });
 
   it('sin servicios invita a publicar', async () => {

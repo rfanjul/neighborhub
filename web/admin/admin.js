@@ -19,6 +19,7 @@
     in_progress: 'En curso',
     completed: 'Completado',
     rated: 'Valorado',
+    cancelled: 'Cancelado',
   };
   const MOTIVOS = { spam: 'Spam o estafa', inapropiado: 'Inapropiado u ofensivo', acoso: 'Acoso o amenazas', otro: 'Otro motivo' };
   const TIPOS = { service: 'Servicio', user: 'Vecino', message: 'Conversación' };
@@ -174,6 +175,8 @@
     });
     $('guardar').addEventListener('click', () => guardar({}, 'Cambios guardados'));
     $('aprobar').addEventListener('click', () => guardar(revision('approved'), 'Aprobado: ya se ve en la app'));
+    $('cancelar-servicio').addEventListener('click', cancelarServicio);
+    $('marcar-hecho').addEventListener('click', marcarHecho);
     $('despublicar').addEventListener('click', async () => {
       if (await preguntar('¿Despublicar? Dejará de verse en el muro y volverá a «En revisión».', 'Despublicar')) {
         guardar(revision('pending'), 'Despublicado');
@@ -357,6 +360,8 @@
 
   // Terminado, con precio y sin pago: se eligió con los pagos apagados; se le puede pedir el pago.
   const sinCobrar = (s) => !s.pago && s.priceCents != null && (s.status === 'completed' || s.status === 'rated');
+  // Con los pagos encendidos, uno con precio se paga al crearlo: hasta entonces no se aprueba.
+  const faltaPago = (s) => pagosActivos && !s.pago && s.priceCents != null && (s.status === 'pending' || s.status === 'approved');
   const enFiltro = (s, nombre) =>
     nombre === 'pagos' ? Boolean(s.pago) || sinCobrar(s) : !FILTROS[nombre] || FILTROS[nombre].includes(s.status);
 
@@ -432,6 +437,8 @@
     );
     if (s.pago && s.pago.estado) {
       lado.append(el('span', `chip chip-pago-${s.pago.estado}`, `Pago ${PAGO_ESTADOS[s.pago.estado] || s.pago.estado}`));
+    } else if (faltaPago(s)) {
+      lado.append(el('span', 'chip chip-pending', 'Falta el pago'));
     } else if (sinCobrar(s)) {
       lado.append(el('span', 'chip chip-pago-error', s.cobroPedido ? 'Pago pedido' : 'Sin cobrar'));
     }
@@ -658,16 +665,34 @@
       datos.append(' · ', mapa);
     }
 
+    const siempre = ['cerrar', 'cancelar-servicio', 'marcar-hecho'];
     Array.from(form.elements).forEach((campo) => {
-      if (campo.id !== 'cerrar' && !campo.closest('#editor-pago')) campo.disabled = !editable;
+      if (!siempre.includes(campo.id) && !campo.closest('#editor-pago')) campo.disabled = !editable;
     });
-    form.precio.disabled = !editable || form.gratis.checked;
+    // Pagado: el dinero retenido es por ese precio, así que ya no cambia.
+    form.gratis.disabled = !editable || Boolean(s.pago);
+    form.precio.disabled = !editable || form.gratis.checked || Boolean(s.pago);
     $('aprobar').hidden = s.status !== 'pending';
+    $('aprobar').disabled = faltaPago(s);
     $('despublicar').hidden = s.status !== 'approved';
     $('guardar').hidden = !editable;
+    const sinElegir = (s.status === 'pending' || s.status === 'approved') && !s.helperId;
+    $('cancelar-servicio').hidden = !sinElegir;
+    $('cancelar-servicio').textContent = s.pago && s.pago.estado === 'retenido' ? `Rechazar y devolver ${chf(s.pago.total)}` : 'Rechazar';
+    $('marcar-hecho').hidden = !((s.status === 'accepted' || s.status === 'in_progress') && s.helperId);
     aviso(
       'editor-aviso',
-      editable ? '' : 'Este servicio ya está en marcha o terminado: sus datos ya no se pueden editar.',
+      s.status === 'cancelled'
+        ? `Cancelado ${s.cancelledBy === 'admin' ? 'por la administración' : 'por quien lo pidió'}${
+            s.pago && s.pago.estado === 'reembolsado' ? `: se devolvieron ${chf(s.pago.total)}` : ''
+          }.`
+        : faltaPago(s)
+          ? `Falta el pago de ${s.requesterName || 'quien lo pide'} (${chf(s.priceCents + Math.max(100, Math.round(s.priceCents * 0.08)))}): se podrá aprobar cuando pague.`
+          : s.pago && s.pago.estado === 'retenido' && sinElegir
+            ? `Pagado: ${chf(s.pago.total)} retenidos. El precio ya no se puede cambiar.`
+            : editable
+              ? ''
+              : 'Este servicio ya está en marcha o terminado: sus datos ya no se pueden editar.',
       ''
     );
 
@@ -868,6 +893,41 @@
         });
     });
     return boton;
+  }
+
+  /** Rechazar un servicio sin nadie elegido: si estaba pagado, se devuelve todo a quien lo pidió. */
+  async function cancelarServicio() {
+    const s = servicios.find((x) => x.id === abierto);
+    if (!s) return;
+    const pagado = s.pago && s.pago.estado === 'retenido';
+    const texto = pagado
+      ? `¿Rechazar «${s.title}»? Se cancela, las ofertas se descartan y se devuelven ${chf(s.pago.total)} a ${s.requesterName}.`
+      : `¿Rechazar «${s.title}»? Se cancela y las ofertas se descartan.`;
+    if (!(await preguntar(texto, pagado ? 'Rechazar y devolver' : 'Rechazar'))) return;
+    aviso('editor-aviso', 'Cancelando…');
+    fns
+      .httpsCallable('adminCancelarServicio')({ serviceId: s.id })
+      .then(({ data }) => {
+        cerrarEditor();
+        flotante(data.reembolsado ? `Cancelado: se devuelven ${chf(data.reembolsado)}` : 'Cancelado');
+      })
+      .catch((err) => aviso('editor-aviso', err.message || err.code, 'error'));
+  }
+
+  /** Dar por hecho un servicio en marcha (si quien pidió no lo marca): se paga a quien ayudó. */
+  async function marcarHecho() {
+    const s = servicios.find((x) => x.id === abierto);
+    if (!s) return;
+    const pago = s.pago && s.pago.estado === 'retenido' ? ` y se transfieren ${chf(s.pago.precio)} a ${s.helperName}` : '';
+    if (!(await preguntar(`¿Dar por hecho «${s.title}»? Pasa a completado${pago}.`, 'Marcar como hecho'))) return;
+    aviso('editor-aviso', 'Guardando…');
+    fns
+      .httpsCallable('adminMarcarHecho')({ serviceId: s.id })
+      .then(() => {
+        cerrarEditor();
+        flotante(pago ? `Hecho: se paga a ${s.helperName}` : 'Marcado como hecho');
+      })
+      .catch((err) => aviso('editor-aviso', err.message || err.code, 'error'));
   }
 
   function cerrarEditor() {

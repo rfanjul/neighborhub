@@ -56,6 +56,7 @@ const statusColor: Record<string, { fondo: string; color: string }> = {
   in_progress: { fondo: colors.blueTint, color: colors.blue },
   completed: { fondo: colors.greenTint, color: colors.green },
   rated: { fondo: colors.greenTint, color: colors.green },
+  cancelled: { fondo: colors.border, color: colors.muted },
 };
 
 /** "★ 4.8 (12) · replies in ~2h", sin valores vacíos. */

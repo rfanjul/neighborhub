@@ -6,6 +6,43 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
+### Pagos: se paga al crear el servicio
+Nuevo flujo acordado: el dinero se cobra **al crear** un servicio con precio
+(precio + 8 %, mínimo CHF 1) y queda retenido en Neighborhub; al marcarlo como
+hecho quien lo pidió, el precio entero va a quien ayudó.
+
+1. Crear con precio → Stripe Checkout al momento. Sin pagar no se revisa ni se
+   publica (la administración no puede aprobarlo).
+2. Elegir oferta → no se cobra nada más; el servidor apunta a quién se le
+   pagará (tiene que tener los cobros activos).
+3. «Hecho» → solo quien pidió (o la administración) → transferencia.
+4. Cancelar → solo antes de elegir a nadie; si estaba pagado, se devuelve todo.
+
+#### Servidor y web (se publican aparte)
+- Functions nuevas: `pagarServicio`, `elegirOferta`, `cancelarServicio`,
+  `adminCancelarServicio`, `adminMarcarHecho`. El webhook atiende el pago al
+  crear (`alCrear`) y devuelve los que llegan tarde (cancelado, otro precio,
+  enlace sustituido). `pagarOferta` sigue para los servicios de antes y, si ya
+  está pagado al crear, solo elige (las builds hasta la 15 eligen por ahí).
+  `liberarPago` busca la cuenta de cobro si falta.
+- **Reglas: quien ayuda ya no puede dar el servicio por hecho** (liberaba su
+  propio pago); solo lo pone «en curso». Uno pagado no cambia de precio, no se
+  borra (se cancela) ni se elige desde la app; la administración no aprueba uno
+  con precio sin pagar (con los pagos encendidos) ni le cambia el precio si ya
+  está pagado. Estado nuevo `cancelled` (solo lo pone el servidor).
+- Administración: «Falta el pago» en la lista y no deja aprobar; precio
+  bloqueado si está pagado; botones **Rechazar (y devolver)** y **Marcar como
+  hecho y pagar**; estado «Cancelado».
+
+#### App
+- Crear con precio: el botón es «Pagar CHF … y enviar»; abre Stripe y lleva al
+  servicio. Si no se paga, el servicio lo ofrece («Para enviarlo a revisión,
+  paga…») y Actividad lo marca «Falta el pago».
+- Pagado y sin elegir: «CHF … pagados y guardados…»; elegir explica que quien
+  ayude recibe el precio al marcarlo como hecho y que ya no se cancela.
+- **Cancelar servicio** antes de elegir (con el reembolso si estaba pagado);
+  estado «Cancelado». Borrar la cuenta cancela (y devuelve) los pagados.
+
 ### Privacidad: email y fecha de nacimiento fuera del perfil público
 Cualquier vecino con sesión podía leer `users/{uid}` entero, y con él el email
 y la fecha de nacimiento de todos (la app no los enseñaba, pero las reglas lo

@@ -193,7 +193,7 @@ describe('ServiceOffersScreen', () => {
   });
 
   it('pendiente de revisión explica que aún no llegan ofertas', async () => {
-    mockedApi.getService.mockResolvedValue(servicio({ status: 'pending' }));
+    mockedApi.getService.mockResolvedValue(servicio({ status: 'pending', priceCents: null }));
     mockedApi.listApplicationsForService.mockResolvedValue([]);
     await renderOfertas();
 
@@ -236,6 +236,19 @@ describe('ServiceOffersScreen', () => {
     expect(screen.queryByText('Edit')).toBeNull();
   });
 
+  it('un favor gratis sin elegir se cancela sin reembolso', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderOfertas();
+
+    await fireEvent.press(await screen.findByText('Cancel request'));
+    expect(alerta).toHaveBeenCalledWith('Cancel this request?', "It won't be shown anymore and the offers will be declined.", expect.any(Array));
+    await confirmar(alerta, 'Cancel request');
+
+    expect(mockedApi.cancelarServicio).toHaveBeenCalledWith('s1');
+    expect(alerta).toHaveBeenLastCalledWith('Request cancelled.');
+    alerta.mockRestore();
+  });
+
   it('vuelve atrás', async () => {
     const navigation = await renderOfertas();
 
@@ -245,80 +258,103 @@ describe('ServiceOffersScreen', () => {
   });
 });
 
-describe('servicios con precio: se paga en Stripe al elegir', () => {
+describe('servicios con precio: se pagan al crearlos', () => {
+  const retenido = { pago: { estado: 'retenido' as const, precio: 4000, comision: 320, total: 4320 } };
   let abrir: jest.SpyInstance;
   beforeEach(() => {
-    mockedApi.getService.mockResolvedValue(servicio({ title: 'Subir un sofá', status: 'approved', priceCents: 4000 }));
+    mockedApi.getService.mockResolvedValue(servicio({ title: 'Subir un sofá', status: 'approved', priceCents: 4000, ...retenido }));
+    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: true }) }]);
     abrir = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
   });
   afterEach(() => abrir.mockRestore());
+
+  it('sin pagar, explica que hay que pagar para revisarlo y abre Stripe', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ status: 'pending', priceCents: 4000 }));
+    mockedApi.listApplicationsForService.mockResolvedValue([]);
+    await renderOfertas();
+
+    expect(await screen.findByText(/To send it for review, pay CHF\s43\.20 \(CHF\s40\.00 \+ CHF\s3\.20 service fee\)/)).toBeTruthy();
+    expect(screen.queryByText(/Waiting for review/)).toBeNull();
+    await fireEvent.press(screen.getByText(/^Pay CHF\s43\.20$/));
+
+    expect(mockedApi.pagarServicio).toHaveBeenCalledWith('s1');
+    expect(abrir).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_crear');
+  });
+
+  it('uno publicado sin pagar (de antes) pide pagar antes de elegir y no deja elegir', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ status: 'approved', priceCents: 4000 }));
+    await renderOfertas();
+
+    expect(await screen.findByText(/Pay CHF\s43\.20 \(CHF\s40\.00 \+ CHF\s3\.20 service fee\) before choosing someone/)).toBeTruthy();
+    expect(screen.queryByText('Choose')).toBeNull();
+  });
+
+  it('pagado: dice que está retenido y elegir no cobra nada (lo hace el servidor)', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderOfertas();
+
+    expect(await screen.findByText(/CHF\s43\.20 paid and held\. Whoever you choose gets CHF\s40\.00 when you mark it as done/)).toBeTruthy();
+    await fireEvent.press(screen.getByText('Choose'));
+    expect(alerta).toHaveBeenCalledWith(
+      'Choose Luis?',
+      expect.stringMatching(/Luis gets CHF\s40\.00 when you mark the job as done.*can't cancel after choosing/),
+      expect.any(Array)
+    );
+    await confirmar(alerta, 'Choose');
+
+    expect(mockedApi.elegirOfertaPagada).toHaveBeenCalledWith('s1', 'luis');
+    expect(mockedApi.selectApplicant).not.toHaveBeenCalled();
+    expect(mockedApi.pagarOferta).not.toHaveBeenCalled();
+    expect(abrir).not.toHaveBeenCalled();
+    alerta.mockRestore();
+  });
 
   it('quien aún no ha activado los cobros no se puede elegir', async () => {
     mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: false }) }]);
     await renderOfertas();
 
     expect(await screen.findByText("Can't receive payments yet")).toBeTruthy();
-    expect(screen.queryByText(/^Pay /)).toBeNull();
+    expect(screen.queryByText('Choose')).toBeNull();
   });
 
-  it('pagar explica el total, abre Stripe Checkout y espera; elegir lo hará el servidor', async () => {
+  it('si el servidor no deja elegir, lo explica en el idioma de la app', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: true }) }]);
+    mockedApi.elegirOfertaPagada.mockRejectedValueOnce(Object.assign(new Error('x'), { details: { motivo: 'sinCobros' } }));
     await renderOfertas();
 
-    await fireEvent.press(await screen.findByText(/^Pay CHF\s43\.20$/));
-    expect(alerta).toHaveBeenCalledWith(
-      'Pay and choose Luis?',
-      expect.stringMatching(/You'll pay CHF\s43\.20 \(CHF\s40\.00 \+ CHF\s3\.20 service fee\)/),
-      expect.any(Array)
-    );
-    await confirmar(alerta, 'Pay CHF\u00a043.20');
+    await fireEvent.press(await screen.findByText('Choose'));
+    await confirmar(alerta, 'Choose');
 
-    expect(mockedApi.pagarOferta).toHaveBeenCalledWith('s1', 'luis');
-    expect(abrir).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_test');
-    expect(mockedApi.selectApplicant).not.toHaveBeenCalled();
-    expect(screen.getByText(/Waiting for your payment on Stripe/)).toBeTruthy();
+    expect(alerta).toHaveBeenLastCalledWith("Couldn't choose this offer", "This person hasn't set up payouts yet, so they can't be paid.");
     alerta.mockRestore();
   });
 
-  it('al volver de Stripe recarga y, ya aceptado, enseña el pago retenido', async () => {
+  it('antes de elegir se cancela y se devuelve lo pagado', async () => {
     const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    let alCambiar: (estado: string) => void = () => {};
-    const suscribir = jest.spyOn(AppState, 'addEventListener').mockImplementation((_e, f) => {
-      alCambiar = f as never;
-      return { remove: jest.fn() } as never;
-    });
-    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: true }) }]);
+    mockedApi.cancelarServicio.mockResolvedValueOnce({ reembolsado: 4320 });
     await renderOfertas();
-    await fireEvent.press(await screen.findByText(/^Pay CHF/));
-    await confirmar(alerta, 'Pay CHF\u00a043.20');
 
+    await fireEvent.press(await screen.findByText('Cancel request'));
+    expect(alerta).toHaveBeenCalledWith('Cancel this request?', expect.stringMatching(/you'll get CHF\s43\.20 back/), expect.any(Array));
     mockedApi.getService.mockResolvedValue(
-      servicio({
-        status: 'accepted', priceCents: 4000, helperId: 'luis', helperName: 'Luis',
-        pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 },
-      })
+      servicio({ status: 'cancelled', priceCents: 4000, pago: { estado: 'reembolsado', precio: 4000, comision: 320, total: 4320 } })
     );
-    await act(async () => alCambiar('active'));
+    await confirmar(alerta, 'Cancel request');
+
+    expect(mockedApi.cancelarServicio).toHaveBeenCalledWith('s1');
+    expect(alerta).toHaveBeenCalledWith(expect.stringMatching(/Request cancelled\. CHF\s43\.20 will be refunded to your card/));
+    expect(await screen.findByText(/This request was cancelled\. CHF\s43\.20 refunded to you/)).toBeTruthy();
+    expect(screen.queryByText('Cancel request')).toBeNull();
+    expect(screen.queryByText('Choose')).toBeNull();
+    alerta.mockRestore();
+  });
+
+  it('una vez elegido ya no se puede cancelar', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ status: 'accepted', priceCents: 4000, helperId: 'luis', helperName: 'Luis', ...retenido }));
+    await renderOfertas();
 
     expect(await screen.findByText(/CHF\s43\.20 paid and held: Luis gets CHF\s40\.00 when you mark it as done/)).toBeTruthy();
-    expect(screen.queryByText(/Waiting for your payment/)).toBeNull();
-    suscribir.mockRestore();
-    alerta.mockRestore();
-  });
-
-  it('si el servidor no deja pagar, lo explica en el idioma de la app', async () => {
-    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    mockedApi.listApplicationsForService.mockResolvedValue([{ ...oferta('luis', 'Luis'), applicant: perfil({ cobrosActivos: true }) }]);
-    mockedApi.pagarOferta.mockRejectedValueOnce(Object.assign(new Error('x'), { details: { motivo: 'sinCobros' } }));
-    await renderOfertas();
-
-    await fireEvent.press(await screen.findByText(/^Pay CHF/));
-    await confirmar(alerta, 'Pay CHF\u00a043.20');
-
-    expect(alerta).toHaveBeenLastCalledWith("Couldn't start the payment", "This person hasn't set up payouts yet, so they can't be paid.");
-    expect(abrir).not.toHaveBeenCalled();
-    alerta.mockRestore();
+    expect(screen.queryByText('Cancel request')).toBeNull();
   });
 
   it('si se devolvió el dinero o la transferencia falló, lo dice (no «retenido»)', async () => {

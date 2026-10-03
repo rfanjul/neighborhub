@@ -129,10 +129,21 @@ service cloud.firestore {
         return d.get('priceCents', null) == null
           || (d.priceCents is int && d.priceCents >= 500 && d.priceCents <= 100000);
       }
-      /** Transiciones permitidas una vez elegida la persona que ayuda. */
+      /**
+       * Transiciones permitidas una vez elegida la persona que ayuda. Darlo
+       * por hecho libera el pago a quien ayuda, así que solo lo hace quien
+       * pidió (o la administración, desde el servidor); quien ayuda solo lo
+       * pone en marcha.
+       */
       function avanza(desde, hasta) {
-        return (desde == 'accepted' && hasta in ['in_progress', 'completed'])
-          || (desde == 'in_progress' && hasta == 'completed');
+        return (isRequester()
+            && ((desde == 'accepted' && hasta in ['in_progress', 'completed'])
+              || (desde == 'in_progress' && hasta == 'completed')))
+          || (isHelper() && desde == 'accepted' && hasta == 'in_progress');
+      }
+      /** Pagado al crearlo (dinero retenido): su precio ya no cambia y solo se cancela devolviéndolo. */
+      function pagado() {
+        return resource.data.get('pago', null) != null;
       }
 
       allow read: if signedIn() && (
@@ -152,7 +163,12 @@ service cloud.firestore {
           && resource.data.status in ['pending', 'approved']
           && request.resource.data.status in ['pending', 'approved']
           && !changedKeys().hasAny(['requesterId', 'requesterName', 'helperId', 'helperName', 'pago'])
-          && precioValido(request.resource.data))
+          && precioValido(request.resource.data)
+          // Lo pagado no cambia de precio, y con los pagos encendidos uno con
+          // precio no se publica hasta que esté pagado.
+          && (!pagado() || !changedKeys().hasAny(['priceCents']))
+          && (request.resource.data.status != 'approved' || resource.data.status == 'approved'
+            || resource.data.get('priceCents', null) == null || pagado() || !pagosActivos()))
         ||
         // Quien publica elige a una de las personas que han ofertado. Solo
         // mientras está aprobado (así solo se elige una vez), solo a alguien
@@ -162,6 +178,7 @@ service cloud.firestore {
         (isRequester()
           && resource.data.status == 'approved'
           && request.resource.data.status == 'accepted'
+          && !pagado()
           && (resource.data.get('priceCents', null) == null || !pagosActivos())
           && exists(/databases/$(database)/documents/applications/$(requestId + '_' + request.resource.data.helperId))
           && changedKeys().hasOnly(['status', 'helperId', 'helperName', 'updatedAt']))
@@ -174,12 +191,11 @@ service cloud.firestore {
           && resource.data.status in ['pending', 'approved']
           && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId', 'pago'])
           && precioValido(request.resource.data)
-          && (resource.data.status == 'pending' || !changedKeys().hasAny(['priceCents'])))
+          && ((resource.data.status == 'pending' && !pagado()) || !changedKeys().hasAny(['priceCents'])))
         ||
         // Una vez aceptado, las dos partes avanzan el trabajo hacia delante,
         // tocando solo el estado.
-        ((isRequester() || isHelper())
-          && avanza(resource.data.status, request.resource.data.status)
+        (avanza(resource.data.status, request.resource.data.status)
           && changedKeys().hasOnly(['status', 'updatedAt'])) ||
 
         // Quien publica lo da por terminado valorando a quien ayudó: pasa a
@@ -194,7 +210,8 @@ service cloud.firestore {
 
       // Al borrar la cuenta se van los servicios propios que aún no tienen a
       // nadie elegido; los que ya implican a otra persona se conservan.
-      allow delete: if signedIn() && isRequester() && resource.data.status in ['pending', 'approved'];
+      // Uno pagado no se borra: se cancela (y se devuelve) desde el servidor.
+      allow delete: if signedIn() && isRequester() && resource.data.status in ['pending', 'approved'] && !pagado();
 
       match /messages/{messageId} {
         function isParticipant() {

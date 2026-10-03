@@ -25,7 +25,7 @@ export function dataErrorMessage(error: unknown): string {
   return message || t('comun.errorInesperado');
 }
 
-const MOTIVOS_PAGO = ['sinCobros', 'yaPagado', 'noDisponible', 'oferta', 'gratis', 'noEsTuyo', 'noExiste'] as const;
+const MOTIVOS_PAGO = ['sinCobros', 'yaPagado', 'noDisponible', 'oferta', 'gratis', 'noEsTuyo', 'noExiste', 'sinPagar', 'yaElegido'] as const;
 
 /**
  * Mensaje de un error de los pagos: el servidor manda un motivo corto

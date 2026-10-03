@@ -7,12 +7,18 @@
  *     el panel Express; Stripe le pide identidad e IBAN en su formulario. La
  *     plataforma responde de las pérdidas (aceptado en el perfil de
  *     plataforma de Stripe), que es lo que permite retener el dinero.
- *  2. Quien pide elige una oferta de un servicio con precio y paga en Stripe
- *     Checkout el precio más la gestión (8 %, mínimo CHF 1). El dinero queda
- *     en la cuenta de la plataforma: retenido.
- *  3. Al marcarlo como hecho, se transfiere el precio entero a quien ayudó;
- *     la gestión se queda en la plataforma (de ahí salen las comisiones de
- *     Stripe).
+ *  2. Quien pide crea un servicio con precio y lo paga al momento en Stripe
+ *     Checkout: el precio más la gestión (8 %, mínimo CHF 1). El dinero
+ *     queda en la cuenta de la plataforma, retenido; solo entonces pasa a
+ *     revisión. Hasta elegir a alguien puede cancelarlo y se le devuelve.
+ *  3. Elige una oferta (ya pagada: no se cobra nada más). Desde ahí ya no se
+ *     cancela.
+ *  4. Al marcarlo como hecho quien pidió (o la administración), se transfiere
+ *     el precio entero a quien ayudó; la gestión se queda en la plataforma
+ *     (de ahí salen las comisiones de Stripe).
+ *
+ * Los servicios de antes de este cambio se pagaban al elegir la oferta
+ * (pagarOferta); siguen funcionando igual.
  *
  * Solo este servidor habla con Stripe y escribe pagos/ y cuentasCobro/; las
  * reglas de Firestore no dejan a la app ni leerlas.
@@ -108,10 +114,17 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
    * Stripe Checkout con el precio y la gestión. recobro: el nuevo pago que
    * administración pide a quien pidió cuando el primero se devolvió.
    */
-  function abrirCheckout({ serviceId, helperId, requesterId, email, titulo, precio, gestion, recobro = false }) {
+  function abrirCheckout({ serviceId, helperId, requesterId, email, titulo, precio, gestion, recobro = false, alCrear = false }) {
     // proyecto: el Sandbox de Stripe lo comparten la app real y los
     // emuladores; cada uno solo atiende sus propios pagos.
-    const metadata = { serviceId, helperId, requesterId, ...(proyecto ? { proyecto } : {}), ...(recobro ? { recobro: '1' } : {}) };
+    const metadata = {
+      serviceId,
+      requesterId,
+      ...(helperId ? { helperId } : {}),
+      ...(proyecto ? { proyecto } : {}),
+      ...(recobro ? { recobro: '1' } : {}),
+      ...(alCrear ? { alCrear: '1' } : {}),
+    };
     const linea = (nombre, importe) => ({
       quantity: 1,
       price_data: { currency: 'chf', unit_amount: importe, product_data: { name: nombre } },
@@ -154,6 +167,11 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     }
     if (!cuenta?.cobrosActivos || !cuenta.stripeAccountId) {
       throw new ErrorPago('failed-precondition', 'Esta persona aún no ha activado los cobros.', 'sinCobros');
+    }
+    if (pagoPrevio?.alCrear && pagoPrevio.estado === 'retenido') {
+      // Pagado al crearlo: las builds antiguas aún pasan por aquí para elegir.
+      await elegirOferta(uid, { serviceId, applicantId });
+      return { url: `${web}/pago?estado=ok` };
     }
     if (pagoPrevio && pagoPrevio.estado !== 'pendiente') throw new ErrorPago('already-exists', 'Este servicio ya está pagado.', 'yaPagado');
 
@@ -200,13 +218,14 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
    * es un pago viejo), se devuelve el dinero.
    */
   async function alCompletarCheckout(sesion) {
-    const { serviceId, helperId, proyecto: deProyecto, recobro } = sesion.metadata || {};
-    if (!serviceId || !helperId || sesion.payment_status !== 'paid') return 'ignorado';
+    const { serviceId, helperId, proyecto: deProyecto, recobro, alCrear } = sesion.metadata || {};
+    if (!serviceId || (!helperId && !alCrear) || sesion.payment_status !== 'paid') return 'ignorado';
     // Un pago de otro entorno (p. ej. la app real vista desde los emuladores): ni se toca.
     if (deProyecto && proyecto && deProyecto !== proyecto) return 'ajeno';
     const intento = await stripe.paymentIntents.retrieve(sesion.payment_intent);
     const chargeId = typeof intento.latest_charge === 'string' ? intento.latest_charge : intento.latest_charge?.id;
     if (recobro) return alPagarRecobro(sesion, intento, chargeId);
+    if (alCrear) return alPagarAlCrear(sesion, intento, chargeId);
 
     const resultado = await db.runTransaction(async (tx) => {
       const servicioRef = db.doc(`helpRequests/${serviceId}`);
@@ -247,6 +266,199 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     return resultado;
   }
 
+  // --- Pago al crear el servicio ------------------------------------------
+
+  /**
+   * Quien pide paga su servicio con precio al crearlo (o, si se creó con los
+   * pagos apagados, antes de poder elegir oferta). Mientras no esté pagado no
+   * se publica.
+   */
+  async function pagarServicio(uid, email, { serviceId } = {}) {
+    if (!serviceId) throw new ErrorPago('invalid-argument', 'Falta el servicio.', 'datos');
+    const config = (await db.doc('config/app').get()).data();
+    if (config?.pagosActivos !== true) throw new ErrorPago('failed-precondition', 'Los pagos están desactivados.', 'noDisponible');
+    const [servicioSnap, pagoSnap] = await Promise.all([db.doc(`helpRequests/${serviceId}`).get(), db.doc(`pagos/${serviceId}`).get()]);
+    const servicio = servicioSnap.data();
+    const pagoPrevio = pagoSnap.data();
+    if (!servicio) throw new ErrorPago('not-found', 'El servicio ya no existe.', 'noExiste');
+    if (servicio.requesterId !== uid) throw new ErrorPago('permission-denied', 'Solo quien pide el servicio lo paga.', 'noEsTuyo');
+    if (servicio.priceCents == null) throw new ErrorPago('failed-precondition', 'Es un favor gratis: no se paga.', 'gratis');
+    if (!['pending', 'approved'].includes(servicio.status) || servicio.helperId) {
+      throw new ErrorPago('failed-precondition', 'Este servicio ya no se puede pagar.', 'noDisponible');
+    }
+    if (pagoPrevio && pagoPrevio.estado !== 'pendiente') throw new ErrorPago('already-exists', 'Este servicio ya está pagado.', 'yaPagado');
+    // Un pago anterior a medias (se cerró Stripe) se anula: así nunca se cobra dos veces.
+    if (pagoPrevio?.checkoutSessionId) await stripe.checkout.sessions.expire(pagoPrevio.checkoutSessionId).catch(() => {});
+
+    const precio = servicio.priceCents;
+    const gestion = comision(precio);
+    const sesion = await abrirCheckout({ serviceId, requesterId: uid, email, titulo: servicio.title, precio, gestion, alCrear: true });
+    await db.doc(`pagos/${serviceId}`).set({
+      serviceId,
+      titulo: servicio.title || '',
+      requesterId: uid,
+      requesterName: servicio.requesterName || '',
+      helperId: null,
+      helperName: '',
+      cuentaDestino: null,
+      precio,
+      comision: gestion,
+      total: precio + gestion,
+      moneda: 'chf',
+      estado: 'pendiente',
+      alCrear: true,
+      checkoutSessionId: sesion.id,
+      creado: ahora(),
+      actualizado: ahora(),
+    });
+    return { url: sesion.url };
+  }
+
+  /**
+   * Stripe confirma el pago del servicio: el dinero queda retenido y el
+   * servicio ya puede revisarse y publicarse. Si entretanto se canceló, se
+   * eligió a alguien o cambió el precio, se devuelve.
+   */
+  async function alPagarAlCrear(sesion, intento, chargeId) {
+    const { serviceId } = sesion.metadata;
+    const pagoRef = db.doc(`pagos/${serviceId}`);
+    const servicioRef = db.doc(`helpRequests/${serviceId}`);
+    const resultado = await db.runTransaction(async (tx) => {
+      const [pagoSnap, servicioSnap] = await Promise.all([tx.get(pagoRef), tx.get(servicioRef)]);
+      const pago = pagoSnap.data();
+      const servicio = servicioSnap.data();
+      if (!pago) return 'ajeno';
+      if (pago.checkoutSessionId === sesion.id && pago.estado !== 'pendiente') return 'repetido';
+      const valido =
+        pago.checkoutSessionId === sesion.id &&
+        servicio &&
+        ['pending', 'approved'].includes(servicio.status) &&
+        !servicio.helperId &&
+        servicio.priceCents === pago.precio;
+      if (!valido) {
+        if (pago.checkoutSessionId === sesion.id) {
+          tx.update(pagoRef, { estado: 'reembolsado', paymentIntentId: intento.id, chargeId, actualizado: ahora() });
+        }
+        return 'reembolsar';
+      }
+      tx.update(pagoRef, { estado: 'retenido', paymentIntentId: intento.id, chargeId, actualizado: ahora() });
+      tx.update(servicioRef, {
+        pago: { estado: 'retenido', precio: pago.precio, comision: pago.comision, total: pago.total },
+        updatedAt: ahora(),
+      });
+      return 'retenido';
+    });
+    if (resultado === 'reembolsar') {
+      await stripe.refunds.create({ payment_intent: intento.id, reason: 'requested_by_customer' }, { idempotencyKey: `reembolso-${sesion.id}` });
+    }
+    return resultado;
+  }
+
+  /**
+   * Quien pide elige una oferta de un servicio ya pagado. No se cobra nada:
+   * el dinero ya está retenido y queda apuntado para quien ayuda. Tiene que
+   * tener los cobros activos para poder recibirlo.
+   */
+  async function elegirOferta(uid, { serviceId, applicantId } = {}) {
+    if (!serviceId || !applicantId) throw new ErrorPago('invalid-argument', 'Falta el servicio o la oferta.', 'datos');
+    let cuenta = (await db.doc(`cuentasCobro/${applicantId}`).get()).data();
+    if (cuenta?.stripeAccountId && !cuenta.cobrosActivos) {
+      // Puede que acabe de terminar el formulario y aún no lo hayamos apuntado.
+      cuenta = { ...cuenta, cobrosActivos: (await estadoCobros(applicantId)).activos };
+    }
+    const servicioRef = db.doc(`helpRequests/${serviceId}`);
+    const pagoRef = db.doc(`pagos/${serviceId}`);
+    await db.runTransaction(async (tx) => {
+      const [servicioSnap, pagoSnap, ofertas] = await Promise.all([
+        tx.get(servicioRef),
+        tx.get(pagoRef),
+        tx.get(db.collection('applications').where('serviceId', '==', serviceId)),
+      ]);
+      const servicio = servicioSnap.data();
+      const pago = pagoSnap.data();
+      if (!servicio) throw new ErrorPago('not-found', 'El servicio ya no existe.', 'noExiste');
+      if (servicio.requesterId !== uid) throw new ErrorPago('permission-denied', 'Solo quien pide el servicio elige.', 'noEsTuyo');
+      if (servicio.status !== 'approved' || servicio.helperId) {
+        throw new ErrorPago('failed-precondition', 'Este servicio ya no admite elegir oferta.', 'noDisponible');
+      }
+      if (pago?.estado !== 'retenido') throw new ErrorPago('failed-precondition', 'Primero hay que pagar el servicio.', 'sinPagar');
+      const elegida = ofertas.docs.find((o) => o.data().applicantId === applicantId);
+      if (!elegida || elegida.data().status !== 'pending') {
+        throw new ErrorPago('failed-precondition', 'Esa oferta ya no está disponible.', 'oferta');
+      }
+      if (!cuenta?.stripeAccountId || !cuenta.cobrosActivos) {
+        throw new ErrorPago('failed-precondition', 'Esta persona aún no ha activado los cobros.', 'sinCobros');
+      }
+      const helperName = elegida.data().applicantName ?? '';
+      tx.update(servicioRef, { status: 'accepted', helperId: applicantId, helperName, updatedAt: ahora() });
+      ofertas.docs.forEach((o) =>
+        tx.update(o.ref, { status: o.id === elegida.id ? 'selected' : 'rejected', updatedAt: ahora() })
+      );
+      tx.update(pagoRef, { helperId: applicantId, helperName, cuentaDestino: cuenta.stripeAccountId, actualizado: ahora() });
+    });
+    return { estado: 'accepted' };
+  }
+
+  /**
+   * Cancelar un servicio: solo mientras no se ha elegido a nadie. Si estaba
+   * pagado, se devuelve el dinero entero a quien pidió. admin: la
+   * administración lo rechaza (con el mismo reembolso).
+   */
+  async function cancelarServicio(uid, { serviceId } = {}, { admin = false } = {}) {
+    if (!serviceId) throw new ErrorPago('invalid-argument', 'Falta el servicio.', 'datos');
+    const servicioRef = db.doc(`helpRequests/${serviceId}`);
+    const pagoRef = db.doc(`pagos/${serviceId}`);
+    const [servicioSnap, pagoSnap] = await Promise.all([servicioRef.get(), pagoRef.get()]);
+    const servicio = servicioSnap.data();
+    const pago = pagoSnap.data();
+    if (!servicio) throw new ErrorPago('not-found', 'El servicio ya no existe.', 'noExiste');
+    if (!admin && servicio.requesterId !== uid) throw new ErrorPago('permission-denied', 'Solo quien pide el servicio lo cancela.', 'noEsTuyo');
+    if (!['pending', 'approved'].includes(servicio.status) || servicio.helperId) {
+      throw new ErrorPago('failed-precondition', 'Ya se eligió a alguien: el servicio no se puede cancelar.', 'yaElegido');
+    }
+
+    let reembolsado = 0;
+    if (pago?.estado === 'retenido') {
+      await stripe.refunds.create(
+        { payment_intent: pago.paymentIntentId, reason: 'requested_by_customer', metadata: { serviceId, motivo: admin ? 'rechazado' : 'cancelado' } },
+        { idempotencyKey: `cancelar-${serviceId}` }
+      );
+      reembolsado = pago.total;
+      await pagoRef.update({ estado: 'reembolsado', cancelado: true, actualizado: ahora() });
+    } else if (pago?.estado === 'pendiente') {
+      // Pago a medias: se anula el enlace y no queda nada que devolver.
+      if (pago.checkoutSessionId) await stripe.checkout.sessions.expire(pago.checkoutSessionId).catch(() => {});
+      await pagoRef.delete();
+    }
+
+    await servicioRef.update({
+      status: 'cancelled',
+      cancelledBy: admin ? 'admin' : 'requester',
+      cancelledAt: ahora(),
+      updatedAt: ahora(),
+      ...(reembolsado ? { pago: { estado: 'reembolsado', precio: pago.precio, comision: pago.comision, total: pago.total } } : {}),
+    });
+    const ofertas = await db.collection('applications').where('serviceId', '==', serviceId).get();
+    await Promise.all(
+      ofertas.docs.filter((o) => o.data().status === 'pending').map((o) => o.ref.update({ status: 'rejected', updatedAt: ahora() }))
+    );
+    return { estado: 'cancelled', reembolsado };
+  }
+
+  /** La administración da por hecho un servicio (si quien pidió no lo marca): se paga a quien ayudó. */
+  async function marcarHechoAdmin(adminUid, { serviceId } = {}) {
+    if (!serviceId) throw new ErrorPago('invalid-argument', 'Falta el servicio.', 'datos');
+    const ref = db.doc(`helpRequests/${serviceId}`);
+    const servicio = (await ref.get()).data();
+    if (!servicio) throw new ErrorPago('not-found', 'El servicio ya no existe.', 'noExiste');
+    if (!['accepted', 'in_progress'].includes(servicio.status) || !servicio.helperId) {
+      throw new ErrorPago('failed-precondition', 'Solo un servicio en marcha se puede dar por hecho.', 'noDisponible');
+    }
+    // El paso a «completado» lo ve liberarPago, que transfiere a quien ayudó.
+    await ref.update({ status: 'completed', completedBy: 'admin', completedByUid: adminUid, updatedAt: ahora() });
+    return { estado: 'completed' };
+  }
+
   async function alActualizarCuenta(cuenta) {
     const uid = cuenta.metadata?.uid;
     if (!uid) return 'ignorado';
@@ -261,8 +473,18 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
    */
   async function liberarPago(serviceId, antes, despues) {
     if (!antes || !despues || terminado(antes.status) || !terminado(despues.status)) return 'nada';
-    const pago = (await db.doc(`pagos/${serviceId}`).get()).data();
+    let pago = (await db.doc(`pagos/${serviceId}`).get()).data();
     if (pago?.estado !== 'retenido') return 'nada';
+    if (!pago.cuentaDestino && despues.helperId) {
+      const cuenta = (await db.doc(`cuentasCobro/${despues.helperId}`).get()).data();
+      pago = { ...pago, helperId: despues.helperId, helperName: despues.helperName || '', cuentaDestino: cuenta?.stripeAccountId || null };
+      await db.doc(`pagos/${serviceId}`).update({ helperId: pago.helperId, helperName: pago.helperName, cuentaDestino: pago.cuentaDestino });
+    }
+    if (!pago.cuentaDestino) {
+      await db.doc(`pagos/${serviceId}`).update({ estado: 'error', error: 'Quien ayudó no tiene cuenta de cobro.', actualizado: ahora() });
+      await db.doc(`helpRequests/${serviceId}`).update({ 'pago.estado': 'error' });
+      return 'error';
+    }
     return (await transferir(serviceId, pago, `liberar-${serviceId}`)).estado;
   }
 
@@ -383,6 +605,7 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
       }
       return no('Este servicio no tiene pago.');
     }
+    if (servicio.status === 'cancelled') return no('Servicio cancelado: el dinero se devolvió a quien pidió.');
     if (pago.estado === 'pagado') return no('Ya está pagado a quien ayudó.');
     if (pago.estado === 'pendiente' && !pago.recobro) return no('Quien pidió no llegó a pagar.');
     if (!terminado(servicio.status)) return no('El servicio aún no está terminado: se paga solo al marcarlo como hecho.');
@@ -638,6 +861,10 @@ function crearPagos({ stripe, db, ahora, web, proyecto }) {
     misPagos,
     verPago,
     reintentarPago,
+    pagarServicio,
+    elegirOferta,
+    cancelarServicio,
+    marcarHechoAdmin,
   };
 }
 

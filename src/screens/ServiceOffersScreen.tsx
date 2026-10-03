@@ -100,7 +100,6 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
   const [ofertas, setOfertas] = useState<Application[]>([]);
   const [resena, setResena] = useState<Review | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const [esperandoPago, setEsperandoPago] = useState(false);
   const pagos = usePagosActivos();
   const pagando = useRef(false);
 
@@ -128,12 +127,6 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     });
     return () => suscripcion?.remove();
   }, [cargar]);
-  useEffect(() => {
-    if (servicio && servicio.status !== 'approved') {
-      pagando.current = false;
-      setEsperandoPago(false);
-    }
-  }, [servicio]);
 
   /** El cobro se devolvió y hay que volver a pagar: el enlace lo da misPagos (solo a quien pidió). */
   const volverAPagar = async () => {
@@ -153,31 +146,66 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     }
   };
 
-  /** Con precio: se paga en Stripe y el servidor acepta el servicio al confirmarse. */
-  const pagarYElegir = (oferta: Application, precio: number) => {
-    const exacto = { exacto: true };
-    const total = formatearPrecio(totalAPagar(precio), exacto);
+  /** Con precio: se paga al crearlo (o, si se creó sin pagar, antes de elegir). */
+  const pagarServicio = async () => {
+    setOcupado(true);
+    try {
+      const url = await api.pagarServicio(serviceId);
+      pagando.current = true;
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert(t('pagos.errorPagar'), pagoErrorMessage(e));
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  /** Antes de elegir a nadie se puede cancelar; si estaba pagado, se devuelve todo. */
+  const cancelar = () => {
+    const total = servicio?.pago ? formatearPrecio(servicio.pago.total, { exacto: true }) : null;
+    Alert.alert(t('cancelar.titulo'), total ? t('cancelar.textoPagado', { total }) : t('cancelar.texto'), [
+      { text: t('cancelar.volver'), style: 'cancel' },
+      {
+        text: t('cancelar.confirmar'),
+        style: 'destructive',
+        onPress: async () => {
+          setOcupado(true);
+          try {
+            const { reembolsado } = await api.cancelarServicio(serviceId);
+            Alert.alert(
+              reembolsado ? t('cancelar.reembolso', { total: formatearPrecio(reembolsado, { exacto: true }) }) : t('cancelar.hecho')
+            );
+            await cargar();
+          } catch (e) {
+            Alert.alert(t('cancelar.error'), pagoErrorMessage(e));
+          } finally {
+            setOcupado(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const elegir = (oferta: Application) => {
+    const pagadoYa = servicio?.pago?.estado === 'retenido';
     Alert.alert(
-      t('pagos.confirmarTitulo', { nombre: oferta.applicantName }),
-      t('pagos.confirmarTexto', {
-        total,
-        precio: formatearPrecio(precio, exacto),
-        gestion: formatearPrecio(comision(precio), exacto),
-        nombre: oferta.applicantName,
-      }),
+      t('ofertas.elegirTitulo', { nombre: oferta.applicantName }),
+      pagadoYa && servicio?.priceCents != null
+        ? t('ofertas.elegirPagadoTexto', { nombre: oferta.applicantName, precio: formatearPrecio(servicio.priceCents, { exacto: true }) })
+        : t('ofertas.elegirTexto'),
       [
         { text: t('comun.cancelar'), style: 'cancel' },
         {
-          text: t('pagos.pagar', { total }),
+          text: t('ofertas.elegir'),
           onPress: async () => {
             setOcupado(true);
             try {
-              const url = await api.pagarOferta(serviceId, oferta.applicantId);
-              pagando.current = true;
-              setEsperandoPago(true);
-              await Linking.openURL(url);
+              // Pagado: elige el servidor (apunta a quién se le pagará). Gratis: la app.
+              if (pagadoYa) await api.elegirOfertaPagada(serviceId, oferta.applicantId);
+              else await api.selectApplicant(serviceId, oferta.id);
+              await cargar();
             } catch (e) {
-              Alert.alert(t('pagos.errorPagar'), pagoErrorMessage(e));
+              Alert.alert(t('ofertas.errorElegir'), pagadoYa ? pagoErrorMessage(e) : dataErrorMessage(e));
             } finally {
               setOcupado(false);
             }
@@ -187,34 +215,16 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     );
   };
 
-  const elegir = (oferta: Application) => {
-    if (pagos && servicio?.priceCents != null) {
-      pagarYElegir(oferta, servicio.priceCents);
-      return;
-    }
-    Alert.alert(t('ofertas.elegirTitulo', { nombre: oferta.applicantName }), t('ofertas.elegirTexto'), [
-      { text: t('comun.cancelar'), style: 'cancel' },
-      {
-        text: t('ofertas.elegir'),
-        onPress: async () => {
-          setOcupado(true);
-          try {
-            await api.selectApplicant(serviceId, oferta.id);
-            await cargar();
-          } catch (e) {
-            Alert.alert(t('ofertas.errorElegir'), dataErrorMessage(e));
-          } finally {
-            setOcupado(false);
-          }
-        },
-      },
-    ]);
-  };
-
   // Completar es valorar: la pantalla de valoración deja el servicio cerrado.
   const valorar = () => navigation.navigate('RateHelper', { serviceId });
 
   const abierto = servicio?.status === 'approved';
+  const sinElegir = servicio?.status === 'pending' || servicio?.status === 'approved';
+  const conPrecio = servicio?.priceCents != null;
+  // Con los pagos encendidos, uno con precio se paga antes de revisarlo o de elegir.
+  const faltaPagar = pagos && conPrecio && sinElegir && !servicio?.pago;
+  const retenidoSinElegir = sinElegir && servicio?.pago?.estado === 'retenido';
+  const exacto = { exacto: true };
   const enCurso = servicio?.status === 'accepted' || servicio?.status === 'in_progress';
   const terminado = servicio?.status === 'completed' || servicio?.status === 'rated';
   // Quien ayudó ya lo marcó como hecho, pero falta mi valoración.
@@ -251,10 +261,40 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
         )}
       </View>
 
-      {servicio?.status === 'pending' && (
+      {servicio?.status === 'pending' && !faltaPagar && (
         <Text style={styles.aviso}>{t('ofertas.enRevision')}</Text>
       )}
-      {esperandoPago && abierto && <Text style={styles.aviso}>{t('pagos.esperando')}</Text>}
+      {faltaPagar && servicio?.priceCents != null && (
+        <View style={styles.elegido}>
+          <Text style={[styles.pagoTexto, { color: colors.ink }]}>
+            {t(servicio.status === 'pending' ? 'pagos.pagarParaPublicar' : 'pagos.pagarParaElegir', {
+              total: formatearPrecio(totalAPagar(servicio.priceCents), exacto),
+              precio: formatearPrecio(servicio.priceCents, exacto),
+              gestion: formatearPrecio(comision(servicio.priceCents), exacto),
+            })}
+          </Text>
+          <PillButton
+            label={t('pagos.pagarAhora', { total: formatearPrecio(totalAPagar(servicio.priceCents), exacto) })}
+            onPress={pagarServicio}
+            disabled={ocupado}
+          />
+        </View>
+      )}
+      {retenidoSinElegir && servicio?.pago && (
+        <Text style={[styles.aviso, { backgroundColor: colors.greenTint }]}>
+          {t('pagos.retenidoAlCrear', {
+            total: formatearPrecio(servicio.pago.total, exacto),
+            precio: formatearPrecio(servicio.pago.precio, exacto),
+          })}
+        </Text>
+      )}
+      {servicio?.status === 'cancelled' && (
+        <Text style={styles.aviso}>
+          {servicio.pago?.estado === 'reembolsado'
+            ? t('cancelar.canceladoReembolso', { total: formatearPrecio(servicio.pago.total, exacto) })
+            : t('cancelar.cancelado')}
+        </Text>
+      )}
 
       {(enCurso || terminado) && servicio?.helperName && (
         <View style={styles.elegido}>
@@ -336,15 +376,11 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
                 <Text style={styles.comentario}>“{item.comment}”</Text>
               </View>
             ) : null}
-            {abierto && pagos && servicio?.priceCents != null && !item.applicant?.cobrosActivos ? (
+            {abierto && (retenidoSinElegir || (pagos && conPrecio)) && !item.applicant?.cobrosActivos ? (
               // Sin cobros activos no se le puede pagar: primero tiene que activarlos.
               <Text style={styles.estado}>{t('pagos.sinCobrosOferta')}</Text>
-            ) : abierto ? (
-              <PillButton
-                label={pagos && servicio?.priceCents != null ? t('pagos.pagar', { total: formatearPrecio(totalAPagar(servicio.priceCents), { exacto: true }) }) : t('ofertas.elegir')}
-                onPress={() => elegir(item)}
-                disabled={ocupado}
-              />
+            ) : abierto && faltaPagar ? null : abierto ? (
+              <PillButton label={t('ofertas.elegir')} onPress={() => elegir(item)} disabled={ocupado} />
             ) : (
               <Text style={[styles.estado, item.status === 'selected' && { color: colors.green }]}>
                 {item.status === 'selected'
@@ -357,6 +393,11 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
           </View>
         )}
       />
+      {sinElegir && (
+        <Pressable style={styles.cancelar} onPress={cancelar} disabled={ocupado} accessibilityRole="button">
+          <Text style={styles.cancelarTexto}>{t('cancelar.boton')}</Text>
+        </Pressable>
+      )}
       {ocupado && <ActivityIndicator style={styles.cargando} color={colors.accent} />}
     </SafeAreaView>
   );
@@ -408,4 +449,6 @@ const styles = StyleSheet.create({
   comentario: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, lineHeight: 21 },
   estado: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.muted },
   cargando: { position: 'absolute', top: '50%', alignSelf: 'center' },
+  cancelar: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  cancelarTexto: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.accentDark },
 });

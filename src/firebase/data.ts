@@ -601,6 +601,11 @@ export const api = {
     for (const d of mios.docs) {
       const servicio = d.data();
       if (!['pending', 'approved'].includes(servicio.status)) continue;
+      if (servicio.pago) {
+        // Pagado: no se borra, se cancela y se le devuelve el dinero.
+        await api.cancelarServicio(d.id);
+        continue;
+      }
       const recibidas = await getDocs(
         query(collection(db, 'applications'), where('serviceId', '==', d.id), where('requesterId', '==', uid))
       );
@@ -767,8 +772,29 @@ export const api = {
   },
 
   /**
-   * Elegir una oferta de un servicio con precio: devuelve el enlace a Stripe
-   * Checkout. El servicio pasa a aceptado cuando Stripe confirma el pago.
+   * Pagar un servicio con precio al crearlo (precio + gestión): devuelve el
+   * enlace a Stripe Checkout. El dinero queda retenido hasta que se marque
+   * como hecho; solo pagado pasa a revisión.
+   */
+  async pagarServicio(serviceId: string): Promise<string> {
+    const r = await httpsCallable<{ serviceId: string }, { url: string }>(functions, 'pagarServicio')({ serviceId });
+    return r.data.url;
+  },
+
+  /** Elegir una oferta de un servicio ya pagado: no se cobra nada más (lo hace el servidor). */
+  async elegirOfertaPagada(serviceId: string, applicantId: string): Promise<void> {
+    await httpsCallable<{ serviceId: string; applicantId: string }, unknown>(functions, 'elegirOferta')({ serviceId, applicantId });
+  },
+
+  /** Cancelar un servicio propio antes de elegir a nadie; si estaba pagado, se devuelve (céntimos). */
+  async cancelarServicio(serviceId: string): Promise<{ reembolsado: number }> {
+    const r = await httpsCallable<{ serviceId: string }, { reembolsado: number }>(functions, 'cancelarServicio')({ serviceId });
+    return r.data;
+  },
+
+  /**
+   * Elegir una oferta de un servicio con precio sin pagar aún (servicios de
+   * antes de pagar al crear): devuelve el enlace a Stripe Checkout.
    */
   async pagarOferta(serviceId: string, applicantId: string): Promise<string> {
     const r = await httpsCallable<{ serviceId: string; applicantId: string }, { url: string }>(functions, 'pagarOferta')({

@@ -12,6 +12,7 @@ import CategoryIcon from '../components/CategoryIcon';
 import type { ServiceRequest } from '../data/mock';
 import { api, type Application } from '../firebase/data';
 import { t, type Clave } from '../i18n';
+import { usePagosActivos } from '../config/remota';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'ActivityTab'>,
@@ -28,7 +29,9 @@ const estadoServicio: Record<string, { texto: Clave; fondo: string; color: strin
   in_progress: { texto: 'actividad.enCurso', fondo: colors.blueTint, color: colors.blue },
   completed: { texto: 'actividad.completado', fondo: colors.greenTint, color: colors.green },
   rated: { texto: 'actividad.completado', fondo: colors.greenTint, color: colors.green },
+  cancelled: { texto: 'actividad.cancelado', fondo: colors.border, color: colors.muted },
 };
+const sinPagar = { texto: 'actividad.sinPagar' as Clave, fondo: colors.accentTint, color: colors.accentDark };
 
 const estadoOferta: Record<Application['status'], { texto: Clave; fondo: string; color: string }> = {
   pending: { texto: 'actividad.esperando', fondo: colors.amberTint, color: colors.amberDark },
@@ -38,6 +41,7 @@ const estadoOferta: Record<Application['status'], { texto: Clave; fondo: string;
 
 export default function ActivityScreen({ navigation, route }: Props) {
   const [segmento, setSegmento] = useState<Segmento>(route.params?.segmento ?? 'services');
+  const pagos = usePagosActivos();
   const [servicios, setServicios] = useState<ServiceRequest[]>([]);
   const [ofertas, setOfertas] = useState<Application[]>([]);
   const [cargando, setCargando] = useState(false);
@@ -104,7 +108,10 @@ export default function ActivityScreen({ navigation, route }: Props) {
           refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={colors.accent} />}
           ListEmptyComponent={!cargando && !error ? <Text style={styles.vacio}>{vacio}</Text> : null}
           renderItem={({ item }) => {
-            const estado = estadoServicio[item.status] ?? estadoServicio.pending;
+            // Con precio y sin pagar (pagos encendidos): falta pagarlo para revisarlo o elegir.
+            const faltaPago =
+              pagos && item.priceCents != null && !item.pago && (item.status === 'pending' || item.status === 'approved');
+            const estado = faltaPago ? sinPagar : (estadoServicio[item.status] ?? estadoServicio.pending);
             return (
               <Pressable
                 style={[styles.tarjeta, styles.conMiniatura]}

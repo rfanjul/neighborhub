@@ -60,6 +60,9 @@ exports.activarCobros = llamable((p, auth) => p.activarCobros(auth.uid, auth.tok
 exports.estadoCobros = llamable((p, auth) => p.estadoCobros(auth.uid));
 exports.pagarOferta = llamable((p, auth, datos) => p.pagarOferta(auth.uid, auth.token.email, datos));
 exports.misPagos = llamable((p, auth) => p.misPagos(auth.uid));
+exports.pagarServicio = llamable((p, auth, datos) => p.pagarServicio(auth.uid, auth.token.email, datos));
+exports.elegirOferta = llamable((p, auth, datos) => p.elegirOferta(auth.uid, datos));
+exports.cancelarServicio = llamable((p, auth, datos) => p.cancelarServicio(auth.uid, datos));
 
 /** Solo para la web de administración (claim admin). */
 function llamableAdmin(accion) {
@@ -71,6 +74,8 @@ function llamableAdmin(accion) {
 
 exports.adminVerPago = llamableAdmin((p, auth, datos) => p.verPago(datos.serviceId));
 exports.adminReintentarPago = llamableAdmin((p, auth, datos) => p.reintentarPago(auth.uid, datos));
+exports.adminCancelarServicio = llamableAdmin((p, auth, datos) => p.cancelarServicio(auth.uid, datos, { admin: true }));
+exports.adminMarcarHecho = llamableAdmin((p, auth, datos) => p.marcarHechoAdmin(auth.uid, datos));
 
 /** Usuarios para la administración: cuentas de Auth con su perfil. No usa Stripe. */
 exports.adminUsuarios = onCall(async (peticion) => {

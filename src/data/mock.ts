@@ -1,6 +1,7 @@
 export type ServiceCategory = 'painting' | 'dog' | 'groceries' | 'moving' | 'other';
 
-export type ServiceStatus = 'pending' | 'approved' | 'accepted' | 'in_progress' | 'completed' | 'rated';
+/** cancelled: quien pidió lo canceló (o la administración lo rechazó) antes de elegir a nadie; si estaba pagado, se devolvió. */
+export type ServiceStatus = 'pending' | 'approved' | 'accepted' | 'in_progress' | 'completed' | 'rated' | 'cancelled';
 
 /** Lo que la app ve del pago (el detalle de Stripe solo lo tiene el servidor). */
 export type PagoResumen = {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator, Image, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import { colors, fonts, radii } from '../theme';
 import { CloseIcon, PlusIcon } from '../icons';
 import PillButton from '../components/PillButton';
 import { api } from '../firebase/data';
-import { dataErrorMessage } from '../firebase/errors';
+import { dataErrorMessage, pagoErrorMessage } from '../firebase/errors';
 import type { ServiceCategory, ServiceStatus } from '../data/mock';
 import { t } from '../i18n';
 import { usePagosActivos } from '../config/remota';
@@ -35,11 +35,13 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   const [gratis, setGratis] = useState(true);
   const [precioTexto, setPrecioTexto] = useState('');
   const [estado, setEstado] = useState<ServiceStatus | null>(null);
+  const [pagado, setPagado] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const pagos = usePagosActivos();
-  // Una vez publicado puede tener ofertas: el precio ya no se toca.
-  const precioBloqueado = !!editandoId && estado !== null && estado !== 'pending';
+  // Una vez publicado puede tener ofertas, y una vez pagado el dinero ya está
+  // retenido: el precio ya no se toca.
+  const precioBloqueado = !!editandoId && ((estado !== null && estado !== 'pending') || pagado);
   const precio = gratis ? null : leerPrecio(precioTexto);
   const rango = { min: formatearPrecio(PRECIO_MINIMO), max: formatearPrecio(PRECIO_MAXIMO) };
 
@@ -57,6 +59,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         setGratis(s.priceCents == null);
         setPrecioTexto(s.priceCents == null ? '' : String(s.priceCents / 100));
         setEstado(s.status ?? null);
+        setPagado(!!s.pago);
       })
       .catch((e) => Alert.alert(t('crear.errorCargar'), dataErrorMessage(e)));
   }, [editandoId]);
@@ -156,7 +159,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         obtenerCoordenadas(),
       ]);
       subidas = urls;
-      await api.createService({
+      const creado = await api.createService({
         title: title.trim(),
         category,
         description: description.trim(),
@@ -169,6 +172,17 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         locationLabel: '',
         travelRadiusKm: Math.round(radius / 11),
       });
+      if (pagos && precio !== null) {
+        // Con precio se paga ya: el dinero queda retenido y, pagado, pasa a
+        // revisión. Si no se paga ahora, la pantalla del servicio lo ofrece.
+        navigation.replace('ServiceOffers', { serviceId: creado.id });
+        try {
+          await Linking.openURL(await api.pagarServicio(creado.id));
+        } catch (e) {
+          Alert.alert(t('pagos.errorPagar'), `${pagoErrorMessage(e)}\n\n${t('crear.pagarLuego')}`);
+        }
+        return;
+      }
       navigation.goBack();
     } catch (e) {
       // Si el alta falla después de subir fotos, se borran para no dejarlas
@@ -261,7 +275,9 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
             )}
             <Text style={styles.photoHint}>
               {precioBloqueado
-                ? t('crear.precioBloqueado')
+                ? pagado
+                  ? t('crear.precioPagado')
+                  : t('crear.precioBloqueado')
                 : gratis
                   ? t('crear.gratisPista')
                   : precio !== null && precioValido(precio)
@@ -337,7 +353,15 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
 
       <View style={styles.footer}>
         <PillButton
-          label={submitting ? t('comun.guardando') : editandoId ? t('crear.guardarCambios') : t('crear.enviar')}
+          label={
+            submitting
+              ? t('comun.guardando')
+              : editandoId
+                ? t('crear.guardarCambios')
+                : pagos && !gratis && precio !== null && precioValido(precio)
+                  ? t('crear.pagarYEnviar', { total: formatearPrecio(totalAPagar(precio), { exacto: true }) })
+                  : t('crear.enviar')
+          }
           onPress={handleSubmit}
           icon={submitting ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
         />

@@ -759,6 +759,20 @@ describe('borrar mis datos', () => {
     expect(mockStore.has('privado/otro')).toBe(true);
   });
 
+  it('un servicio mío ya pagado no se borra: se cancela y se me devuelve', async () => {
+    mockLlamadas.length = 0;
+    mockStore.set('helpRequests/pagado', {
+      ...servicioBase, status: 'approved', requesterId: 'uid-1', priceCents: 4000,
+      pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 },
+    });
+    mockRespuestas.cancelarServicio = { reembolsado: 4320 };
+
+    await api.deleteMyData();
+
+    expect(mockLlamadas).toContainEqual(['cancelarServicio', { serviceId: 'pagado' }]);
+    expect(mockStore.has('helpRequests/pagado')).toBe(true);
+  });
+
   it('borra también las fotos de esos servicios y la de perfil', async () => {
     await api.deleteMyData();
 
@@ -791,6 +805,21 @@ describe('pagos con Stripe (Cloud Functions)', () => {
 
     expect(await api.pagarOferta('s1', 'luis')).toBe('https://checkout.stripe.com/c/pay/cs_1');
     expect(mockLlamadas).toEqual([['pagarOferta', { serviceId: 's1', applicantId: 'luis' }]]);
+  });
+
+  it('pagar el servicio al crearlo, elegir sin cobrar y cancelar llaman a sus funciones', async () => {
+    mockRespuestas.pagarServicio = { url: 'https://checkout.stripe.com/c/pay/cs_2' };
+    mockRespuestas.elegirOferta = { estado: 'accepted' };
+    mockRespuestas.cancelarServicio = { estado: 'cancelled', reembolsado: 4320 };
+
+    expect(await api.pagarServicio('s1')).toBe('https://checkout.stripe.com/c/pay/cs_2');
+    await api.elegirOfertaPagada('s1', 'luis');
+    expect(await api.cancelarServicio('s1')).toEqual({ estado: 'cancelled', reembolsado: 4320 });
+    expect(mockLlamadas).toEqual([
+      ['pagarServicio', { serviceId: 's1' }],
+      ['elegirOferta', { serviceId: 's1', applicantId: 'luis' }],
+      ['cancelarServicio', { serviceId: 's1' }],
+    ]);
   });
 
   it('los errores del servidor llegan con su motivo', async () => {

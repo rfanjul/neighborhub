@@ -59,6 +59,8 @@ body.admin { min-height: 100vh; background: var(--crema); }
 .chip-pending { background: #F5E7CB; color: #8A5E0F; }
 .chip-approved { background: #DCEDE2; color: var(--verde); }
 .chip-accepted, .chip-in_progress { background: #E1E8F7; color: #3A5AA8; }
+.chip-cancelled { background: var(--borde); color: var(--gris); }
+.boton-peligro { border-color: #B3261E !important; color: #B3261E !important; }
 .precio { font-weight: 600; color: var(--terracota-osc); font-size: 15px; }
 .chip-pago-pagado { background: #DCEDE2; color: var(--verde); }
 .chip-pago-retenido, .chip-pago-pendiente { background: #E1E8F7; color: #3A5AA8; }

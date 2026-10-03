@@ -339,7 +339,7 @@ describe('helpRequests', () => {
   it('marcar como completado no permite colar otros cambios', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
 
-    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed', title: 'Otra cosa' }));
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'completed', title: 'Otra cosa' }));
   });
 
   it('completado no vuelve atrás', async () => {
@@ -367,10 +367,14 @@ describe('helpRequests', () => {
   });
 
 
-  it('una vez aceptado, quien ayuda lo marca como hecho', async () => {
+  it('quien ayuda no lo da por hecho (liberaría su propio pago): solo lo pone en marcha', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+    const luis = doc(como('luis'), 'helpRequests/s1');
 
-    await assertSucceeds(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed' }));
+    await assertFails(updateDoc(luis, { status: 'completed' }));
+    await assertSucceeds(updateDoc(luis, { status: 'in_progress' }));
+    await assertFails(updateDoc(luis, { status: 'completed' }));
+    await assertSucceeds(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'completed' }));
   });
 
   it('nadie devuelve un servicio aceptado a aprobado o pendiente', async () => {
@@ -383,7 +387,7 @@ describe('helpRequests', () => {
   it('quien ayuda no se pasa el servicio a otro', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
 
-    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed', helperId: 'marta' }));
+    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'in_progress', helperId: 'marta' }));
   });
 
   it.each(['pending', 'approved'])('quien publica borra su servicio %s, sin nadie elegido', async (status) => {
@@ -459,6 +463,57 @@ describe('pagos con Stripe (los escribe solo el servidor)', () => {
     await assertFails(getDoc(doc(como('luis'), 'cuentasCobro/luis')));
     await assertFails(setDoc(doc(como('luis'), 'cuentasCobro/luis'), { stripeAccountId: 'acct_otra', cobrosActivos: true }));
     await assertFails(setDoc(doc(como('ana'), 'pagos/s2'), { estado: 'pagado' }));
+  });
+
+  describe('pagado al crearlo (dinero retenido)', () => {
+    const retenido = { pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 } };
+    const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
+
+    it('su precio ya no cambia, ni pendiente ni por la administración', async () => {
+      await sembrar('helpRequests/s1', servicio({ priceCents: 4000, ...retenido }));
+
+      await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { priceCents: 100000 }));
+      await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { priceCents: 100000 }));
+      // El resto sí se corrige.
+      await assertSucceeds(updateDoc(doc(como('ana'), 'helpRequests/s1'), { title: 'Subir dos sofás' }));
+    });
+
+    it('no se borra (se cancela y se devuelve desde el servidor)', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000, ...retenido }));
+
+      await assertFails(deleteDoc(doc(como('ana'), 'helpRequests/s1')));
+    });
+
+    it('no se elige desde la app, ni con los pagos apagados: lo hace el servidor', async () => {
+      await sembrar('config/app', { pagosActivos: false });
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000, ...retenido }));
+      await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+      await assertFails(
+        updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+      );
+    });
+
+    it('la administración no publica uno con precio sin pagar (con los pagos encendidos); pagado sí', async () => {
+      await sembrar('helpRequests/s1', servicio({ priceCents: 4000 }));
+      await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'approved' }));
+
+      await sembrar('helpRequests/s2', servicio({ priceCents: 4000, ...retenido }));
+      await assertSucceeds(updateDoc(doc(admin(), 'helpRequests/s2'), { status: 'approved' }));
+
+      await sembrar('helpRequests/s3', servicio({ priceCents: null }));
+      await assertSucceeds(updateDoc(doc(admin(), 'helpRequests/s3'), { status: 'approved' }));
+
+      await sembrar('config/app', { pagosActivos: false });
+      await assertSucceeds(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'approved' }));
+    });
+
+    it('nadie lo cancela desde la app (lo hace el servidor, devolviendo el dinero)', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000, ...retenido }));
+
+      await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'cancelled' }));
+      await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'cancelled' }));
+    });
   });
 
   it('nadie se pone los cobros como activos en su perfil', async () => {

@@ -665,3 +665,206 @@ describe('administración: ver y reintentar el pago', () => {
     expect((await db.doc('pagos/s1').get()).data().estado).toBe('reembolsado');
   });
 });
+
+describe('pago al crear el servicio', () => {
+  async function creado({ precio = 4000, status = 'pending' } = {}) {
+    await db.doc('config/app').set({ pagosActivos: true });
+    await db.doc('helpRequests/s1').set({ title: 'Subir un sofá', status, priceCents: precio, requesterId: 'ana', requesterName: 'Ana', helperId: null });
+  }
+  async function conOfertas() {
+    await db.doc('applications/s1_luis').set({ serviceId: 's1', applicantId: 'luis', applicantName: 'Luis', status: 'pending' });
+    await db.doc('applications/s1_mia').set({ serviceId: 's1', applicantId: 'mia', applicantName: 'Mia', status: 'pending' });
+    await db.doc('cuentasCobro/luis').set({ stripeAccountId: 'acct_luis', cobrosActivos: true });
+  }
+  const sesionAlCrear = (id = 'cs_1') => ({
+    id,
+    payment_status: 'paid',
+    payment_intent: 'pi_1',
+    metadata: { serviceId: 's1', requesterId: 'ana', proyecto: 'demo-pagos', alCrear: '1' },
+  });
+  /** Creado, pagado y aprobado: listo para elegir. */
+  async function pagadoYPublicado() {
+    await creado();
+    await pagos.pagarServicio('ana', 'ana@ejemplo.test', { serviceId: 's1' });
+    await pagos.alCompletarCheckout(sesionAlCrear());
+    await db.doc('helpRequests/s1').update({ status: 'approved' });
+    await conOfertas();
+  }
+
+  it('cobra el precio más la gestión al crearlo, sin nadie elegido aún', async () => {
+    await creado();
+
+    const r = await pagos.pagarServicio('ana', 'ana@ejemplo.test', { serviceId: 's1' });
+
+    expect(r.url).toBe('https://checkout.stripe.com/c/pay/cs_1');
+    const [datos] = stripe.checkout.sessions.create.mock.calls[0];
+    expect(datos.metadata).toEqual({ serviceId: 's1', requesterId: 'ana', proyecto: 'demo-pagos', alCrear: '1' });
+    expect(datos.line_items.map((l) => l.price_data.unit_amount)).toEqual([4000, 320]);
+    expect(datos.customer_email).toBe('ana@ejemplo.test');
+    expect((await db.doc('pagos/s1').get()).data()).toMatchObject({
+      estado: 'pendiente', alCrear: true, precio: 4000, comision: 320, total: 4320, helperId: null, checkoutSessionId: 'cs_1',
+    });
+  });
+
+  it('al pagarlo, el dinero queda retenido en el servicio (que sigue en revisión)', async () => {
+    await creado();
+    await pagos.pagarServicio('ana', null, { serviceId: 's1' });
+
+    expect(await pagos.alCompletarCheckout(sesionAlCrear())).toBe('retenido');
+
+    expect((await db.doc('pagos/s1').get()).data()).toMatchObject({ estado: 'retenido', chargeId: 'ch_1', paymentIntentId: 'pi_1' });
+    expect((await db.doc('helpRequests/s1').get()).data()).toMatchObject({
+      status: 'pending',
+      pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 },
+    });
+    expect(await pagos.alCompletarCheckout(sesionAlCrear())).toBe('repetido');
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    // Quien pidió lo ve retenido; aún no hay a quién pagar.
+    expect((await pagos.misPagos('ana'))[0]).toMatchObject({ rol: 'pagado', estado: 'retenido', importe: 4320, otraPersona: '' });
+  });
+
+  it('no se paga dos veces, ni un favor gratis, ni el de otro, ni con los pagos apagados', async () => {
+    await creado();
+    await expect(pagos.pagarServicio('mia', null, { serviceId: 's1' })).rejects.toMatchObject({ motivo: 'noEsTuyo' });
+    await pagos.pagarServicio('ana', null, { serviceId: 's1' });
+    await pagos.alCompletarCheckout(sesionAlCrear());
+    await expect(pagos.pagarServicio('ana', null, { serviceId: 's1' })).rejects.toMatchObject({ motivo: 'yaPagado' });
+
+    await db.doc('helpRequests/s2').set({ status: 'pending', priceCents: null, requesterId: 'ana' });
+    await expect(pagos.pagarServicio('ana', null, { serviceId: 's2' })).rejects.toMatchObject({ motivo: 'gratis' });
+
+    await db.doc('config/app').set({ pagosActivos: false });
+    await db.doc('helpRequests/s3').set({ status: 'pending', priceCents: 2000, requesterId: 'ana' });
+    await expect(pagos.pagarServicio('ana', null, { serviceId: 's3' })).rejects.toMatchObject({ motivo: 'noDisponible' });
+  });
+
+  it('si se vuelve a abrir el pago a medias, el enlace anterior se anula', async () => {
+    await creado();
+    await pagos.pagarServicio('ana', null, { serviceId: 's1' });
+    await pagos.pagarServicio('ana', null, { serviceId: 's1' });
+
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith('cs_1');
+    expect((await db.doc('pagos/s1').get()).data().checkoutSessionId).toBe('cs_2');
+    // Si aun así alguien paga el viejo, se le devuelve.
+    expect(await pagos.alCompletarCheckout(sesionAlCrear('cs_1'))).toBe('reembolsar');
+    expect(stripe.refunds.create).toHaveBeenCalledWith({ payment_intent: 'pi_1', reason: 'requested_by_customer' }, { idempotencyKey: 'reembolso-cs_1' });
+  });
+
+  it('si al confirmarse el pago el servicio ya estaba cancelado o con otro precio, se devuelve', async () => {
+    await creado();
+    await pagos.pagarServicio('ana', null, { serviceId: 's1' });
+    await db.doc('helpRequests/s1').update({ priceCents: 9000 });
+
+    expect(await pagos.alCompletarCheckout(sesionAlCrear())).toBe('reembolsar');
+    expect((await db.doc('pagos/s1').get()).data().estado).toBe('reembolsado');
+    expect((await db.doc('helpRequests/s1').get()).data().pago).toBeUndefined();
+  });
+
+  it('elegir una oferta de un servicio pagado no cobra nada y apunta a quién se le pagará', async () => {
+    await pagadoYPublicado();
+    const cobros = stripe.checkout.sessions.create.mock.calls.length;
+
+    expect(await pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'luis' })).toEqual({ estado: 'accepted' });
+
+    expect(stripe.checkout.sessions.create.mock.calls.length).toBe(cobros);
+    expect((await db.doc('helpRequests/s1').get()).data()).toMatchObject({ status: 'accepted', helperId: 'luis', helperName: 'Luis' });
+    expect((await db.doc('applications/s1_luis').get()).data().status).toBe('selected');
+    expect((await db.doc('applications/s1_mia').get()).data().status).toBe('rejected');
+    expect((await db.doc('pagos/s1').get()).data()).toMatchObject({ estado: 'retenido', helperId: 'luis', helperName: 'Luis', cuentaDestino: 'acct_luis' });
+    expect((await pagos.misPagos('luis'))[0]).toMatchObject({ rol: 'cobrado', estado: 'retenido', importe: 4000, otraPersona: 'Ana' });
+  });
+
+  it('no deja elegir sin haber pagado, a quien no tiene cobros, ni dos veces', async () => {
+    await creado({ status: 'approved' });
+    await conOfertas();
+    await expect(pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'luis' })).rejects.toMatchObject({ motivo: 'sinPagar' });
+
+    await db.doc('helpRequests/s1').update({ status: 'pending' });
+    await pagos.pagarServicio('ana', null, { serviceId: 's1' });
+    await pagos.alCompletarCheckout(sesionAlCrear());
+    await db.doc('helpRequests/s1').update({ status: 'approved' });
+    estadoTransferencias = 'pending';
+    await expect(pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'mia' })).rejects.toMatchObject({ motivo: 'sinCobros' });
+    await expect(pagos.elegirOferta('mia', { serviceId: 's1', applicantId: 'luis' })).rejects.toMatchObject({ motivo: 'noEsTuyo' });
+
+    await pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'luis' });
+    await expect(pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'luis' })).rejects.toMatchObject({ motivo: 'noDisponible' });
+  });
+
+  it('al marcarlo como hecho, el precio va a quien ayudó desde el cobro del principio', async () => {
+    await pagadoYPublicado();
+    await pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'luis' });
+    const despues = (await db.doc('helpRequests/s1').get()).data();
+
+    expect(await pagos.liberarPago('s1', { status: 'accepted' }, { ...despues, status: 'rated' })).toBe('pagado');
+
+    expect(stripe.transfers.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 4000, destination: 'acct_luis', source_transaction: 'ch_1', transfer_group: 's1' }),
+      { idempotencyKey: 'liberar-s1' }
+    );
+    expect((await db.doc('helpRequests/s1').get()).data().pago.estado).toBe('pagado');
+  });
+
+  it('las builds antiguas eligen por pagarOferta: si ya está pagado, solo elige', async () => {
+    await pagadoYPublicado();
+    const cobros = stripe.checkout.sessions.create.mock.calls.length;
+
+    expect(await pagos.pagarOferta('ana', null, { serviceId: 's1', applicantId: 'luis' })).toEqual({ url: 'https://web.test/pago?estado=ok' });
+
+    expect(stripe.checkout.sessions.create.mock.calls.length).toBe(cobros);
+    expect((await db.doc('helpRequests/s1').get()).data()).toMatchObject({ status: 'accepted', helperId: 'luis' });
+  });
+
+  it('cancelar antes de elegir devuelve todo lo pagado y rechaza las ofertas', async () => {
+    await pagadoYPublicado();
+
+    expect(await pagos.cancelarServicio('ana', { serviceId: 's1' })).toEqual({ estado: 'cancelled', reembolsado: 4320 });
+
+    expect(stripe.refunds.create).toHaveBeenCalledWith(
+      { payment_intent: 'pi_1', reason: 'requested_by_customer', metadata: { serviceId: 's1', motivo: 'cancelado' } },
+      { idempotencyKey: 'cancelar-s1' }
+    );
+    expect((await db.doc('pagos/s1').get()).data()).toMatchObject({ estado: 'reembolsado', cancelado: true });
+    expect((await db.doc('helpRequests/s1').get()).data()).toMatchObject({
+      status: 'cancelled', cancelledBy: 'requester', pago: { estado: 'reembolsado', total: 4320 },
+    });
+    expect((await db.doc('applications/s1_luis').get()).data().status).toBe('rejected');
+    expect((await pagos.misPagos('ana'))[0]).toMatchObject({ estado: 'reembolsado', importe: 4320 });
+    expect((await pagos.verPago('s1')).reintento.motivo).toMatch(/cancelado/);
+  });
+
+  it('cancelar con el pago a medias anula el enlace y no devuelve nada', async () => {
+    await creado();
+    await pagos.pagarServicio('ana', null, { serviceId: 's1' });
+
+    expect(await pagos.cancelarServicio('ana', { serviceId: 's1' })).toEqual({ estado: 'cancelled', reembolsado: 0 });
+
+    expect(stripe.checkout.sessions.expire).toHaveBeenCalledWith('cs_1');
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect((await db.doc('pagos/s1').get()).exists).toBe(false);
+    // Si aun así se paga después, el servicio cancelado lo devuelve... pero sin registro no es nuestro: ni se toca.
+    expect(await pagos.alCompletarCheckout(sesionAlCrear())).toBe('ajeno');
+  });
+
+  it('una vez elegida una oferta ya no se cancela; tampoco el servicio de otro', async () => {
+    await pagadoYPublicado();
+    await expect(pagos.cancelarServicio('mia', { serviceId: 's1' })).rejects.toMatchObject({ motivo: 'noEsTuyo' });
+    await pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'luis' });
+
+    await expect(pagos.cancelarServicio('ana', { serviceId: 's1' })).rejects.toMatchObject({ motivo: 'yaElegido' });
+    await expect(pagos.cancelarServicio('admin', { serviceId: 's1' }, { admin: true })).rejects.toMatchObject({ motivo: 'yaElegido' });
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+  });
+
+  it('la administración puede rechazarlo (con reembolso) y darlo por hecho (y se paga)', async () => {
+    await pagadoYPublicado();
+    await db.doc('helpRequests/s2').set({ status: 'pending', priceCents: null, requesterId: 'pepe' });
+    expect(await pagos.cancelarServicio('admin', { serviceId: 's2' }, { admin: true })).toEqual({ estado: 'cancelled', reembolsado: 0 });
+    expect((await db.doc('helpRequests/s2').get()).data().cancelledBy).toBe('admin');
+
+    await pagos.elegirOferta('ana', { serviceId: 's1', applicantId: 'luis' });
+    expect(await pagos.marcarHechoAdmin('admin', { serviceId: 's1' })).toEqual({ estado: 'completed' });
+    expect((await db.doc('helpRequests/s1').get()).data()).toMatchObject({ status: 'completed', completedBy: 'admin' });
+    await expect(pagos.marcarHechoAdmin('admin', { serviceId: 's1' })).rejects.toMatchObject({ motivo: 'noDisponible' });
+  });
+});
