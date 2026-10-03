@@ -6,6 +6,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import CreateServiceScreen from '../CreateServiceScreen';
 import { api } from '../../firebase/data';
+import { useAuth } from '../../auth/AuthContext';
+import { authValue } from '../../test-utils/renderWithAuth';
+import { miPerfil } from '../../test-utils/perfil';
 
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(async () => ({ granted: true })),
@@ -18,6 +21,8 @@ jest.mock('expo-location', () => ({
   getCurrentPositionAsync: jest.fn(async () => ({ coords: { latitude: 47.37, longitude: 8.54 } })),
   Accuracy: { Balanced: 3 },
 }));
+
+jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
@@ -46,6 +51,7 @@ async function anadirFoto(opcion: 'Take photo' | 'Choose from library') {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (useAuth as jest.Mock).mockReturnValue(authValue({ profile: miPerfil() }));
   mockedApi.getMe.mockResolvedValue({ id: 'uid-1', name: 'Ana' } as never);
   mockedApi.createService.mockResolvedValue({} as never);
   mockedApi.uploadServicePhoto.mockImplementation(async (uri: string) => `https://storage/${uri}`);
@@ -95,6 +101,34 @@ describe('CreateServiceScreen', () => {
       expect(alerta).toHaveBeenCalledWith("Couldn't start the payment", expect.stringMatching(/pay it later from Activity → My services/))
     );
     expect(navigation.replace).toHaveBeenCalledWith('ServiceOffers', { serviceId: 'nuevo' });
+    alerta.mockRestore();
+  });
+
+  it('ya no pide duración ni distancia: el precio (o gratis) es lo que cuenta', async () => {
+    await renderScreen();
+
+    expect(screen.queryByText('Duration')).toBeNull();
+    expect(screen.queryByText(/Max\. distance|Maximum distance/)).toBeNull();
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Pasear a Toby');
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    await waitFor(() =>
+      expect(mockedApi.createService).toHaveBeenCalledWith(expect.objectContaining({ durationLabel: '—', travelRadiusKm: 5 }))
+    );
+  });
+
+  it('con el perfil a medias no publica: pide completarlo y lleva a sus datos', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    (useAuth as jest.Mock).mockReturnValue(authValue({ profile: miPerfil({ dateOfBirth: null }) }));
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Pasear a Toby');
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    expect(alerta).toHaveBeenCalledWith('Complete your details', expect.stringMatching(/To post a request/), expect.any(Array));
+    expect(mockedApi.createService).not.toHaveBeenCalled();
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Complete')!.onPress!());
+    expect(navigation.navigate).toHaveBeenCalledWith('ProfileDetails', { motivo: 'publicar' });
     alerta.mockRestore();
   });
 
@@ -311,7 +345,6 @@ describe('editar un servicio', () => {
       title: 'Pintar dos paredes',
       category: 'painting',
       description: 'Del salón',
-      durationLabel: '—',
       photos: ['https://storage/vieja-1.jpg', 'https://storage/vieja-2.jpg'],
       priceCents: null,
     });

@@ -30,7 +30,7 @@ const navegacion = () => ({ goBack: jest.fn(), navigate: jest.fn() });
 beforeEach(() => {
   jest.clearAllMocks();
   __ponerPagos(false);
-  (useAuth as jest.Mock).mockReturnValue(authValue({ user: { uid: 'ana' } as never }));
+  (useAuth as jest.Mock).mockReturnValue(authValue({ user: { uid: 'ana' } as never, profile: miPerfil({ id: 'ana', name: 'Ana' }) }));
 });
 afterAll(() => __ponerPagos(true));
 

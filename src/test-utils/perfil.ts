@@ -29,7 +29,8 @@ export const perfil = (cambios: Partial<ApiUserProfile> = {}): ApiUserProfile =>
 export const miPerfil = (cambios: Partial<MiPerfil> = {}): MiPerfil => ({
   ...perfil(),
   email: 'luis@example.com',
-  dateOfBirth: null,
+  // Completo: con nombre, nacimiento, ciudad, PLZ e idiomas se puede publicar y ofrecer.
+  dateOfBirth: '14/03/1992',
   ...cambios,
 });
 

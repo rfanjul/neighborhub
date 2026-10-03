@@ -5,10 +5,15 @@ import ApplyScreen from '../ApplyScreen';
 import { api } from '../../firebase/data';
 import { servicio } from '../../test-utils/servicio';
 import { miPerfil } from '../../test-utils/perfil';
+import { useAuth } from '../../auth/AuthContext';
+import { authValue } from '../../test-utils/renderWithAuth';
+
+jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
-async function renderOferta() {
+async function renderOferta(perfilDeQuienOferta = miPerfil()) {
+  (useAuth as jest.Mock).mockReturnValue(authValue({ profile: perfilDeQuienOferta }));
   const navigation = { goBack: jest.fn(), navigate: jest.fn() };
   await render(<ApplyScreen navigation={navigation as never} route={{ params: { serviceId: 's1' } } as never} />);
   return navigation;
@@ -34,6 +39,20 @@ describe('ApplyScreen', () => {
 
     await waitFor(() => expect(mockedApi.applyToService).toHaveBeenCalledWith('s1', 'Tengo escalera, el sábado me va bien'));
     expect(navigation.navigate).toHaveBeenCalledWith('Main', { screen: 'ActivityTab', params: { segmento: 'offers' } });
+  });
+
+  it('con el perfil a medias no envía la oferta: pide completarlo', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const navigation = await renderOferta(miPerfil({ postalCode: '' }));
+
+    await fireEvent.changeText(screen.getByPlaceholderText(/When could you help/), 'Tengo escalera');
+    await fireEvent.press(screen.getByText('Send offer'));
+
+    expect(alerta).toHaveBeenCalledWith('Complete your details', expect.stringMatching(/To offer help/), expect.any(Array));
+    expect(mockedApi.applyToService).not.toHaveBeenCalled();
+    alerta.mock.calls.at(-1)![2]!.find((b: { text?: string }) => b.text === 'Complete')!.onPress!();
+    expect(navigation.navigate).toHaveBeenCalledWith('ProfileDetails', { motivo: 'ofrecer' });
+    alerta.mockRestore();
   });
 
   it('pide un comentario antes de enviar', async () => {

@@ -19,7 +19,8 @@ export type MainTabParamList = {
 
 /** Pantallas con sesión iniciada: wizard de perfil, pestañas y modales. */
 export type RootStackParamList = {
-  ProfileDetails: undefined;
+  /** motivo: se abrió porque falta completar el perfil para publicar u ofrecer ayuda. */
+  ProfileDetails: { motivo?: 'publicar' | 'ofrecer' } | undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   ServiceDetail: { serviceId: string };
   /** Hacer una oferta sobre un servicio, con comentario. */

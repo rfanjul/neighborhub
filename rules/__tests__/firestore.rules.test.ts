@@ -96,6 +96,28 @@ describe('users', () => {
     );
   });
 
+  it('los datos se validan al cambiarlos: nombre y ciudad con letras, código postal suizo', async () => {
+    await sembrar('users/ana', perfilInicial);
+    const ana = doc(como('ana'), 'users/ana');
+
+    await assertSucceeds(updateDoc(ana, { name: 'Ana Müller-López', city: 'Zürich', postalCode: '8004', bio: 'Hola' }));
+    await assertSucceeds(updateDoc(ana, { name: "Zoë O'Brien", city: 'La Chaux-de-Fonds' }));
+    await assertFails(updateDoc(ana, { name: 'R2D2' }));
+    await assertFails(updateDoc(ana, { name: 'A' }));
+    await assertFails(updateDoc(ana, { city: '8004' }));
+    await assertFails(updateDoc(ana, { city: '' }));
+    await assertFails(updateDoc(ana, { postalCode: '804' }));
+    await assertFails(updateDoc(ana, { postalCode: '0800' }));
+    await assertFails(updateDoc(ana, { postalCode: 8004 }));
+    await assertFails(updateDoc(ana, { bio: 'x'.repeat(501) }));
+  });
+
+  it('un perfil antiguo a medias aún puede cambiar solo su bio', async () => {
+    await sembrar('users/ana', { ...perfilInicial, city: '', postalCode: '' });
+
+    await assertSucceeds(updateDoc(doc(como('ana'), 'users/ana'), { bio: 'Nueva bio' }));
+  });
+
   it('nadie pone su email en el perfil público', async () => {
     await sembrar('users/ana', perfilInicial);
 
@@ -201,6 +223,8 @@ describe('privado (email y fecha de nacimiento)', () => {
     ['un email larguísimo', { ...privados, email: `${'a'.repeat(200)}@example.com` }],
     ['una fecha que no es texto', { ...privados, dateOfBirth: 1979 }],
     ['una fecha larguísima', { ...privados, dateOfBirth: 'x'.repeat(51) }],
+    ['una fecha sin formato', { ...privados, dateOfBirth: 'ayer' }],
+    ['un mes que no existe', { ...privados, dateOfBirth: '01/13/1990' }],
   ])('no se guardan %s', async (_caso, datos) => {
     await assertFails(setDoc(doc(como('ana'), 'privado/ana'), datos));
   });

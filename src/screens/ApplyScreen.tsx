@@ -11,6 +11,8 @@ import { dataErrorMessage } from '../firebase/errors';
 import { t } from '../i18n';
 import CobrosTarjeta from '../components/CobrosTarjeta';
 import { usePagosActivos } from '../config/remota';
+import { useAuth } from '../auth/AuthContext';
+import { perfilCompleto } from '../perfil/validar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Apply'>;
 
@@ -41,7 +43,17 @@ export default function ApplyScreen({ navigation, route }: Props) {
   const pagos = usePagosActivos();
   const faltanCobros = pagos && conPrecio && !cobros;
 
+  const { profile } = useAuth();
+
   const enviar = async () => {
+    // Para ofrecer ayuda hace falta el perfil completo.
+    if (!perfilCompleto(profile)) {
+      Alert.alert(t('datos.completarTitulo'), t('datos.completarOfrecer'), [
+        { text: t('comun.cancelar'), style: 'cancel' },
+        { text: t('datos.completarBoton'), onPress: () => navigation.navigate('ProfileDetails', { motivo: 'ofrecer' }) },
+      ]);
+      return;
+    }
     if (!comentario.trim()) {
       Alert.alert(t('ofertar.faltaComentario'), t('ofertar.faltaComentarioTexto'));
       return;

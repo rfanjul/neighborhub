@@ -13,6 +13,8 @@ import { dataErrorMessage, pagoErrorMessage } from '../firebase/errors';
 import type { ServiceCategory, ServiceStatus } from '../data/mock';
 import { t } from '../i18n';
 import { usePagosActivos } from '../config/remota';
+import { useAuth } from '../auth/AuthContext';
+import { perfilCompleto } from '../perfil/validar';
 import { PRECIO_MAXIMO, PRECIO_MINIMO, comision, formatearPrecio, leerPrecio, precioValido, totalAPagar } from '../pagos/precio';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateService'>;
@@ -29,8 +31,6 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   const [category, setCategory] = useState<ServiceCategory>('moving');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [duration, setDuration] = useState('');
-  const [radius, setRadius] = useState(55);
   const [photos, setPhotos] = useState<string[]>([]);
   const [gratis, setGratis] = useState(true);
   const [precioTexto, setPrecioTexto] = useState('');
@@ -39,6 +39,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   const [submitting, setSubmitting] = useState(false);
 
   const pagos = usePagosActivos();
+  const { profile } = useAuth();
   // Una vez publicado puede tener ofertas, y una vez pagado el dinero ya está
   // retenido: el precio ya no se toca.
   const precioBloqueado = !!editandoId && ((estado !== null && estado !== 'pending') || pagado);
@@ -53,7 +54,6 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         setTitle(s.title);
         setCategory(s.category);
         setDescription(s.description);
-        setDuration(s.durationLabel === '—' ? '' : s.durationLabel);
         setPhotos(s.photos);
         setOriginales(s.photos);
         setGratis(s.priceCents == null);
@@ -77,7 +77,6 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         title: title.trim(),
         category,
         description: description.trim(),
-        durationLabel: duration.trim() || '—',
         photos: finales,
         ...(precioBloqueado || !pagos ? {} : { priceCents: precio }),
       });
@@ -148,6 +147,14 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
       await guardarCambios();
       return;
     }
+    // Para publicar hace falta el perfil completo (nombre, nacimiento, ciudad…).
+    if (!perfilCompleto(profile)) {
+      Alert.alert(t('datos.completarTitulo'), t('datos.completarPublicar'), [
+        { text: t('comun.cancelar'), style: 'cancel' },
+        { text: t('datos.completarBoton'), onPress: () => navigation.navigate('ProfileDetails', { motivo: 'publicar' }) },
+      ]);
+      return;
+    }
     setSubmitting(true);
     let subidas: string[] = [];
     try {
@@ -166,11 +173,12 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         priceCents: pagos ? precio : null,
         photos: subidas,
         coords,
-        durationLabel: duration.trim() || '—',
+        // Sin duración ni radio en el formulario: lo que importa es si es
+        // gratis o su precio. La distancia se calcula al mostrarlo, desde coords.
+        durationLabel: '—',
         availableLabel: t('crear.flexible'),
-        // La distancia se calcula al mostrarlo, desde coords.
         locationLabel: '',
-        travelRadiusKm: Math.round(radius / 11),
+        travelRadiusKm: 5,
       });
       if (pagos && precio !== null) {
         // Con precio se paga ya: el dinero queda retenido y, pagado, pasa a
@@ -235,6 +243,43 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
           </View>
         </View>
 
+        <View style={{ gap: 6 }}>
+          <Text style={styles.label}>{t('crear.descripcion')}</Text>
+          <TextInput
+            style={[styles.input, styles.textarea]}
+            placeholder={t('crear.descripcionEjemplo')}
+            placeholderTextColor={colors.mutedLight}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+          />
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <Text style={styles.label}>{t('crear.fotos')}</Text>
+          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+            {photos.map((uri) => (
+              <Pressable
+                key={uri}
+                onLongPress={() => setPhotos((previas) => previas.filter((p) => p !== uri))}
+                accessibilityRole="button"
+                accessibilityLabel={t('crear.fotoQuitar')}
+              >
+                <Image source={{ uri }} style={styles.photo} />
+              </Pressable>
+            ))}
+            <Pressable
+              style={styles.addPhoto}
+              onPress={elegirOrigenFoto}
+              accessibilityRole="button"
+              accessibilityLabel={t('crear.anadirFoto')}
+            >
+              <PlusIcon size={20} color={colors.mutedLight} />
+            </Pressable>
+          </View>
+          {photos.length > 0 && <Text style={styles.photoHint}>{t('crear.pistaFotos')}</Text>}
+        </View>
+
         {pagos && (
           <View style={{ gap: 8 }}>
             <Text style={styles.label}>{t('crear.precio')}</Text>
@@ -290,65 +335,6 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
             </Text>
           </View>
         )}
-
-        <View style={{ gap: 6 }}>
-          <Text style={styles.label}>{t('crear.descripcion')}</Text>
-          <TextInput
-            style={[styles.input, styles.textarea]}
-            placeholder={t('crear.descripcionEjemplo')}
-            placeholderTextColor={colors.mutedLight}
-            value={description}
-            onChangeText={setDescription}
-            multiline
-          />
-        </View>
-
-        <View style={{ gap: 8 }}>
-          <Text style={styles.label}>{t('crear.fotos')}</Text>
-          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
-            {photos.map((uri) => (
-              <Pressable
-                key={uri}
-                onLongPress={() => setPhotos((previas) => previas.filter((p) => p !== uri))}
-                accessibilityRole="button"
-                accessibilityLabel={t('crear.fotoQuitar')}
-              >
-                <Image source={{ uri }} style={styles.photo} />
-              </Pressable>
-            ))}
-            <Pressable
-              style={styles.addPhoto}
-              onPress={elegirOrigenFoto}
-              accessibilityRole="button"
-              accessibilityLabel={t('crear.anadirFoto')}
-            >
-              <PlusIcon size={20} color={colors.mutedLight} />
-            </Pressable>
-          </View>
-          {photos.length > 0 && <Text style={styles.photoHint}>{t('crear.pistaFotos')}</Text>}
-        </View>
-
-        <View style={{ gap: 6 }}>
-          <Text style={styles.label}>{t('crear.duracion')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('crear.duracionEjemplo')}
-            placeholderTextColor={colors.mutedLight}
-            value={duration}
-            onChangeText={setDuration}
-          />
-        </View>
-
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={styles.label}>{t('crear.radio')}</Text>
-            <Text style={styles.radiusValue}>{t('crear.hasta', { km: Math.round(radius / 11) })}</Text>
-          </View>
-          <View style={styles.sliderTrack}>
-            <View style={[styles.sliderFill, { width: `${radius}%` }]} />
-            <View style={[styles.sliderThumb, { left: `${radius}%` }]} />
-          </View>
-        </View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -430,19 +416,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radiusValue: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.accentDark },
-  sliderTrack: { height: 5, borderRadius: 3, backgroundColor: colors.border, justifyContent: 'center' },
-  sliderFill: { height: 5, borderRadius: 3, backgroundColor: colors.accent, position: 'absolute', left: 0 },
-  sliderThumb: {
-    position: 'absolute',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.white,
-    borderWidth: 3,
-    borderColor: colors.accent,
-    marginLeft: -8,
-  },
+
   footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
   footerHint: { marginTop: 10, fontFamily: fonts.body, fontSize: 13, textAlign: 'center', color: colors.mutedLight },
 });

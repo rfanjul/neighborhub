@@ -190,7 +190,8 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp, cuentaCob
   const photoURL = avatar(nombre);
   const b = db.batch();
   const yo = { requesterId: uid, requesterName: nombre, requesterRating: 4.5, requesterResponseLabel: '< 1h', requesterPhotoURL: photoURL };
-  b.set(db.doc(`privado/${uid}`), { email, dateOfBirth: null, seed: true });
+  // Perfil completo (nombre, nacimiento, ciudad, PLZ, idiomas): puede publicar y ofrecer sin más pasos.
+  b.set(db.doc(`privado/${uid}`), { email, dateOfBirth: '14/03/1992', seed: true });
   b.set(db.doc(`users/${uid}`), {
     name: nombre, bio: 'Designer, new in Langstrasse. Happy to help with anything creative or techy.',
     city: 'Zürich', postalCode: '8004', country: 'Switzerland', languages: 'English, German, Spanish',

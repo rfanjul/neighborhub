@@ -6,7 +6,23 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+### Alta de servicio más simple y datos del perfil validados
+- **Nuevo servicio**: sin «Duración» ni «Distancia máxima». Lo que cuenta es
+  si es gratis o su precio, que pasa al sitio de la duración (debajo de las
+  fotos). Los servicios nuevos se guardan con `durationLabel: '—'` (el detalle
+  ya no lo enseña) y un radio fijo de 5 km.
+- **Tus datos**: nombre, fecha de nacimiento, ciudad, código postal e idiomas
+  son obligatorios y se validan (la bio es opcional, hasta 500 caracteres):
+  nombre y ciudad con letras, fecha real en DD/MM/AAAA (las barras se ponen
+  solas) y al menos 16 años, código postal suizo de 4 cifras, al menos un
+  idioma. Los errores salen en rojo bajo cada campo (`src/perfil/validar.ts`).
+- **Para publicar u ofrecer ayuda** hace falta el perfil completo: si falta
+  algo, la app lo explica y lleva a *Tus datos*. Se puede seguir mirando el
+  muro sin completarlo.
+- **Reglas**: lo mismo al guardar (solo los campos que cambian, para no
+  bloquear perfiles antiguos a medias) y la fecha de `privado/` en DD/MM/AAAA.
+  Publicadas.
+- La cuenta de revisión y la demo tienen fecha de nacimiento (perfil completo).
 
 ## [1.1.0 (17)] — 2026-10-03 · TestFlight → revisión de App Store
 

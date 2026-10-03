@@ -209,7 +209,7 @@ describe('cuenta para la revisión de Apple', () => {
     );
     expect((await db.doc('users/app-review').get()).data()).toMatchObject({ name: 'Alex Demo', onboardingCompleted: true });
     expect((await db.doc('users/app-review').get()).data()).not.toHaveProperty('email');
-    expect((await db.doc('privado/app-review').get()).data()).toMatchObject({ email: 'appreview@neighborhub.test' });
+    expect((await db.doc('privado/app-review').get()).data()).toMatchObject({ email: 'appreview@neighborhub.test', dateOfBirth: '14/03/1992' });
     expect((await db.doc('helpRequests/demo-move-table').get()).data()).toMatchObject({ status: 'approved', requesterId: 'app-review' });
     const ofertas = await db.collection('applications').where('serviceId', '==', 'demo-move-table').get();
     expect(ofertas.size).toBe(3);
