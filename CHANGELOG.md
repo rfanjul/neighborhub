@@ -6,6 +6,15 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
+Nada todavía.
+
+## [1.1.0 (17)] — 2026-10-03 · TestFlight → revisión de App Store
+
+Build EAS `9343c09d` desde el commit `316412b`. Es la que se manda a revisión,
+con los pagos encendidos (Stripe en modo de prueba) y publicación manual. La
+web, los textos de App Store y los datos de la cuenta de revisión ya están
+publicados.
+
 ### Textos, web y App Store con los pagos
 La 1.1.0 va a la revisión de Apple **con los pagos encendidos** (Stripe en
 modo de prueba) y **publicación manual**: apagarlos para la revisión y
