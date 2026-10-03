@@ -102,7 +102,7 @@ async function limpiar(db) {
     await o.ref.delete();
     borrados++;
   }
-  for (const coleccion of ['reviews', 'helpRequests', 'users', 'privado']) {
+  for (const coleccion of ['reviews', 'helpRequests', 'users', 'privado', 'cuentasCobro', 'pagos']) {
     const snap = await db.collection(coleccion).where('seed', '==', true).get();
     for (const d of snap.docs) {
       // Las ofertas y mensajes que otros hayan hecho sobre servicios de prueba.
@@ -132,7 +132,9 @@ async function demo(db, auth, { Timestamp } = {}) {
   const { uid, email, password, nombre } = cuentaDemo;
   await auth.deleteUser(uid).catch(() => {});
   await auth.createUser({ uid, email, password, displayName: nombre });
-  await prepararCuenta(db, { uid, email, nombre }, { Timestamp });
+  // En el emulador no se habla con Stripe: una cuenta de cobro inventada y el
+  // servicio con precio ya pagado, para ver en las capturas cómo queda.
+  await prepararCuenta(db, { uid, email, nombre }, { Timestamp, cuentaCobro: 'acct_demo', pagado: true });
   return { email };
 }
 
@@ -142,7 +144,7 @@ async function demo(db, auth, { Timestamp } = {}) {
  * aquí y solo se devuelve (no queda en ningún fichero); si la cuenta ya
  * existe se respeta la suya, salvo con nuevaClave.
  */
-async function revision(db, auth, { email = cuentaRevision.email, nuevaClave = false, Timestamp } = {}) {
+async function revision(db, auth, { email = cuentaRevision.email, nuevaClave = false, cuentaCobro = null, Timestamp } = {}) {
   await sembrar(db, { Timestamp });
   let usuario = await auth.getUserByEmail(email).catch((e) => {
     if (e.code === 'auth/user-not-found') return null;
@@ -158,7 +160,7 @@ async function revision(db, auth, { email = cuentaRevision.email, nuevaClave = f
     password = generarClave();
     await auth.updateUser(usuario.uid, { password });
   }
-  await prepararCuenta(db, { uid: usuario.uid, email, nombre: cuentaRevision.nombre }, { Timestamp });
+  await prepararCuenta(db, { uid: usuario.uid, email, nombre: cuentaRevision.nombre }, { Timestamp, cuentaCobro });
   return { uid: usuario.uid, email, password };
 }
 
@@ -170,12 +172,18 @@ function generarClave() {
 }
 
 /**
- * Deja una cuenta con algo que ver en cada pantalla: un servicio abierto
- * con tres ofertas, otro en curso con chat, otro pendiente de revisión, una
- * oferta enviada y otra elegida, y dos ayudas ya valoradas. Todo lleva
- * seed: true, así que npm run seed:clean lo borra (la cuenta de Auth no).
+ * Deja una cuenta con algo que ver en cada pantalla: un servicio con precio
+ * abierto con tres ofertas (sin pagar: se paga con la tarjeta de prueba de
+ * Stripe y se elige), un favor en curso con chat, otro pendiente de
+ * revisión, una oferta enviada y otra elegida, y dos ayudas ya valoradas.
+ * Todo lleva seed: true, así que npm run seed:clean lo borra (la cuenta de
+ * Auth no).
+ *
+ * cuentaCobro: la cuenta conectada de Stripe (modo prueba) a la que cobran
+ * los vecinos que ofertan; sin ella no se les puede elegir en uno de pago.
+ * pagado: «Move a table» ya pagado y retenido (solo en el emulador).
  */
-async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
+async function prepararCuenta(db, { uid, email, nombre }, { Timestamp, cuentaCobro = null, pagado = false } = {}) {
   const fecha = Timestamp ? (d) => Timestamp.fromDate(d) : (d) => d;
   const hace = (horas) => fecha(new Date(Date.now() - horas * 3600000));
 
@@ -213,12 +221,24 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
       coords: { latitude: 47.3785, longitude: 8.5262 }, helperId: null, helperName: null, seed: true,
       createdAt: hace(26), updatedAt: hace(26), ...yo, ...datos,
     });
+  const mesa = { precio: 3000, comision: 240, total: 3240 };
   servicio('demo-move-table', {
-    title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)], priceCents: 3000,
+    title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)], priceCents: mesa.precio,
     description: 'Solid oak table, about 40 kg. It needs to go from the living room to the balcony, through one door. Two people will do.',
+    ...(pagado ? { pago: { estado: 'retenido', ...mesa } } : {}),
   });
+  // Un pago anterior (de otra revisión) no debe quedar colgado del servicio rehecho.
+  b.delete(db.doc('pagos/demo-move-table'));
+  if (pagado) {
+    b.set(db.doc('pagos/demo-move-table'), {
+      serviceId: 'demo-move-table', titulo: 'Move a table to the balcony', requesterId: uid, requesterName: nombre,
+      helperId: null, helperName: '', cuentaDestino: null, ...mesa, moneda: 'chf', estado: 'retenido', alCrear: true,
+      chargeId: 'ch_demo', paymentIntentId: 'pi_demo', seed: true, creado: hace(26), actualizado: hace(26),
+    });
+  }
+  // Un favor (gratis) ya en curso: con precio y sin pago no cuadraría con el flujo de pagos.
   servicio('demo-mirror', {
-    title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)], priceCents: 4500,
+    title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)], priceCents: null,
     // Cada uno en su sitio: con chinchetas superpuestas el mapa elige mal.
     coords: { latitude: 47.3773, longitude: 8.5243 },
     helperId: 'seed-user-08', helperName: 'Elias Huber', createdAt: hace(30),
@@ -253,6 +273,16 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
   await b.commit();
 
   await ofertar(db, 'demo-move-table', { Timestamp });
+
+  // Quien oferta en el de pago tiene los cobros activos (si no, no se le podría elegir).
+  if (cuentaCobro) {
+    const cobros = db.batch();
+    for (const o of ofertantes) {
+      cobros.set(db.doc(`cuentasCobro/${o.id}`), { stripeAccountId: cuentaCobro, cobrosActivos: true, seed: true });
+      cobros.update(db.doc(`users/${o.id}`), { cobrosActivos: true });
+    }
+    await cobros.commit();
+  }
 }
 
 function proyecto() {
@@ -290,9 +320,17 @@ async function main() {
   if (process.argv.includes('--revision')) {
     const { getAuth } = require('firebase-admin/auth');
     const iEmail = process.argv.indexOf('--email');
+    // La cuenta conectada (modo prueba) que cobra por los vecinos de prueba: sin
+    // ella quien revisa no puede elegir a nadie en el servicio de pago.
+    const iCuenta = process.argv.indexOf('--cuenta');
+    const cuentaCobro = iCuenta !== -1 ? process.argv[iCuenta + 1] : null;
+    if (!/^acct_\w+$/.test(cuentaCobro || '')) {
+      throw new Error('Falta la cuenta de cobro de prueba: npm run seed:revision -- --cuenta acct_… (una cuenta conectada del Sandbox con cobros activos)');
+    }
     const r = await revision(db, getAuth(), {
       email: iEmail !== -1 ? process.argv[iEmail + 1] : undefined,
       nuevaClave: process.argv.includes('--nueva-clave'),
+      cuentaCobro,
       Timestamp,
     });
     console.log(`🍏 ${destino}: cuenta para la revisión de Apple lista, con datos en cada pantalla\n`);

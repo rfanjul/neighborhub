@@ -78,7 +78,7 @@ const de: Diccionario = {
     pedirEtiqueta: '1 · Um Hilfe bitten',
     pedirTitulo: 'Brauchst du eine Hand?',
     pedirTexto:
-      'Tippe auf + und veröffentliche deine Anfrage: ein Foto, was zu tun ist und wann. Wir speichern den Ort, damit dich die Nachbarn von nebenan finden. Nach der Freigabe erscheint sie auf der Pinnwand und der Karte.',
+      'Tippe auf + und veröffentliche deine Anfrage: ein Foto, was zu tun ist und wann. Wir speichern den Ort, damit dich die Nachbarn von nebenan finden. Nach der Freigabe erscheint sie auf der Pinnwand und der Karte. Gratis oder mit einem Preis, den du beim Veröffentlichen bezahlst: Wir halten ihn sicher zurück, bis der Auftrag erledigt ist.',
     ofrecerEtiqueta: '2 · Hilfe anbieten',
     ofrecerTitulo: 'Hilf den Menschen in deiner Nähe',
     ofrecerTexto:
@@ -90,7 +90,7 @@ const de: Diccionario = {
     valorarEtiqueta: '4 · Bewerten',
     valorarTitulo: 'Bewerte und baue dir einen Ruf auf',
     valorarTexto:
-      'Wenn alles erledigt ist, markiere es als erledigt und bewerte mit 1 bis 5 Sternen. Jede Hilfe zählt und schaltet Abzeichen frei: Amateur, Veteran und Vorbild.',
+      'Ist alles erledigt, markierst du es als erledigt: Hatte es einen Preis, erhält die helfende Person ihn sofort ganz. Dann bewertest du mit 1 bis 5 Sternen. Jede Hilfe zählt und schaltet Abzeichen frei: Amateur, Veteran und Vorbild.',
     google: 'Weiter mit Google',
     email: 'Mit E-Mail anmelden',
     crearCuenta: 'Konto erstellen',

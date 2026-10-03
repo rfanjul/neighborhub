@@ -79,7 +79,7 @@ const es: Diccionario = {
     pedirEtiqueta: '1 · Pide ayuda',
     pedirTitulo: '¿Necesitas una mano?',
     pedirTexto:
-      'Pulsa + y publica tu servicio: una foto, qué hay que hacer y cuándo. Guardamos la ubicación para que te encuentren los vecinos de al lado. Cuando se aprueba, sale en el muro y en el mapa.',
+      'Pulsa + y publica tu servicio: una foto, qué hay que hacer y cuándo. Guardamos la ubicación para que te encuentren los vecinos de al lado. Cuando se aprueba, sale en el muro y en el mapa. Gratis o con un precio que pagas al publicarlo: lo guardamos de forma segura hasta que el trabajo esté hecho.',
     ofrecerEtiqueta: '2 · Ofrécete',
     ofrecerTitulo: 'Ayuda a quien tienes cerca',
     ofrecerTexto:
@@ -91,7 +91,7 @@ const es: Diccionario = {
     valorarEtiqueta: '4 · Valora',
     valorarTitulo: 'Valora y gana reputación',
     valorarTexto:
-      'Al terminar, márcalo como hecho y valora de 1 a 5 estrellas. Cada ayuda suma y desbloquea insignias: Amateur, Veterano y Ejemplar.',
+      'Al terminar, márcalo como hecho: si tenía precio, quien te ayudó lo recibe entero al momento. Después valora de 1 a 5 estrellas. Cada ayuda suma y desbloquea insignias: Amateur, Veterano y Ejemplar.',
     google: 'Continuar con Google',
     email: 'Entrar con email',
     crearCuenta: 'Crear una cuenta',

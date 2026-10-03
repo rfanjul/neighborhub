@@ -80,7 +80,7 @@ const en = {
     pedirEtiqueta: '1 · Ask for help',
     pedirTitulo: 'Need a hand?',
     pedirTexto:
-      'Tap + and post your request: a photo, what needs doing and when. We save the location so the neighbors next door can find you. Once approved, it shows up on the wall and the map.',
+      'Tap + and post your request: a photo, what needs doing and when. We save the location so the neighbors next door can find you. Once approved, it shows up on the wall and the map. Free, or with a price you pay when posting: we hold it safely until the job is done.',
     ofrecerEtiqueta: '2 · Offer to help',
     ofrecerTitulo: 'Help the people around you',
     ofrecerTexto:
@@ -92,7 +92,7 @@ const en = {
     valorarEtiqueta: '4 · Rate',
     valorarTitulo: 'Rate and build your reputation',
     valorarTexto:
-      'When it’s done, mark it as completed and rate from 1 to 5 stars. Every help counts and unlocks badges: Amateur, Veteran and Exemplary.',
+      'When it’s done, mark it as completed: if it had a price, the helper receives it in full right away. Then rate from 1 to 5 stars. Every help counts and unlocks badges: Amateur, Veteran and Exemplary.',
     google: 'Continue with Google',
     email: 'Sign in with email',
     crearCuenta: 'Create an account',

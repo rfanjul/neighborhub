@@ -6,7 +6,31 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+### Textos, web y App Store con los pagos
+La 1.1.0 va a la revisión de Apple **con los pagos encendidos** (Stripe en
+modo de prueba) y **publicación manual**: apagarlos para la revisión y
+encenderlos después sería una función oculta (Guideline 2.3.1).
+
+- App: el carrusel de bienvenida cuenta que se puede poner precio (se paga al
+  publicar y se guarda hasta que esté hecho) y que al marcarlo como hecho quien
+  ayudó recibe el precio entero.
+- Web (en/de/es): portada sin «sin dinero» ni créditos (favor o precio justo,
+  pagos seguros), **condiciones** con precios, pagos, gestión del 8 %,
+  cancelación y reembolso, cobros con Stripe (Stripe Connected Account
+  Agreement) e impuestos de quien ayuda; **privacidad** con datos de pagos,
+  Stripe, notificaciones push (Expo) y conservación contable de 10 años;
+  **ayuda** con tres preguntas sobre pagos.
+- App Store (`store.config.json`): descripción, texto promocional, palabras
+  clave y «What's New» de la 1.1 en los tres idiomas; publicación manual. Las
+  seis capturas, de nuevo con precios («CHF 20» en el muro, el precio en el
+  detalle y «pagado y guardado» en las ofertas) y subtítulos nuevos.
+- `docs/APP_REVIEW.md`: guion con el flujo de pago, respuesta con la Guideline
+  3.1.3(e), *Notes* para la revisión, checklist de App Store Connect y qué hacer
+  al aprobarla (Stripe en modo real).
+- Datos de la revisión (`npm run seed:revision -- --cuenta acct_…`): «Move a
+  table…» queda sin pagar (quien revisa paga con la tarjeta 4242, elige y lo
+  marca como hecho), con vecinos que pueden cobrar; «Hang a big mirror…» pasa a
+  favor gratis. En el emulador (`demo:seed`) ya sale pagado, para las capturas.
 
 ## [1.1.0 (16)] — 2026-10-03 · TestFlight
 

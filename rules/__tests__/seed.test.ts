@@ -213,13 +213,29 @@ describe('cuenta para la revisión de Apple', () => {
     expect((await db.doc('helpRequests/demo-move-table').get()).data()).toMatchObject({ status: 'approved', requesterId: 'app-review' });
     const ofertas = await db.collection('applications').where('serviceId', '==', 'demo-move-table').get();
     expect(ofertas.size).toBe(3);
-    expect((await db.doc('helpRequests/demo-mirror').get()).data()).toMatchObject({ status: 'accepted', helperId: 'seed-user-08' });
+    expect((await db.doc('helpRequests/demo-mirror').get()).data()).toMatchObject({ status: 'accepted', helperId: 'seed-user-08', priceCents: null });
 
     // Y quien revisa, con las reglas activas, ve su perfil, sus datos privados y el chat.
     const suya = env.authenticatedContext('app-review').firestore();
     expect((await getDoc(doc(suya, 'users/app-review'))).exists()).toBe(true);
     expect((await getDoc(doc(suya, 'privado/app-review'))).exists()).toBe(true);
     expect((await getDocs(collection(suya, 'helpRequests/demo-mirror/messages'))).size).toBe(3);
+  });
+
+  test('el servicio de pago queda sin pagar y con ofertas de vecinos que pueden cobrar', async () => {
+    const db = getFirestore(admin);
+    await db.doc('pagos/demo-move-table').set({ estado: 'retenido' });
+
+    await revision(db, authFalsa(), { cuentaCobro: 'acct_prueba', Timestamp });
+
+    const mesa = (await db.doc('helpRequests/demo-move-table').get()).data();
+    expect(mesa).toMatchObject({ status: 'approved', priceCents: 3000 });
+    expect(mesa).not.toHaveProperty('pago');
+    expect((await db.doc('pagos/demo-move-table').get()).exists).toBe(false);
+    for (const id of ['seed-user-02', 'seed-user-08', 'seed-user-04']) {
+      expect((await db.doc(`cuentasCobro/${id}`).get()).data()).toEqual({ stripeAccountId: 'acct_prueba', cobrosActivos: true, seed: true });
+      expect((await db.doc(`users/${id}`).get()).data()?.cobrosActivos).toBe(true);
+    }
   });
 
   test('cada vez sale una contraseña distinta', async () => {
