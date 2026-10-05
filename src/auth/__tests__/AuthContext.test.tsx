@@ -185,6 +185,45 @@ describe('registro con email', () => {
     expect(updateProfile).toHaveBeenCalledWith(user, { displayName: 'Ana Pérez' });
   });
 
+  it('el perfil nace con el nombre del registro, aunque Firebase avise de la sesión antes', async () => {
+    const user = fakeUser();
+    (api.getMe as jest.Mock).mockResolvedValue({ id: 'uid-1', name: 'Ana Pérez' });
+    // Como Firebase: la sesión nueva llega mientras se crea la cuenta, todavía sin nombre…
+    (createUserWithEmailAndPassword as jest.Mock).mockImplementation(async () => {
+      (auth as any).currentUser = user;
+      await authStateCallback()(user);
+      return { user };
+    });
+    // …y updateProfile se lo pone después al usuario actual.
+    (updateProfile as jest.Mock).mockImplementation(async (u: any, { displayName }: { displayName: string }) => {
+      u.displayName = displayName;
+    });
+    const { result } = await renderAuth();
+
+    await act(async () => {
+      await result.current.register('Ana Pérez', 'ana@example.com', 'secreto123');
+    });
+
+    expect(ensureUserDocument).toHaveBeenCalledTimes(1);
+    expect(ensureUserDocument).toHaveBeenCalledWith('uid-1', { name: 'Ana Pérez', email: 'ana@example.com' });
+    expect(result.current.profile).toMatchObject({ name: 'Ana Pérez' });
+    delete (auth as any).currentUser;
+  });
+
+  it('si falla el registro, la sesión siguiente vuelve a crear su perfil', async () => {
+    (createUserWithEmailAndPassword as jest.Mock).mockRejectedValue(firebaseError('auth/network-request-failed'));
+    const { result } = await renderAuth();
+    await expect(result.current.register('Ana', 'ana@example.com', 'secreto123')).rejects.toBeTruthy();
+
+    (auth as any).currentUser = fakeUser({ displayName: 'Ana' });
+    await act(async () => {
+      await authStateCallback()((auth as any).currentUser);
+    });
+
+    expect(ensureUserDocument).toHaveBeenCalledWith('uid-1', { name: 'Ana', email: 'ana@example.com' });
+    delete (auth as any).currentUser;
+  });
+
   it('limpia los espacios del email y del nombre', async () => {
     (createUserWithEmailAndPassword as jest.Mock).mockResolvedValue({ user: fakeUser() });
     const { result } = await renderAuth();

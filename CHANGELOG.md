@@ -6,7 +6,12 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 ## Sin publicar
 
-Nada todavía.
+### Arreglado
+- **El nombre del registro ya no se pierde.** Al crear una cuenta con email,
+  Firebase avisa de la sesión nueva antes de que la app le ponga el nombre, y
+  el perfil nacía como «New neighbor»: *Tus datos* lo enseñaba en vez del
+  nombre escrito. Ahora el perfil se crea cuando el nombre ya está puesto
+  (`src/auth/AuthContext.tsx`). Con Apple y Google no pasaba.
 
 ## [1.1.0 (19)] — 2026-10-05 · TestFlight
 

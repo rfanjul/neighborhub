@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   EmailAuthProvider,
   GoogleAuthProvider,
@@ -67,6 +67,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<MiPerfil | null>(null);
   const [initializing, setInitializing] = useState(true);
+  // Al crear una cuenta con email, Firebase avisa de la sesión nueva antes de
+  // que register() le ponga el nombre: si el perfil se creara entonces,
+  // nacería como «New neighbor». Mientras dura, lo crea register().
+  const registrando = useRef(false);
 
   const refreshProfile = useCallback(async () => {
     const actual = auth.currentUser;
@@ -74,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       return;
     }
+    if (registrando.current) return;
     try {
       // El documento puede no existir todavía si es el primer acceso con
       // Google o Apple, donde no pasamos por el registro con email.
@@ -99,10 +104,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshProfile]);
 
   const register = async (name: string, email: string, password: string) => {
-    const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
-    if (name.trim()) {
-      await updateProfile(credential.user, { displayName: name.trim() });
+    registrando.current = true;
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      if (name.trim()) {
+        await updateProfile(credential.user, { displayName: name.trim() });
+      }
+    } finally {
+      registrando.current = false;
     }
+    // Ahora sí: el perfil nace con el nombre escrito en el registro.
+    await refreshProfile();
   };
 
   const login = async (email: string, password: string) => {
