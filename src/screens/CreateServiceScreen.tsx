@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Pressable, Alert, ActivityIndicator, Image, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,9 +9,13 @@ import { colors, fonts, radii } from '../theme';
 import { CloseIcon, PlusIcon } from '../icons';
 import PillButton from '../components/PillButton';
 import { api } from '../firebase/data';
-import { dataErrorMessage } from '../firebase/errors';
-import type { ServiceCategory } from '../data/mock';
+import { dataErrorMessage, pagoErrorMessage } from '../firebase/errors';
+import type { ServiceCategory, ServiceStatus } from '../data/mock';
 import { t } from '../i18n';
+import { usePagosActivos } from '../config/remota';
+import { useAuth } from '../auth/AuthContext';
+import { perfilCompleto } from '../perfil/validar';
+import { PRECIO_MAXIMO, PRECIO_MINIMO, comision, formatearPrecio, leerPrecio, precioValido, totalAPagar } from '../pagos/precio';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreateService'>;
 
@@ -27,10 +31,20 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
   const [category, setCategory] = useState<ServiceCategory>('moving');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [duration, setDuration] = useState('');
-  const [radius, setRadius] = useState(55);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [gratis, setGratis] = useState(true);
+  const [precioTexto, setPrecioTexto] = useState('');
+  const [estado, setEstado] = useState<ServiceStatus | null>(null);
+  const [pagado, setPagado] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const pagos = usePagosActivos();
+  const { profile } = useAuth();
+  // Una vez publicado puede tener ofertas, y una vez pagado el dinero ya está
+  // retenido: el precio ya no se toca.
+  const precioBloqueado = !!editandoId && ((estado !== null && estado !== 'pending') || pagado);
+  const precio = gratis ? null : leerPrecio(precioTexto);
+  const rango = { min: formatearPrecio(PRECIO_MINIMO), max: formatearPrecio(PRECIO_MAXIMO) };
 
   useEffect(() => {
     if (!editandoId) return;
@@ -40,9 +54,12 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         setTitle(s.title);
         setCategory(s.category);
         setDescription(s.description);
-        setDuration(s.durationLabel === '—' ? '' : s.durationLabel);
         setPhotos(s.photos);
         setOriginales(s.photos);
+        setGratis(s.priceCents == null);
+        setPrecioTexto(s.priceCents == null ? '' : String(s.priceCents / 100));
+        setEstado(s.status ?? null);
+        setPagado(!!s.pago);
       })
       .catch((e) => Alert.alert(t('crear.errorCargar'), dataErrorMessage(e)));
   }, [editandoId]);
@@ -60,8 +77,8 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         title: title.trim(),
         category,
         description: description.trim(),
-        durationLabel: duration.trim() || '—',
         photos: finales,
+        ...(precioBloqueado || !pagos ? {} : { priceCents: precio }),
       });
       // Las fotos que se quitaron ya no las usa nadie: fuera de Storage.
       const quitadas = originales.filter((url) => !finales.includes(url));
@@ -122,8 +139,20 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
       Alert.alert(t('crear.faltaTitulo'), t('crear.faltaTituloTexto'));
       return;
     }
+    if (pagos && !precioBloqueado && !gratis && (precio === null || !precioValido(precio))) {
+      Alert.alert(t('crear.precioInvalido'), t('crear.precioRango', rango));
+      return;
+    }
     if (editandoId) {
       await guardarCambios();
+      return;
+    }
+    // Para publicar hace falta el perfil completo (nombre, nacimiento, ciudad…).
+    if (!perfilCompleto(profile)) {
+      Alert.alert(t('datos.completarTitulo'), t('datos.completarPublicar'), [
+        { text: t('comun.cancelar'), style: 'cancel' },
+        { text: t('datos.completarBoton'), onPress: () => navigation.navigate('ProfileDetails', { motivo: 'publicar' }) },
+      ]);
       return;
     }
     setSubmitting(true);
@@ -137,19 +166,31 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
         obtenerCoordenadas(),
       ]);
       subidas = urls;
-      await api.createService({
+      const creado = await api.createService({
         title: title.trim(),
         category,
         description: description.trim(),
-        credits: 0,
+        priceCents: pagos ? precio : null,
         photos: subidas,
         coords,
-        durationLabel: duration.trim() || '—',
+        // Sin duración ni radio en el formulario: lo que importa es si es
+        // gratis o su precio. La distancia se calcula al mostrarlo, desde coords.
+        durationLabel: '—',
         availableLabel: t('crear.flexible'),
-        // La distancia se calcula al mostrarlo, desde coords.
         locationLabel: '',
-        travelRadiusKm: Math.round(radius / 11),
+        travelRadiusKm: 5,
       });
+      if (pagos && precio !== null) {
+        // Con precio se paga ya: el dinero queda retenido y, pagado, pasa a
+        // revisión. Si no se paga ahora, la pantalla del servicio lo ofrece.
+        navigation.replace('ServiceOffers', { serviceId: creado.id });
+        try {
+          await Linking.openURL(await api.pagarServicio(creado.id));
+        } catch (e) {
+          Alert.alert(t('pagos.errorPagar'), `${pagoErrorMessage(e)}\n\n${t('crear.pagarLuego')}`);
+        }
+        return;
+      }
       navigation.goBack();
     } catch (e) {
       // Si el alta falla después de subir fotos, se borran para no dejarlas
@@ -196,9 +237,7 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
                 style={[styles.categoryChip, category === c && styles.categoryChipActive]}
                 onPress={() => setCategory(c)}
               >
-                <Text style={[styles.categoryLabel, category === c && styles.categoryLabelActive]}>
-                  {t(`categorias.${c}`)}
-                </Text>
+                <Text style={[styles.categoryLabel, category === c && styles.categoryLabelActive]}>{t(`categorias.${c}`)}</Text>
               </Pressable>
             ))}
           </View>
@@ -241,32 +280,74 @@ export default function CreateServiceScreen({ navigation, route }: Props) {
           {photos.length > 0 && <Text style={styles.photoHint}>{t('crear.pistaFotos')}</Text>}
         </View>
 
-        <View style={{ gap: 6 }}>
-          <Text style={styles.label}>{t('crear.duracion')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('crear.duracionEjemplo')}
-            placeholderTextColor={colors.mutedLight}
-            value={duration}
-            onChangeText={setDuration}
-          />
-        </View>
-
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={styles.label}>{t('crear.radio')}</Text>
-            <Text style={styles.radiusValue}>{t('crear.hasta', { km: Math.round(radius / 11) })}</Text>
+        {pagos && (
+          <View style={{ gap: 8 }}>
+            <Text style={styles.label}>{t('crear.precio')}</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup">
+              {[true, false].map((opcion) => (
+                <Pressable
+                  key={String(opcion)}
+                  style={[
+                    styles.categoryChip,
+                    gratis === opcion && styles.categoryChipActive,
+                    precioBloqueado && styles.bloqueado,
+                  ]}
+                  onPress={() => setGratis(opcion)}
+                  disabled={precioBloqueado}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: gratis === opcion, disabled: precioBloqueado }}
+                >
+                  <Text style={[styles.categoryLabel, gratis === opcion && styles.categoryLabelActive]}>
+                    {opcion ? t('crear.gratis') : t('crear.conPrecio')}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {!gratis && (
+              <View style={styles.precioFila}>
+                <Text style={styles.moneda}>CHF</Text>
+                <TextInput
+                  style={[styles.input, { flex: 1 }, precioBloqueado && styles.bloqueado]}
+                  placeholder="40"
+                  placeholderTextColor={colors.mutedLight}
+                  keyboardType="decimal-pad"
+                  value={precioTexto}
+                  onChangeText={setPrecioTexto}
+                  editable={!precioBloqueado}
+                  accessibilityLabel={t('crear.precio')}
+                />
+              </View>
+            )}
+            <Text style={styles.photoHint}>
+              {precioBloqueado
+                ? pagado
+                  ? t('crear.precioPagado')
+                  : t('crear.precioBloqueado')
+                : gratis
+                  ? t('crear.gratisPista')
+                  : precio !== null && precioValido(precio)
+                    ? t('crear.resumenPrecio', {
+                        total: formatearPrecio(totalAPagar(precio), { exacto: true }),
+                        precio: formatearPrecio(precio, { exacto: true }),
+                        gestion: formatearPrecio(comision(precio), { exacto: true }),
+                      })
+                    : t('crear.precioRango', rango)}
+            </Text>
           </View>
-          <View style={styles.sliderTrack}>
-            <View style={[styles.sliderFill, { width: `${radius}%` }]} />
-            <View style={[styles.sliderThumb, { left: `${radius}%` }]} />
-          </View>
-        </View>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
         <PillButton
-          label={submitting ? t('comun.guardando') : editandoId ? t('crear.guardarCambios') : t('crear.enviar')}
+          label={
+            submitting
+              ? t('comun.guardando')
+              : editandoId
+                ? t('crear.guardarCambios')
+                : pagos && !gratis && precio !== null && precioValido(precio)
+                  ? t('crear.pagarYEnviar', { total: formatearPrecio(totalAPagar(precio), { exacto: true }) })
+                  : t('crear.enviar')
+          }
           onPress={handleSubmit}
           icon={submitting ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
         />
@@ -280,9 +361,23 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.backgroundAlt },
   photo: { width: 96, height: 96, borderRadius: radii.sm },
   photoHint: { fontFamily: fonts.body, fontSize: 13, color: colors.mutedLight },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   headerTitle: { fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.ink },
-  closeButton: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  closeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   form: { paddingHorizontal: 20, paddingBottom: 20, gap: 16 },
   label: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.muted },
   input: {
@@ -297,10 +392,20 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   textarea: { height: 72, paddingTop: 12, textAlignVertical: 'top' },
-  categoryChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   categoryChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   categoryLabel: { fontFamily: fonts.body, fontSize: 14, color: colors.muted },
   categoryLabelActive: { fontFamily: fonts.bodySemiBold, color: colors.white },
+  bloqueado: { opacity: 0.55 },
+  precioFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  moneda: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.muted },
   addPhoto: {
     width: 64,
     height: 64,
@@ -311,19 +416,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radiusValue: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.accentDark },
-  sliderTrack: { height: 5, borderRadius: 3, backgroundColor: colors.border, justifyContent: 'center' },
-  sliderFill: { height: 5, borderRadius: 3, backgroundColor: colors.accent, position: 'absolute', left: 0 },
-  sliderThumb: {
-    position: 'absolute',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.white,
-    borderWidth: 3,
-    borderColor: colors.accent,
-    marginLeft: -8,
-  },
+
   footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 24 },
   footerHint: { marginTop: 10, fontFamily: fonts.body, fontSize: 13, textAlign: 'center', color: colors.mutedLight },
 });

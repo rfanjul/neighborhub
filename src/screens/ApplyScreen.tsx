@@ -9,6 +9,10 @@ import PillButton from '../components/PillButton';
 import { api } from '../firebase/data';
 import { dataErrorMessage } from '../firebase/errors';
 import { t } from '../i18n';
+import CobrosTarjeta from '../components/CobrosTarjeta';
+import { usePagosActivos } from '../config/remota';
+import { useAuth } from '../auth/AuthContext';
+import { perfilCompleto } from '../perfil/validar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Apply'>;
 
@@ -16,17 +20,40 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Apply'>;
 export default function ApplyScreen({ navigation, route }: Props) {
   const { serviceId } = route.params;
   const [titulo, setTitulo] = useState('');
+  const [conPrecio, setConPrecio] = useState(false);
+  const [cobros, setCobros] = useState(true);
   const [comentario, setComentario] = useState('');
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     api
       .getService(serviceId)
-      .then((s) => setTitulo(s.title))
+      .then((s) => {
+        setTitulo(s.title);
+        setConPrecio(s.priceCents != null);
+      })
       .catch(() => setTitulo(''));
+    api
+      .getMe()
+      .then((me) => setCobros(!!me?.cobrosActivos))
+      .catch(() => {});
   }, [serviceId]);
 
+  // Con precio hay que poder cobrar: sin cobros activos, quien pide no podría pagar.
+  const pagos = usePagosActivos();
+  const faltanCobros = pagos && conPrecio && !cobros;
+
+  const { profile } = useAuth();
+
   const enviar = async () => {
+    // Para ofrecer ayuda hace falta el perfil completo.
+    if (!perfilCompleto(profile)) {
+      Alert.alert(t('datos.completarTitulo'), t('datos.completarOfrecer'), [
+        { text: t('comun.cancelar'), style: 'cancel' },
+        { text: t('datos.completarBoton'), onPress: () => navigation.navigate('ProfileDetails', { motivo: 'ofrecer' }) },
+      ]);
+      return;
+    }
     if (!comentario.trim()) {
       Alert.alert(t('ofertar.faltaComentario'), t('ofertar.faltaComentarioTexto'));
       return;
@@ -60,6 +87,12 @@ export default function ApplyScreen({ navigation, route }: Props) {
 
         <View style={styles.body}>
           {titulo ? <Text style={styles.servicio}>{titulo}</Text> : null}
+          {faltanCobros && (
+            <View style={{ gap: 10 }}>
+              <Text style={styles.aviso}>{t('pagos.antesDeOfrecer')}</Text>
+              <CobrosTarjeta activos={false} onCambio={setCobros} />
+            </View>
+          )}
           <Text style={styles.label}>{t('ofertar.comentario')}</Text>
           <TextInput
             style={styles.input}
@@ -78,7 +111,7 @@ export default function ApplyScreen({ navigation, route }: Props) {
           <PillButton
             label={enviando ? t('comun.enviando') : t('ofertar.enviar')}
             onPress={enviar}
-            disabled={enviando}
+            disabled={enviando || faltanCobros}
             icon={enviando ? <ActivityIndicator color={colors.white} size="small" /> : undefined}
           />
           <Text style={styles.hint}>{t('ofertar.nota')}</Text>
@@ -89,6 +122,7 @@ export default function ApplyScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  aviso: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.amberDark },
   screen: { flex: 1, backgroundColor: colors.backgroundAlt },
   header: {
     paddingHorizontal: 20,

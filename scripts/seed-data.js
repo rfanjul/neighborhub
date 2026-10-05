@@ -25,6 +25,9 @@ const avatar = (nombre) => {
   return `https://api.dicebear.com/9.x/avataaars/png?size=256&backgroundColor=f2ddcb&seed=${encodeURIComponent(nombre)}${cara}${extra}`;
 };
 
+// Precio que recibe quien ayuda, en céntimos; la compra y "otros" van como favor.
+const preciosPorCategoria = { moving: 4000, painting: 8000, dog: 2000 };
+
 // Cada vecino vive en un barrio; sus servicios quedan cerca de casa.
 const vecinos = [
   {
@@ -71,7 +74,7 @@ const vecinos = [
         texto: 'My weekly organic box is ready at the farm shop near Tiefenbrunnen but I can’t make it on Thursday. It is one box, already paid for, and not too heavy.',
         duracion: '30 minutes', disponible: 'Thursday afternoon' },
       { cat: 'other', titulo: 'Italian conversation practice (for you!)', fotos: [24],
-        texto: 'Offering an hour of relaxed Italian conversation over coffee in exchange for credits. All levels welcome, I can adapt to beginners.',
+        texto: 'Offering an hour of relaxed Italian conversation over coffee just for the fun of it, or swapped for some German practice. All levels welcome, I can adapt to beginners.',
         duracion: '1 hour', disponible: 'Flexible' },
       { cat: 'dog', titulo: 'Look after Pippo for a weekend', fotos: [837],
         texto: 'Pippo is a calm 8-year-old bulldog who mostly sleeps. I need someone to host him Friday evening to Sunday. Food, bed and toys included.',
@@ -251,11 +254,11 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
     const rating = Math.round((ratingSum / ratingCount) * 10) / 10;
     usuarios.push({
       id: uid,
+      // Datos personales aparte, en privado/{uid}: users/ lo lee cualquiera.
+      privado: { email, dateOfBirth: null, seed: true },
       data: {
         name: v.nombre,
-        email,
         bio: v.bio,
-        dateOfBirth: null,
         city: 'Zürich',
         postalCode: v.cp,
         country: 'Switzerland',
@@ -310,7 +313,8 @@ function construir({ fecha, ahora = new Date('2026-09-29T09:00:00Z') }) {
           title: s.titulo,
           category: s.cat,
           description: s.texto,
-          credits: 0,
+          // Unos con precio y otros como favor, para ver las dos cosas en el muro.
+          priceCents: s.precio !== undefined ? s.precio : (preciosPorCategoria[s.cat] ?? null),
           photos: s.fotos.map(foto),
           coords: cerca(v.casa, n),
           durationLabel: s.duracion,

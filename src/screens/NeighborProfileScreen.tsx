@@ -12,7 +12,7 @@ import { insignias } from '../components/insignias';
 import { api, type ApiUserProfile } from '../firebase/data';
 import { mesYAno } from '../utils/fecha';
 import { decimal, idiomasTexto, nivelTexto, t, tp } from '../i18n';
-import { abrirEnlace, enlaces } from '../config/enlaces';
+import { confirmarBloqueo, denunciar, desbloquear } from '../moderacion/acciones';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NeighborProfile'>;
 
@@ -25,6 +25,7 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
   const [perfil, setPerfil] = useState<ApiUserProfile | null>(null);
   const [noEncontrado, setNoEncontrado] = useState(false);
   const [servicios, setServicios] = useState<number | null>(null);
+  const [bloqueado, setBloqueado] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -39,6 +40,10 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
         .listServicesBy(userId)
         .then((s) => setServicios(s.length))
         .catch(() => setServicios(0));
+      api
+        .misBloqueos()
+        .then((b) => setBloqueado(b.includes(userId)))
+        .catch(() => setBloqueado(false));
     }, [userId])
   );
 
@@ -86,6 +91,7 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.screen} edges={['top']}>
       {cabecera}
       <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
+        {bloqueado && <Text style={styles.avisoBloqueo}>{t('moderacion.avisoBloqueado', { nombre: perfil.name })}</Text>}
         <View style={styles.identity}>
           <Avatar name={perfil.name} photoURL={perfil.photoURL} size={84} />
           <View style={styles.nombreFila}>
@@ -167,13 +173,25 @@ export default function NeighborProfileScreen({ navigation, route }: Props) {
             ))}
           </View>
         </View>
-        <Pressable
-          style={styles.section}
-          onPress={() => abrirEnlace(enlaces.contacto('reportar', `user:${userId}`))}
-          accessibilityRole="link"
-        >
-          <Text style={styles.reportar}>🚩 {t('cuenta.reportarUsuario')}</Text>
-        </Pressable>
+        {/* Denunciar y bloquear (normas de contenido de usuarios de Apple, 1.2). */}
+        <View style={[styles.section, { gap: 14 }]}>
+          <Pressable onPress={() => denunciar('user', userId)} accessibilityRole="button" hitSlop={6}>
+            <Text style={styles.reportar}>🚩 {t('moderacion.denunciarA', { nombre: perfil.name })}</Text>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              bloqueado
+                ? desbloquear(userId, () => setBloqueado(false))
+                : confirmarBloqueo(perfil.name, userId, () => setBloqueado(true))
+            }
+            accessibilityRole="button"
+            hitSlop={6}
+          >
+            <Text style={styles.reportar}>
+              🚫 {bloqueado ? t('moderacion.desbloquearA', { nombre: perfil.name }) : t('moderacion.bloquearA', { nombre: perfil.name })}
+            </Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -220,4 +238,5 @@ const styles = StyleSheet.create({
   badgeRequisito: { marginTop: 2, fontFamily: fonts.body, fontSize: 12, color: colors.muted, textAlign: 'center' },
   badgeLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.muted, textAlign: 'center' },
   reportar: { fontFamily: fonts.body, fontSize: 14, color: colors.muted, textDecorationLine: 'underline' },
+  avisoBloqueo: { margin: 20, marginBottom: 0, padding: 12, borderRadius: 12, backgroundColor: colors.amberTint, fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.amberDark },
 });

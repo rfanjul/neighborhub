@@ -14,11 +14,34 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    /**
+     * Administración (web /admin): cuentas con el claim admin, que pone
+     * `npm run admin` con el Admin SDK. Nadie se lo puede dar desde la app.
+     */
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    /** Pagos encendidos en config/app (se apagan para la revisión de Apple). */
+    function pagosActivos() {
+      let ruta = /databases/$(database)/documents/config/app;
+      return exists(ruta) && get(ruta).data.get('pagosActivos', false) == true;
+    }
+
+    /** quien está en la lista de bloqueados de uid (bloqueos/{uid}). */
+    function bloqueadoPor(uid, quien) {
+      let ruta = /databases/$(database)/documents/bloqueos/$(uid);
+      return uid != null && exists(ruta) && quien in get(ruta).data.usuarios;
+    }
+
     /** Campos que cambia esta escritura respecto al documento guardado. */
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // Perfil público: lo lee cualquiera con sesión (muro, ofertas, reseñas),
+    // así que no lleva nada personal. El email y la fecha de nacimiento van
+    // en privado/{uid}.
     match /users/{userId} {
       allow read: if signedIn();
 
@@ -26,6 +49,10 @@ service cloud.firestore {
       // nivel o verificación que no se haya ganado.
       allow create: if signedIn()
         && request.auth.uid == userId
+        // TRANSICIÓN: las builds hasta la 1.1.0 (15) aún escriben aquí el
+        // email y la fecha de nacimiento al crear la cuenta. Cuando ya no se
+        // usen (y tras npm run migrar:privado), volver a prohibirlos:
+        //   && !request.resource.data.keys().hasAny(['email', 'dateOfBirth'])
         && request.resource.data.credits == 0
         && request.resource.data.rating == 0
         && request.resource.data.level == 1
@@ -54,17 +81,65 @@ service cloud.firestore {
 
       // Cada uno edita solo sus datos personales. Créditos, nivel y
       // verificación los mueve el servidor; la valoración, las reseñas.
+      /** Nombre o ciudad: letras (de cualquier idioma), espacios, puntos, guiones y apóstrofos. */
+      function textoValido(t, min, max) {
+        return t is string && t.size() >= min && t.size() <= max && t.matches("^\\p{L}[\\p{L} .'’-]*$");
+      }
+      /**
+       * Lo mismo que valida la app (src/perfil/validar.ts). Solo los campos
+       * que cambian: un perfil antiguo a medias aún puede editar su bio.
+       */
+      function datosValidos() {
+        let d = request.resource.data;
+        let cambia = changedKeys();
+        return (!cambia.hasAny(['name']) || textoValido(d.name, 2, 60))
+          && (!cambia.hasAny(['city']) || textoValido(d.city, 2, 50))
+          && (!cambia.hasAny(['postalCode']) || (d.postalCode is string && d.postalCode.matches('^[1-9][0-9]{3}$')))
+          && (!cambia.hasAny(['bio']) || (d.bio is string && d.bio.size() <= 500));
+      }
+
       allow update: if signedIn() && (
         (request.auth.uid == userId
           && changedKeys().hasOnly([
-            'name', 'bio', 'dateOfBirth', 'city', 'postalCode', 'country',
-            'languages', 'onboardingCompleted', 'photoURL'
-          ]))
+            'name', 'bio', 'city', 'postalCode', 'country',
+            'languages', 'onboardingCompleted', 'photoURL',
+            // TRANSICIÓN: las builds hasta la 15 guardan aquí la fecha de nacimiento. Quitar después.
+            'dateOfBirth'
+          ])
+          && datosValidos())
         || recibeValoracion()
       );
 
       // Borrar la cuenta desde la app: cada uno borra solo su perfil.
       allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Datos personales de cada uno (email y fecha de nacimiento): solo los
+    // lee y escribe su dueño; la administración los lee. Las Functions y los
+    // scripts usan el Admin SDK.
+    match /privado/{uid} {
+      /** Sin fecha (al crear la cuenta) o DD/MM/AAAA; que exista y la edad la comprueba la app. */
+      function fechaValida(d) {
+        return d.get('dateOfBirth', null) == null
+          || (d.dateOfBirth is string
+            && d.dateOfBirth.matches('^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/(19|20)[0-9]{2}$'));
+      }
+
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['email', 'dateOfBirth'])
+        && request.resource.data.get('email', '') is string
+        && request.resource.data.get('email', '').size() <= 200
+        && fechaValida(request.resource.data);
+
+      // El email se apunta al crear la cuenta; después solo cambia la fecha.
+      allow update: if signedIn() && request.auth.uid == uid
+        && changedKeys().hasOnly(['dateOfBirth'])
+        && fechaValida(request.resource.data);
+
+      // Al borrar la cuenta desde la app.
+      allow delete: if signedIn() && request.auth.uid == uid;
     }
 
     match /helpRequests/{requestId} {
@@ -74,42 +149,78 @@ service cloud.firestore {
       function isHelper() {
         return resource.data.helperId == request.auth.uid;
       }
-      /** Transiciones permitidas una vez elegida la persona que ayuda. */
+      /** Gratis (sin precio), o de CHF 5 a CHF 1000 en céntimos enteros. */
+      function precioValido(d) {
+        return d.get('priceCents', null) == null
+          || (d.priceCents is int && d.priceCents >= 500 && d.priceCents <= 100000);
+      }
+      /**
+       * Transiciones permitidas una vez elegida la persona que ayuda. Darlo
+       * por hecho libera el pago a quien ayuda, así que solo lo hace quien
+       * pidió (o la administración, desde el servidor); quien ayuda solo lo
+       * pone en marcha.
+       */
       function avanza(desde, hasta) {
-        return (desde == 'accepted' && hasta in ['in_progress', 'completed'])
-          || (desde == 'in_progress' && hasta == 'completed');
+        return (isRequester()
+            && ((desde == 'accepted' && hasta in ['in_progress', 'completed'])
+              || (desde == 'in_progress' && hasta == 'completed')))
+          || (isHelper() && desde == 'accepted' && hasta == 'in_progress');
+      }
+      /** Pagado al crearlo (dinero retenido): su precio ya no cambia y solo se cancela devolviéndolo. */
+      function pagado() {
+        return resource.data.get('pago', null) != null;
       }
 
       allow read: if signedIn() && (
-        resource.data.status == 'approved' || isRequester() || isHelper()
+        resource.data.status == 'approved' || isRequester() || isHelper() || isAdmin()
       );
 
       // Se publica siempre pendiente de revisión y a nombre propio.
       allow create: if signedIn()
         && request.resource.data.requesterId == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && precioValido(request.resource.data);
 
       allow update: if signedIn() && (
+        // Administración: aprueba, despublica y corrige el contenido mientras
+        // nadie está ayudando todavía. No cambia quién pide ni quién ayuda.
+        (isAdmin()
+          && resource.data.status in ['pending', 'approved']
+          && request.resource.data.status in ['pending', 'approved']
+          && !changedKeys().hasAny(['requesterId', 'requesterName', 'helperId', 'helperName', 'pago'])
+          && precioValido(request.resource.data)
+          // Lo pagado no cambia de precio, y con los pagos encendidos uno con
+          // precio no se publica hasta que esté pagado.
+          && (!pagado() || !changedKeys().hasAny(['priceCents']))
+          && (request.resource.data.status != 'approved' || resource.data.status == 'approved'
+            || resource.data.get('priceCents', null) == null || pagado() || !pagosActivos()))
+        ||
         // Quien publica elige a una de las personas que han ofertado. Solo
-        // mientras está aprobado (así solo se elige una vez) y solo a alguien
-        // con una oferta registrada.
+        // mientras está aprobado (así solo se elige una vez), solo a alguien
+        // con una oferta registrada y solo si es gratis (o con los pagos
+        // apagados): con precio lo acepta el servidor cuando Stripe confirma
+        // el pago (functions/pagos.js).
         (isRequester()
           && resource.data.status == 'approved'
           && request.resource.data.status == 'accepted'
+          && !pagado()
+          && (resource.data.get('priceCents', null) == null || !pagosActivos())
           && exists(/databases/$(database)/documents/applications/$(requestId + '_' + request.resource.data.helperId))
           && changedKeys().hasOnly(['status', 'helperId', 'helperName', 'updatedAt']))
         ||
         // Quien publica edita el contenido mientras no haya elegido a nadie
         // (pendiente o aprobado), pero nunca el estado (aprobar es cosa del
-        // admin) ni quién pide o quién ayuda.
+        // admin) ni quién pide o quién ayuda. El precio, solo antes de
+        // publicarse: después puede haber ofertas hechas con ese precio.
         (isRequester()
           && resource.data.status in ['pending', 'approved']
-          && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId']))
+          && !changedKeys().hasAny(['status', 'requesterId', 'requesterName', 'helperId', 'pago'])
+          && precioValido(request.resource.data)
+          && ((resource.data.status == 'pending' && !pagado()) || !changedKeys().hasAny(['priceCents'])))
         ||
         // Una vez aceptado, las dos partes avanzan el trabajo hacia delante,
         // tocando solo el estado.
-        ((isRequester() || isHelper())
-          && avanza(resource.data.status, request.resource.data.status)
+        (avanza(resource.data.status, request.resource.data.status)
           && changedKeys().hasOnly(['status', 'updatedAt'])) ||
 
         // Quien publica lo da por terminado valorando a quien ayudó: pasa a
@@ -124,20 +235,27 @@ service cloud.firestore {
 
       // Al borrar la cuenta se van los servicios propios que aún no tienen a
       // nadie elegido; los que ya implican a otra persona se conservan.
-      allow delete: if signedIn() && isRequester() && resource.data.status in ['pending', 'approved'];
+      // Uno pagado no se borra: se cancela (y se devuelve) desde el servidor.
+      allow delete: if signedIn() && isRequester() && resource.data.status in ['pending', 'approved'] && !pagado();
 
       match /messages/{messageId} {
         function isParticipant() {
           let pedido = get(/databases/$(database)/documents/helpRequests/$(requestId)).data;
           return pedido.requesterId == request.auth.uid || pedido.helperId == request.auth.uid;
         }
+        function otraParte() {
+          let pedido = get(/databases/$(database)/documents/helpRequests/$(requestId)).data;
+          return pedido.requesterId == request.auth.uid ? pedido.helperId : pedido.requesterId;
+        }
 
         // Solo las dos partes del servicio leen y escriben la conversación,
         // y cada mensaje va firmado por quien lo manda.
         allow read: if signedIn() && isParticipant();
+        // Si la otra persona me ha bloqueado, no le llegan mis mensajes.
         allow create: if signedIn()
           && isParticipant()
-          && request.resource.data.senderId == request.auth.uid;
+          && request.resource.data.senderId == request.auth.uid
+          && !bloqueadoPor(otraParte(), request.auth.uid);
         allow update, delete: if false;
       }
     }
@@ -162,7 +280,9 @@ service cloud.firestore {
         && request.resource.data.status == 'pending'
         && servicio(request.resource.data.serviceId).status == 'approved'
         && servicio(request.resource.data.serviceId).requesterId != request.auth.uid
-        && request.resource.data.requesterId == servicio(request.resource.data.serviceId).requesterId;
+        && request.resource.data.requesterId == servicio(request.resource.data.serviceId).requesterId
+        // Quien publicó me ha bloqueado: no puedo ofertarme en lo suyo.
+        && !bloqueadoPor(request.resource.data.requesterId, request.auth.uid);
 
       // Solo quien publicó el servicio la selecciona o la rechaza.
       allow update: if signedIn()
@@ -182,6 +302,55 @@ service cloud.firestore {
     // Mensajes del formulario de contacto de la web: cualquiera puede
     // escribir uno bien formado; nadie los lee desde fuera (se revisan en
     // la consola de Firebase).
+    // Dispositivos de cada uno para los avisos push: privado (con un token
+    // se le pueden mandar notificaciones). Solo lo lee y escribe su dueño;
+    // las Functions lo leen con el Admin SDK.
+    match /dispositivos/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['tokens', 'idioma', 'actualizado'])
+        && request.resource.data.tokens is list
+        && request.resource.data.tokens.size() <= 10
+        && request.resource.data.idioma in ['en', 'de', 'es'];
+    }
+
+    // Vecinos bloqueados por cada uno: privado, solo su dueño. Las reglas lo
+    // consultan para frenar mensajes y ofertas de quien está bloqueado.
+    match /bloqueos/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['usuarios', 'actualizado'])
+        && request.resource.data.usuarios is list
+        && request.resource.data.usuarios.size() <= 500;
+    }
+
+    // Denuncias hechas desde la app: las crea quien denuncia, con su nombre;
+    // solo la administración las lee y las da por revisadas.
+    match /reports/{id} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['reporterId', 'tipo', 'objetoId', 'motivo', 'estado', 'createdAt'])
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.tipo in ['service', 'user', 'message']
+        && request.resource.data.objetoId is string
+        && request.resource.data.objetoId.size() > 0
+        && request.resource.data.objetoId.size() <= 200
+        && request.resource.data.motivo in ['spam', 'inapropiado', 'acoso', 'otro']
+        && request.resource.data.estado == 'nuevo'
+        && request.resource.data.createdAt == request.time;
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'revisadoPor', 'revisadoEn', 'nota'])
+        && request.resource.data.estado in ['nuevo', 'revisado', 'retirado'];
+    }
+
+    // Configuración que la app lee al entrar; solo la administración la cambia.
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['pagosActivos', 'actualizado', 'actualizadoPor'])
+        && request.resource.data.pagosActivos is bool;
+    }
+
     match /contactMessages/{id} {
       allow create: if request.resource.data.keys().hasOnly(['tipo', 'nombre', 'email', 'mensaje', 'referencia', 'origen', 'idioma', 'createdAt'])
         && request.resource.data.get('idioma', 'en') in ['en', 'de', 'es']

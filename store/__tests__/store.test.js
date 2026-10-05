@@ -63,8 +63,14 @@ describe('store.config.json', () => {
       expect(url).toMatch(new RegExp(`^https://neighborhood-c4dc9\\.web\\.app/${idioma}(/|$)`));
     }
     expect(i.description).toContain(i.supportUrl);
-    // Ni compras de créditos ni precios: la app no vende nada.
-    expect(i.description).not.toMatch(/credit|guthaben|crédito|€|chf|\$/i);
+    // Ya no hay créditos. Los servicios con precio se pagan con Stripe (bienes y
+    // servicios físicos, Guideline 3.1.3(e)): si habla de precios, dice cómo se
+    // paga y cuánto es la gestión.
+    expect(i.description).not.toMatch(/credit|guthaben|crédito|€|\$/i);
+    if (/chf/i.test(i.description)) {
+      expect(i.description).toMatch(/Stripe/);
+      expect(i.description).toMatch(/8\s?%/);
+    }
   });
 
   it.each(locales)('%s tiene capturas de iPhone 6,5" (1284 x 2778) en su idioma', (locale, i) => {

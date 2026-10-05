@@ -1,5 +1,7 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { pulsarEnAlerta } from '../../test-utils/alerta';
 import ServiceDetailScreen, { accionPrincipal, resumenAutor } from '../ServiceDetailScreen';
 import { api, type Application } from '../../firebase/data';
 import { useAuth } from '../../auth/AuthContext';
@@ -135,12 +137,28 @@ describe('ServiceDetailScreen', () => {
     expect(screen.getAllByLabelText('Photo of Montar un armario')).toHaveLength(2);
   });
 
-  it('sin créditos no enseña la fila de créditos', async () => {
-    mockedApi.getService.mockResolvedValue(servicio({ credits: 0 }));
+  it('quien puede ayudar ve el precio y que se lo lleva entero', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ priceCents: 4000, requesterId: 'otra' }));
+    await renderDetalle();
+
+    expect(await screen.findByText(/^CHF\s40\.00$/)).toBeTruthy();
+    expect(screen.getByText(/you get the full price/)).toBeTruthy();
+  });
+
+  it('quien lo pide ve lo que pagará con la gestión', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ priceCents: 4000, requesterId: 'luis' }));
+    await renderDetalle('luis');
+
+    expect(await screen.findByText(/You'll pay CHF\s43\.20, including a CHF\s3\.20 service fee/)).toBeTruthy();
+  });
+
+  it('un favor gratis lo dice, sin notas de pago', async () => {
+    mockedApi.getService.mockResolvedValue(servicio({ priceCents: null }));
     await renderDetalle();
 
     await screen.findByText('Pintar una pared');
-    expect(screen.queryByText('Credits requested')).toBeNull();
+    expect(screen.getByText('Free')).toBeTruthy();
+    expect(screen.queryByText(/service fee|full price/)).toBeNull();
   });
 
   it('en uno aprobado lleva a la pantalla de oferta', async () => {
@@ -208,17 +226,29 @@ describe('autor del servicio', () => {
 });
 
 describe('denunciar', () => {
-  it('un servicio ajeno se puede denunciar desde el detalle', async () => {
-    const abrir = jest.spyOn(require('react-native').Linking, 'openURL').mockResolvedValue(true);
+  it('un servicio ajeno se denuncia desde el detalle, con un motivo', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockedApi.getService.mockResolvedValue(servicio({ id: 's1', requesterId: 'ana' }));
     await renderDetalle('luis');
 
     await fireEvent.press(await screen.findByText(/Report this request/));
+    await pulsarEnAlerta(alerta, 'Inappropriate or offensive');
 
-    expect(abrir).toHaveBeenCalledWith(
-      'https://neighborhood-c4dc9.web.app/en/support?origen=app&tipo=reportar&ref=service%3As1#contacto'
-    );
-    abrir.mockRestore();
+    expect(mockedApi.denunciar).toHaveBeenCalledWith('service', 's1', 'inapropiado');
+    alerta.mockRestore();
+  });
+
+  it('desde el detalle se puede bloquear a quien lo publicó, y se sale', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.getService.mockResolvedValue(servicio({ id: 's1', requesterId: 'ana' }));
+    const navigation = await renderDetalle('luis');
+
+    await fireEvent.press(await screen.findByText(/Block Ana/));
+    await pulsarEnAlerta(alerta, 'Block');
+
+    expect(mockedApi.bloquear).toHaveBeenCalledWith('ana');
+    expect(navigation.goBack).toHaveBeenCalled();
+    alerta.mockRestore();
   });
 
   it('el propio no', async () => {

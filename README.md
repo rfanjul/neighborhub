@@ -233,6 +233,83 @@ leen en la consola de Firebase; las reglas solo dejan crear mensajes bien
 formados. Para probarla en local: `npx firebase emulators:start --only
 hosting,firestore --project demo-neighborhub` y abre http://127.0.0.1:5050.
 
+## Pagos (Stripe Connect)
+
+Servicios con precio: quien pide paga el precio más un 8 % de gestión (mínimo
+CHF 1) en Stripe Checkout al elegir la oferta; el dinero queda retenido y, al
+marcarlo como hecho, el precio entero se transfiere a quien ayudó. La gestión
+se queda en la plataforma. Quien ayuda activa antes los cobros (Perfil →
+Activar cobros): una cuenta conectada de Stripe (Accounts v2, «recipient»).
+
+- Servidor: `functions/` (Cloud Functions en europe-west6): `activarCobros`,
+  `estadoCobros`, `pagarOferta`, `stripeWebhook` y `liberarPago` (al pasar a
+  completado o valorado). La lógica está en `functions/pagos.js`.
+- Solo el servidor lee y escribe `pagos/` y `cuentasCobro/`; la app no puede
+  elegir oferta en servicios con precio (lo hace el webhook al cobrar).
+- Claves: la publicable en `.env`; la secreta y la del webhook en
+  `functions/.secret.local` (fuera de git) en local, y como secretos de
+  Firebase en producción. Nunca claves `sk_live` en desarrollo.
+- Requisitos de Stripe: Connect activo y, en *Settings → Connect → Platform
+  profile*, aceptar que la plataforma responde de las pérdidas (si no, Stripe
+  no deja crear las cuentas).
+
+En local: `npm run demo:emulators` (ya incluye functions), y los avisos de
+Stripe al emulador con `stripe listen --forward-to
+http://127.0.0.1:5001/demo-neighborhub/europe-west6/stripeWebhook
+--forward-connect-to …/stripeWebhook`. Tests: `npm run test:functions`.
+
+Producción (plan Blaze): las funciones se publican con la CLI 15
+(`npx firebase-tools@15 deploy --only functions --project neighborhood-c4dc9`;
+la 13 del proyecto ya no consigue iniciar sesión). Los secretos están en
+Secret Manager (`STRIPE_SECRET_KEY`, y `STRIPE_WEBHOOK_SECRET` con los dos
+secretos de los webhooks de Stripe separados por comas). Webhooks en Stripe
+hacia https://europe-west6-neighborhood-c4dc9.cloudfunctions.net/stripeWebhook:
+uno de pagos (`checkout.session.completed`) y otro de Connect
+(`account.updated`). Ahora todo en modo test; para cobrar de verdad, cambiar
+las claves por las live y crear los webhooks en modo live.
+
+## Notificaciones push
+
+`expo-notifications` en la app y el servicio de push de Expo desde Cloud
+Functions (`functions/avisos.js`, disparadores en europe-west1). La app pide
+permiso al entrar y guarda su token y su idioma en `dispositivos/{uid}`
+(privado: solo su dueño y el servidor). Avisos: oferta nueva, mensaje,
+servicio aprobado, te han elegido, pago confirmado, hecho, valorado, pago
+transferido y cobros activados; cada uno abre su pantalla.
+
+Requisitos: capacidad Push Notifications en el App ID y una clave APNs en
+EAS (la build los configura si se le deja entrar en la cuenta de Apple). En
+el simulador no hay token: se prueba en un iPhone.
+
+## Administración (web /admin)
+
+https://neighborhood-c4dc9.web.app/admin — ver, corregir y aprobar
+servicios: los pendientes de revisión salen primero; se puede cambiar el
+título, la categoría, la descripción, la duración, la disponibilidad y el
+precio, aprobar (se ve en la app al momento) o despublicar. Los que ya están
+en marcha solo se consultan.
+
+Entra con email y contraseña quien tenga el claim `admin`, que solo pone el
+Admin SDK (las reglas lo comprueban en cada escritura):
+
+```bash
+npm run admin -- --email tu@correo           # crea la cuenta o la hace admin
+npm run admin -- --email tu@correo --nueva-clave
+npm run admin -- --email tu@correo --quitar  # deja de ser admin al momento
+npm run admin -- --lista
+```
+
+La contraseña nueva solo se muestra en el terminal. Una cuenta que entra
+en la app con Apple o Google no tiene contraseña: dale una con
+`--nueva-clave` o usa otro email. La sesión de la web dura lo que la
+pestaña.
+
+En local: `npm run demo:emulators`, `npx firebase emulators:start --only
+hosting --project demo-neighborhub` y http://127.0.0.1:5050/admin (con un
+admin creado con `FIRESTORE_EMULATOR_HOST=127.0.0.1:8180
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=demo-neighborhub
+npm run admin -- --email admin@neighborhub.test`).
+
 ## Reglas de seguridad
 
 `firestore.rules` y `storage.rules` son las que tienen que estar publicadas
@@ -260,7 +337,33 @@ porque la 14 en adelante exige Java 21; en CI se usa Java 21 igualmente.
 
 Cubren, entre otras cosas, que nadie pueda darse créditos, valoración o
 verificación a sí mismo, aprobarse sus propios servicios o escribir en
-conversaciones ajenas.
+conversaciones ajenas, y que el email y la fecha de nacimiento solo los lean
+su dueño y la administración.
+
+### Datos privados (`privado/{uid}`)
+
+El perfil de `users/{uid}` lo lee cualquier vecino con sesión, así que solo
+lleva lo público (nombre, foto, bio, ciudad, valoración…). El email y la
+fecha de nacimiento van en `privado/{uid}`: los lee y escribe su dueño, la
+administración solo los lee y las Functions usan el Admin SDK. Las reglas no
+dejan guardarlos en `users/`.
+
+Los perfiles creados antes los tenían en `users/`. Para moverlos, con
+`service-account.json` (como `npm run seed`):
+
+```bash
+npm run migrar:privado              # simulacro: cuenta lo que movería, sin escribir
+npm run migrar:privado -- --aplicar # lo mueve de verdad (se puede repetir)
+```
+
+Primero las reglas (`npm run rules:deploy`) y las Functions, luego la
+migración: así ninguna build vieja vuelve a escribirlos en `users/`.
+
+## Versiones
+
+Cada build que sube a App Store Connect tiene su entrada en
+[CHANGELOG.md](CHANGELOG.md) y su etiqueta en git (`v1.1.0-build.5`). El
+paso a paso está en [docs/VERSIONES.md](docs/VERSIONES.md).
 
 ## Tests
 

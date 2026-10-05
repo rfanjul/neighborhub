@@ -1,6 +1,18 @@
 export type ServiceCategory = 'painting' | 'dog' | 'groceries' | 'moving' | 'other';
 
-export type ServiceStatus = 'pending' | 'approved' | 'accepted' | 'in_progress' | 'completed' | 'rated';
+/** cancelled: quien pidió lo canceló (o la administración lo rechazó) antes de elegir a nadie; si estaba pagado, se devolvió. */
+export type ServiceStatus = 'pending' | 'approved' | 'accepted' | 'in_progress' | 'completed' | 'rated' | 'cancelled';
+
+/** Lo que la app ve del pago (el detalle de Stripe solo lo tiene el servidor). */
+export type PagoResumen = {
+  /** reembolsado: se devolvió a quien pagó; error: la transferencia falló y hay que revisarla. */
+  estado: 'retenido' | 'pagado' | 'reembolsado' | 'error';
+  precio: number;
+  comision: number;
+  total: number;
+  /** El cobro se devolvió y administración pidió volver a pagar: el enlace está en Ajustes → Pagos. */
+  porPagar?: boolean;
+};
 
 export type ServiceRequest = {
   id: string;
@@ -8,7 +20,10 @@ export type ServiceRequest = {
   category: ServiceCategory;
   description: string;
   distanceKm: number;
-  credits: number;
+  /** Precio en céntimos de franco que recibe quien ayuda; null si es un favor gratis. */
+  priceCents: number | null;
+  /** Solo en servicios con precio ya pagados. */
+  pago?: PagoResumen | null;
   postedLabel: string;
   status: ServiceStatus;
   durationLabel: string;
@@ -51,7 +66,7 @@ export const mockServices: ServiceRequest[] = [
     category: 'groceries',
     description: 'Just need someone to help carry bags up two flights of stairs, about 30 minutes.',
     distanceKm: 0.8,
-    credits: 10,
+    priceCents: null,
     postedLabel: '2h ago',
     status: 'approved',
     durationLabel: '~30 min',
@@ -70,7 +85,7 @@ export const mockServices: ServiceRequest[] = [
     description:
       'One wall in the bedroom needs a fresh coat of light grey paint. I have all the paint and supplies ready — just need an extra pair of hands for a couple of hours.',
     distanceKm: 1.4,
-    credits: 25,
+    priceCents: 4000,
     postedLabel: '5h ago',
     status: 'approved',
     durationLabel: '~2 hours',
@@ -88,7 +103,7 @@ export const mockServices: ServiceRequest[] = [
     category: 'dog',
     description: 'My dog Bruno needs a 20-minute walk around the block while I recover from surgery.',
     distanceKm: 2.1,
-    credits: 8,
+    priceCents: null,
     postedLabel: 'yesterday',
     status: 'approved',
     durationLabel: '~20 min',

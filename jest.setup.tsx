@@ -37,6 +37,19 @@ jest.mock('./src/firebase/data', () => ({
     uploadMyPhoto: jest.fn(async () => null),
     uploadServicePhoto: jest.fn(async () => ''),
     deleteServicePhoto: jest.fn(async () => undefined),
+    activarCobros: jest.fn(async () => 'https://accounts.stripe.com/r/acct_test'),
+    estadoCobros: jest.fn(async () => ({ conCuenta: true, activos: true, pendiente: false })),
+    pagarOferta: jest.fn(async () => 'https://checkout.stripe.com/c/pay/cs_test'),
+    pagarServicio: jest.fn(async () => 'https://checkout.stripe.com/c/pay/cs_crear'),
+    elegirOfertaPagada: jest.fn(async () => undefined),
+    cancelarServicio: jest.fn(async () => ({ reembolsado: 0 })),
+    misPagos: jest.fn(async () => []),
+    guardarDispositivo: jest.fn(async () => undefined),
+    misBloqueos: jest.fn(async () => []),
+    bloquear: jest.fn(async () => undefined),
+    desbloquear: jest.fn(async () => undefined),
+    denunciar: jest.fn(async () => undefined),
+    olvidarDispositivo: jest.fn(async () => undefined),
   },
 }));
 
@@ -73,3 +86,26 @@ jest.mock('expo-location', () => ({
   getCurrentPositionAsync: jest.fn(),
   Accuracy: { Balanced: 3 },
 }));
+
+// Avisos push: módulo nativo. Cada test ajusta permisos y respuestas.
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  requestPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[test]' })),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+}));
+
+// Configuración remota: pagos activos por defecto; un test los apaga con __ponerPagos(false).
+jest.mock('./src/config/remota', () => {
+  let activos = true;
+  return {
+    cargarConfig: jest.fn(async () => undefined),
+    pagosActivos: () => activos,
+    usePagosActivos: () => activos,
+    __ponerPagos: (valor: boolean) => {
+      activos = valor;
+    },
+  };
+});

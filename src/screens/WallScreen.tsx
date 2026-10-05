@@ -7,8 +7,8 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { RootStackParamList, MainTabParamList } from '../navigation/types';
 import { colors, fonts, radii } from '../theme';
-import { CoinIcon, SearchIcon, FilterIcon } from '../icons';
-import { currentUser, mockServices, type ServiceRequest } from '../data/mock';
+import { SearchIcon, FilterIcon } from '../icons';
+import { mockServices, type ServiceRequest } from '../data/mock';
 import ServiceCard from '../components/ServiceCard';
 import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
@@ -26,7 +26,6 @@ export default function WallScreen({ navigation }: Props) {
   // El saludo es para quien ha entrado, no para el usuario de ejemplo.
   const nombre = (profile?.name || user?.displayName || '').split(' ')[0];
   const [services, setServices] = useState<ServiceRequest[]>(mockServices);
-  const [credits, setCredits] = useState(currentUser.credits);
   const [refreshing, setRefreshing] = useState(false);
   const [usingBackend, setUsingBackend] = useState(false);
   const [query, setQuery] = useState('');
@@ -44,15 +43,12 @@ export default function WallScreen({ navigation }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const [list, me] = await Promise.all([api.listServices(), api.getMe()]);
-      setServices(list);
-      setCredits(me.credits);
+      setServices(await api.listServices());
       setUsingBackend(true);
     } catch {
       // Firestore not reachable (offline, or Firebase isn't configured yet) —
       // fall back to local mock data so the screen still works standalone.
       setServices(mockServices);
-      setCredits(currentUser.credits);
       setUsingBackend(false);
     }
   }, []);
@@ -76,10 +72,6 @@ export default function WallScreen({ navigation }: Props) {
         <View style={{ flex: 1 }}>
           <Text style={styles.greeting}>{nombre ? t('muro.hola', { nombre }) : t('muro.holaSolo')}</Text>
           <Text style={styles.headline}>{t('muro.titulo')}</Text>
-        </View>
-        <View style={styles.creditsPill}>
-          <CoinIcon size={16} />
-          <Text style={styles.creditsLabel}>{credits}</Text>
         </View>
       </View>
 
@@ -132,16 +124,6 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   greeting: { fontFamily: fonts.body, fontSize: 15, color: colors.muted },
   headline: { marginTop: 2, fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: colors.ink },
-  creditsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  creditsLabel: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.ink },
   searchRow: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12, flexDirection: 'row', gap: 10 },
   searchBar: {
     flex: 1,

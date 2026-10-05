@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, Alert, ActivityIndicator, AppState, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,7 +11,9 @@ import Avatar from '../components/Avatar';
 import Stars from '../components/Stars';
 import type { ServiceRequest } from '../data/mock';
 import { api, type Application, type ApiUserProfile, type Review } from '../firebase/data';
-import { dataErrorMessage } from '../firebase/errors';
+import { dataErrorMessage, pagoErrorMessage } from '../firebase/errors';
+import { comision, formatearPrecio, totalAPagar } from '../pagos/precio';
+import { usePagosActivos } from '../config/remota';
 import { insignias } from '../components/insignias';
 import { decimal, idiomasTexto, nivelTexto, t, tp } from '../i18n';
 
@@ -98,6 +100,8 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
   const [ofertas, setOfertas] = useState<Application[]>([]);
   const [resena, setResena] = useState<Review | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const pagos = usePagosActivos();
+  const pagando = useRef(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -116,18 +120,64 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     }, [cargar])
   );
 
-  const elegir = (oferta: Application) => {
-    Alert.alert(t('ofertas.elegirTitulo', { nombre: oferta.applicantName }), t('ofertas.elegirTexto'), [
-      { text: t('comun.cancelar'), style: 'cancel' },
+  // Al volver de Stripe Checkout, el servicio ya estará aceptado (lo hace el servidor).
+  useEffect(() => {
+    const suscripcion = AppState.addEventListener('change', (estado) => {
+      if (estado === 'active' && pagando.current) cargar();
+    });
+    return () => suscripcion?.remove();
+  }, [cargar]);
+
+  /** El cobro se devolvió y hay que volver a pagar: el enlace lo da misPagos (solo a quien pidió). */
+  const volverAPagar = async () => {
+    setOcupado(true);
+    try {
+      const url = (await api.misPagos()).find((p) => p.serviceId === serviceId && p.urlPago)?.urlPago;
+      if (!url) {
+        Alert.alert(t('pagos.errorPagar'), t('pagos.enlaceCaducado'));
+        return;
+      }
+      pagando.current = true;
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert(t('pagos.errorPagar'), pagoErrorMessage(e));
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  /** Con precio: se paga al crearlo (o, si se creó sin pagar, antes de elegir). */
+  const pagarServicio = async () => {
+    setOcupado(true);
+    try {
+      const url = await api.pagarServicio(serviceId);
+      pagando.current = true;
+      await Linking.openURL(url);
+    } catch (e) {
+      Alert.alert(t('pagos.errorPagar'), pagoErrorMessage(e));
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  /** Antes de elegir a nadie se puede cancelar; si estaba pagado, se devuelve todo. */
+  const cancelar = () => {
+    const total = servicio?.pago ? formatearPrecio(servicio.pago.total, { exacto: true }) : null;
+    Alert.alert(t('cancelar.titulo'), total ? t('cancelar.textoPagado', { total }) : t('cancelar.texto'), [
+      { text: t('cancelar.volver'), style: 'cancel' },
       {
-        text: t('ofertas.elegir'),
+        text: t('cancelar.confirmar'),
+        style: 'destructive',
         onPress: async () => {
           setOcupado(true);
           try {
-            await api.selectApplicant(serviceId, oferta.id);
+            const { reembolsado } = await api.cancelarServicio(serviceId);
+            Alert.alert(
+              reembolsado ? t('cancelar.reembolso', { total: formatearPrecio(reembolsado, { exacto: true }) }) : t('cancelar.hecho')
+            );
             await cargar();
           } catch (e) {
-            Alert.alert(t('ofertas.errorElegir'), dataErrorMessage(e));
+            Alert.alert(t('cancelar.error'), pagoErrorMessage(e));
           } finally {
             setOcupado(false);
           }
@@ -136,10 +186,45 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
     ]);
   };
 
+  const elegir = (oferta: Application) => {
+    const pagadoYa = servicio?.pago?.estado === 'retenido';
+    Alert.alert(
+      t('ofertas.elegirTitulo', { nombre: oferta.applicantName }),
+      pagadoYa && servicio?.priceCents != null
+        ? t('ofertas.elegirPagadoTexto', { nombre: oferta.applicantName, precio: formatearPrecio(servicio.priceCents, { exacto: true }) })
+        : t('ofertas.elegirTexto'),
+      [
+        { text: t('comun.cancelar'), style: 'cancel' },
+        {
+          text: t('ofertas.elegir'),
+          onPress: async () => {
+            setOcupado(true);
+            try {
+              // Pagado: elige el servidor (apunta a quién se le pagará). Gratis: la app.
+              if (pagadoYa) await api.elegirOfertaPagada(serviceId, oferta.applicantId);
+              else await api.selectApplicant(serviceId, oferta.id);
+              await cargar();
+            } catch (e) {
+              Alert.alert(t('ofertas.errorElegir'), pagadoYa ? pagoErrorMessage(e) : dataErrorMessage(e));
+            } finally {
+              setOcupado(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Completar es valorar: la pantalla de valoración deja el servicio cerrado.
   const valorar = () => navigation.navigate('RateHelper', { serviceId });
 
   const abierto = servicio?.status === 'approved';
+  const sinElegir = servicio?.status === 'pending' || servicio?.status === 'approved';
+  const conPrecio = servicio?.priceCents != null;
+  // Con los pagos encendidos, uno con precio se paga antes de revisarlo o de elegir.
+  const faltaPagar = pagos && conPrecio && sinElegir && !servicio?.pago;
+  const retenidoSinElegir = sinElegir && servicio?.pago?.estado === 'retenido';
+  const exacto = { exacto: true };
   const enCurso = servicio?.status === 'accepted' || servicio?.status === 'in_progress';
   const terminado = servicio?.status === 'completed' || servicio?.status === 'rated';
   // Quien ayudó ya lo marcó como hecho, pero falta mi valoración.
@@ -176,8 +261,39 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
         )}
       </View>
 
-      {servicio?.status === 'pending' && (
+      {servicio?.status === 'pending' && !faltaPagar && (
         <Text style={styles.aviso}>{t('ofertas.enRevision')}</Text>
+      )}
+      {faltaPagar && servicio?.priceCents != null && (
+        <View style={styles.elegido}>
+          <Text style={[styles.pagoTexto, { color: colors.ink }]}>
+            {t(servicio.status === 'pending' ? 'pagos.pagarParaPublicar' : 'pagos.pagarParaElegir', {
+              total: formatearPrecio(totalAPagar(servicio.priceCents), exacto),
+              precio: formatearPrecio(servicio.priceCents, exacto),
+              gestion: formatearPrecio(comision(servicio.priceCents), exacto),
+            })}
+          </Text>
+          <PillButton
+            label={t('pagos.pagarAhora', { total: formatearPrecio(totalAPagar(servicio.priceCents), exacto) })}
+            onPress={pagarServicio}
+            disabled={ocupado}
+          />
+        </View>
+      )}
+      {retenidoSinElegir && servicio?.pago && (
+        <Text style={[styles.aviso, { backgroundColor: colors.greenTint }]}>
+          {t('pagos.retenidoAlCrear', {
+            total: formatearPrecio(servicio.pago.total, exacto),
+            precio: formatearPrecio(servicio.pago.precio, exacto),
+          })}
+        </Text>
+      )}
+      {servicio?.status === 'cancelled' && (
+        <Text style={styles.aviso}>
+          {servicio.pago?.estado === 'reembolsado'
+            ? t('cancelar.canceladoReembolso', { total: formatearPrecio(servicio.pago.total, exacto) })
+            : t('cancelar.cancelado')}
+        </Text>
       )}
 
       {(enCurso || terminado) && servicio?.helperName && (
@@ -187,6 +303,35 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
               ? t('ofertas.completadoCon', { nombre: servicio.helperName })
               : t('ofertas.teAyuda', { nombre: servicio.helperName })}
           </Text>
+          {servicio.pago?.porPagar && servicio.pago.estado !== 'pagado' ? (
+            <View style={{ gap: 10 }}>
+              <Text style={[styles.pagoTexto, { color: colors.accentDark }]}>
+                {t('pagos.porPagarTexto', {
+                  total: formatearPrecio(servicio.pago.total, { exacto: true }),
+                  nombre: servicio.helperName,
+                })}
+              </Text>
+              <PillButton
+                label={t('pagos.pagarAhora', { total: formatearPrecio(servicio.pago.total, { exacto: true }) })}
+                onPress={volverAPagar}
+                disabled={ocupado}
+              />
+            </View>
+          ) : servicio.pago && (
+            <Text style={styles.pagoTexto}>
+              {servicio.pago.estado === 'pagado'
+                ? t('pagos.pagado', { precio: formatearPrecio(servicio.pago.precio, { exacto: true }), nombre: servicio.helperName })
+                : servicio.pago.estado === 'reembolsado'
+                  ? t('pagos.reembolsado', { total: formatearPrecio(servicio.pago.total, { exacto: true }) })
+                  : servicio.pago.estado === 'error'
+                    ? t('pagos.problema')
+                    : t('pagos.retenido', {
+                    total: formatearPrecio(servicio.pago.total, { exacto: true }),
+                    precio: formatearPrecio(servicio.pago.precio, { exacto: true }),
+                    nombre: servicio.helperName,
+                  })}
+            </Text>
+          )}
           {resena && (
             <View style={{ gap: 4 }}>
               <View style={styles.filaNombre}>
@@ -231,7 +376,10 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
                 <Text style={styles.comentario}>“{item.comment}”</Text>
               </View>
             ) : null}
-            {abierto ? (
+            {abierto && (retenidoSinElegir || (pagos && conPrecio)) && !item.applicant?.cobrosActivos ? (
+              // Sin cobros activos no se le puede pagar: primero tiene que activarlos.
+              <Text style={styles.estado}>{t('pagos.sinCobrosOferta')}</Text>
+            ) : abierto && faltaPagar ? null : abierto ? (
               <PillButton label={t('ofertas.elegir')} onPress={() => elegir(item)} disabled={ocupado} />
             ) : (
               <Text style={[styles.estado, item.status === 'selected' && { color: colors.green }]}>
@@ -245,12 +393,18 @@ export default function ServiceOffersScreen({ navigation, route }: Props) {
           </View>
         )}
       />
+      {sinElegir && (
+        <Pressable style={styles.cancelar} onPress={cancelar} disabled={ocupado} accessibilityRole="button">
+          <Text style={styles.cancelarTexto}>{t('cancelar.boton')}</Text>
+        </Pressable>
+      )}
       {ocupado && <ActivityIndicator style={styles.cargando} color={colors.accent} />}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  pagoTexto: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.green },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 8 },
   back: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center' },
@@ -295,4 +449,6 @@ const styles = StyleSheet.create({
   comentario: { fontFamily: fonts.body, fontSize: 15, color: colors.muted, lineHeight: 21 },
   estado: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.muted },
   cargando: { position: 'absolute', top: '50%', alignSelf: 'center' },
+  cancelar: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  cancelarTexto: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.accentDark },
 });

@@ -18,8 +18,9 @@ import {
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { auth } from '../firebase';
-import { api, ensureUserDocument, type ApiUserProfile } from '../firebase/data';
+import { api, ensureUserDocument, type MiPerfil } from '../firebase/data';
 import { isExpoGo } from './environment';
+import { olvidarEsteDispositivo } from '../notificaciones';
 
 // El módulo de Google es nativo y no existe en Expo Go: importarlo ahí rompe
 // la app al arrancar, así que se carga solo en el development build.
@@ -37,8 +38,8 @@ if (!isExpoGo) {
 
 type AuthContextValue = {
   user: User | null;
-  /** Documento del usuario en Firestore; null mientras no haya sesión */
-  profile: ApiUserProfile | null;
+  /** Perfil del usuario en Firestore (público y privado); null mientras no haya sesión */
+  profile: MiPerfil | null;
   /** Relee el perfil tras editarlo o completar el onboarding */
   refreshProfile: () => Promise<void>;
   /** true mientras Firebase restaura la sesión guardada al arrancar */
@@ -64,7 +65,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<ApiUserProfile | null>(null);
+  const [profile, setProfile] = useState<MiPerfil | null>(null);
   const [initializing, setInitializing] = useState(true);
 
   const refreshProfile = useCallback(async () => {
@@ -244,6 +245,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    // Antes de salir, mientras aún hay sesión para poder escribir.
+    await olvidarEsteDispositivo();
     await signOut(auth);
     // Si no se cierra también en Google, la próxima vez no deja elegir cuenta.
     try {

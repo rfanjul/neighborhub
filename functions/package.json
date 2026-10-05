@@ -1,0 +1,20 @@
+{
+  "name": "neighborhub-functions",
+  "private": true,
+  "description": "Pagos con Stripe Connect: cuentas de cobro, cobro al elegir oferta y transferencia al completar",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^6.6.0",
+    "stripe": "^23.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

@@ -9,7 +9,19 @@ const mockBorrados: string[] = [];
 let mockReloj = 0;
 let mockSecuencia = 0;
 
-jest.mock('../index', () => ({ auth: { currentUser: { uid: 'uid-1' } }, db: {} }));
+jest.mock('../index', () => ({ auth: { currentUser: { uid: 'uid-1' } }, db: {}, functions: {} }));
+
+// Cloud Functions de pagos: se apunta qué se llama y con qué, y se responde lo preparado.
+const mockLlamadas: Array<[string, unknown]> = [];
+const mockRespuestas: Record<string, unknown> = {};
+jest.mock('firebase/functions', () => ({
+  httpsCallable: (_functions: unknown, nombre: string) => async (datos?: unknown) => {
+    mockLlamadas.push([nombre, datos]);
+    const respuesta = mockRespuestas[nombre];
+    if (respuesta instanceof Error) throw respuesta;
+    return { data: respuesta };
+  },
+}));
 
 jest.mock('@firebase/firestore', () => {
   const ruta = (segmentos: string[]) => segmentos.join('/');
@@ -65,6 +77,10 @@ jest.mock('@firebase/firestore', () => {
     writeBatch: () => {
       const operaciones: Array<() => void> = [];
       return {
+        set(r: { path: string }, data: Doc, opciones?: { merge?: boolean }) {
+          validar(data);
+          operaciones.push(() => mockStore.set(r.path, { ...(opciones?.merge ? mockStore.get(r.path) : {}), ...data }));
+        },
         update(r: { path: string }, data: Doc) {
           validar(data);
           operaciones.push(() => {
@@ -142,7 +158,7 @@ const servicioBase = {
   title: 'Pintar pared',
   category: 'painting' as const,
   description: 'Salón',
-  credits: 0,
+  priceCents: null,
   durationLabel: '2 h',
   availableLabel: 'Flexible',
   locationLabel: '1.5 km away',
@@ -196,6 +212,67 @@ describe('perfil', () => {
     const perfil = await api.updateMe({ name: 'Ana', city: undefined, bio: 'Hola' });
 
     expect(perfil).toMatchObject({ name: 'Ana', bio: 'Hola', city: null });
+  });
+
+  describe('datos privados (email y fecha de nacimiento)', () => {
+    it('el email va a privado/, nunca al perfil público', async () => {
+      await ensureUserDocument('uid-1', { name: 'Ana', email: 'ana@example.com' });
+
+      expect(mockStore.get('privado/uid-1')).toEqual({ email: 'ana@example.com', dateOfBirth: null });
+      expect(mockStore.get('users/uid-1')).not.toHaveProperty('email');
+      expect(mockStore.get('users/uid-1')).not.toHaveProperty('dateOfBirth');
+      expect(await api.getMe()).toMatchObject({ name: 'Ana', email: 'ana@example.com', dateOfBirth: null });
+    });
+
+    it('la fecha de nacimiento se guarda en privado/ sin tocar el email', async () => {
+      await ensureUserDocument('uid-1', { name: 'Ana', email: 'ana@example.com' });
+
+      const perfil = await api.updateMe({ dateOfBirth: '08/07/1979', city: 'Zurich' });
+
+      expect(mockStore.get('privado/uid-1')).toEqual({ email: 'ana@example.com', dateOfBirth: '08/07/1979' });
+      expect(mockStore.get('users/uid-1')).not.toHaveProperty('dateOfBirth');
+      expect(perfil).toMatchObject({ city: 'Zurich', dateOfBirth: '08/07/1979', email: 'ana@example.com' });
+    });
+
+    it('crea privado/ si la cuenta aún no lo tenía, y con el email de la cuenta', async () => {
+      const { auth } = require('../index');
+      auth.currentUser.email = 'vieja@example.com';
+      mockStore.set('users/uid-1', { name: 'Ana' });
+
+      expect(await api.getMe()).toMatchObject({ email: 'vieja@example.com', dateOfBirth: null });
+      await api.updateMe({ dateOfBirth: '1990-01-01' });
+
+      expect(mockStore.get('privado/uid-1')).toEqual({ dateOfBirth: '1990-01-01' });
+      expect(mockStore.get('users/uid-1')).toEqual({ name: 'Ana' });
+      delete auth.currentUser.email;
+    });
+
+    it('si no se pueden leer, el perfil carga igual con el email de la cuenta', async () => {
+      const firestore = require('@firebase/firestore');
+      const getDocReal = firestore.getDoc;
+      jest.spyOn(firestore, 'getDoc').mockImplementation((r: any) =>
+        r.path.startsWith('privado/') ? Promise.reject(new Error('Missing or insufficient permissions.')) : getDocReal(r)
+      );
+      const { auth } = require('../index');
+      auth.currentUser.email = 'ana@example.com';
+      mockStore.set('users/uid-1', { name: 'Ana' });
+
+      expect(await api.getMe()).toMatchObject({ name: 'Ana', email: 'ana@example.com', dateOfBirth: null });
+
+      delete auth.currentUser.email;
+      jest.restoreAllMocks();
+    });
+
+    it('el perfil de otro vecino no trae su email ni su fecha de nacimiento', async () => {
+      // Un perfil de antes de la migración, que aún los tiene en users/.
+      mockStore.set('users/luis', { name: 'Luis', email: 'luis@example.com', dateOfBirth: '1950-01-01' });
+      mockStore.set('privado/luis', { email: 'luis@example.com', dateOfBirth: '1950-01-01' });
+
+      const luis = await api.getUserProfile('luis');
+
+      expect(luis).toMatchObject({ id: 'luis', name: 'Luis' });
+      expect(JSON.stringify(luis)).not.toMatch(/luis@example\.com|1950/);
+    });
   });
 
   it('sube la foto de perfil con el uid como nombre y guarda la URL', async () => {
@@ -609,7 +686,7 @@ describe('documentos incompletos', () => {
       category: 'other',
       description: '',
       distanceKm: 0,
-      credits: 0,
+      priceCents: null,
       status: 'pending',
       photos: [],
       coords: null,
@@ -648,7 +725,9 @@ describe('sin sesión', () => {
 describe('borrar mis datos', () => {
   beforeEach(() => {
     mockStore.set('users/uid-1', { name: 'Yo' });
+    mockStore.set('privado/uid-1', { email: 'yo@example.com', dateOfBirth: '1990-01-01' });
     mockStore.set('users/otro', { name: 'Otro' });
+    mockStore.set('privado/otro', { email: 'otro@example.com' });
     // Mis servicios: uno abierto con fotos y ofertas, uno pendiente y uno ya en curso.
     mockStore.set('helpRequests/abierto', {
       ...servicioBase, status: 'approved', requesterId: 'uid-1',
@@ -667,6 +746,7 @@ describe('borrar mis datos', () => {
     await api.deleteMyData();
 
     expect(mockStore.has('users/uid-1')).toBe(false);
+    expect(mockStore.has('privado/uid-1')).toBe(false);
     expect(mockStore.has('helpRequests/abierto')).toBe(false);
     expect(mockStore.has('helpRequests/pendiente')).toBe(false);
     expect(mockStore.has('applications/abierto_otro')).toBe(false);
@@ -676,6 +756,21 @@ describe('borrar mis datos', () => {
     expect(mockStore.has('applications/viejo_uid-1')).toBe(true);
     expect(mockStore.has('helpRequests/ajeno')).toBe(true);
     expect(mockStore.has('users/otro')).toBe(true);
+    expect(mockStore.has('privado/otro')).toBe(true);
+  });
+
+  it('un servicio mío ya pagado no se borra: se cancela y se me devuelve', async () => {
+    mockLlamadas.length = 0;
+    mockStore.set('helpRequests/pagado', {
+      ...servicioBase, status: 'approved', requesterId: 'uid-1', priceCents: 4000,
+      pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 },
+    });
+    mockRespuestas.cancelarServicio = { reembolsado: 4320 };
+
+    await api.deleteMyData();
+
+    expect(mockLlamadas).toContainEqual(['cancelarServicio', { serviceId: 'pagado' }]);
+    expect(mockStore.has('helpRequests/pagado')).toBe(true);
   });
 
   it('borra también las fotos de esos servicios y la de perfil', async () => {
@@ -684,5 +779,160 @@ describe('borrar mis datos', () => {
     expect(mockBorrados).toEqual(
       expect.arrayContaining(['https://storage.example/service-photos/uid-1/a.jpg', 'profile-photos/uid-1.jpg'])
     );
+  });
+});
+
+describe('pagos con Stripe (Cloud Functions)', () => {
+  beforeEach(() => {
+    mockLlamadas.length = 0;
+  });
+
+  it('activar cobros devuelve el enlace al formulario de Stripe', async () => {
+    mockRespuestas.activarCobros = { url: 'https://accounts.stripe.com/r/acct_1' };
+
+    expect(await api.activarCobros()).toBe('https://accounts.stripe.com/r/acct_1');
+    expect(mockLlamadas).toEqual([['activarCobros', undefined]]);
+  });
+
+  it('el estado de los cobros llega tal cual', async () => {
+    mockRespuestas.estadoCobros = { conCuenta: true, activos: false, pendiente: true };
+
+    expect(await api.estadoCobros()).toEqual({ conCuenta: true, activos: false, pendiente: true });
+  });
+
+  it('pagar una oferta manda el servicio y quién ayuda, y devuelve Stripe Checkout', async () => {
+    mockRespuestas.pagarOferta = { url: 'https://checkout.stripe.com/c/pay/cs_1' };
+
+    expect(await api.pagarOferta('s1', 'luis')).toBe('https://checkout.stripe.com/c/pay/cs_1');
+    expect(mockLlamadas).toEqual([['pagarOferta', { serviceId: 's1', applicantId: 'luis' }]]);
+  });
+
+  it('pagar el servicio al crearlo, elegir sin cobrar y cancelar llaman a sus funciones', async () => {
+    mockRespuestas.pagarServicio = { url: 'https://checkout.stripe.com/c/pay/cs_2' };
+    mockRespuestas.elegirOferta = { estado: 'accepted' };
+    mockRespuestas.cancelarServicio = { estado: 'cancelled', reembolsado: 4320 };
+
+    expect(await api.pagarServicio('s1')).toBe('https://checkout.stripe.com/c/pay/cs_2');
+    await api.elegirOfertaPagada('s1', 'luis');
+    expect(await api.cancelarServicio('s1')).toEqual({ estado: 'cancelled', reembolsado: 4320 });
+    expect(mockLlamadas).toEqual([
+      ['pagarServicio', { serviceId: 's1' }],
+      ['elegirOferta', { serviceId: 's1', applicantId: 'luis' }],
+      ['cancelarServicio', { serviceId: 's1' }],
+    ]);
+  });
+
+  it('los errores del servidor llegan con su motivo', async () => {
+    mockRespuestas.pagarOferta = Object.assign(new Error('sin cobros'), { code: 'functions/failed-precondition', details: { motivo: 'sinCobros' } });
+
+    await expect(api.pagarOferta('s1', 'luis')).rejects.toMatchObject({ details: { motivo: 'sinCobros' } });
+  });
+
+  it('el servicio trae el resumen del pago, y el perfil si puede cobrar', async () => {
+    mockStore.set('helpRequests/pagado', { title: 'Subir un sofá', status: 'accepted', priceCents: 4000, pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 } });
+    mockStore.set('users/uid-1', { name: 'Ana', cobrosActivos: true });
+
+    expect((await api.getService('pagado')).pago).toEqual({ estado: 'retenido', precio: 4000, comision: 320, total: 4320 });
+    expect((await api.getMe()).cobrosActivos).toBe(true);
+  });
+
+  it('sin pago ni cobros, null y false', async () => {
+    mockStore.set('helpRequests/gratis', { title: 'Regar', status: 'approved', priceCents: null });
+    mockStore.set('users/uid-1', { name: 'Ana' });
+
+    expect((await api.getService('gratis')).pago).toBeNull();
+    expect((await api.getMe()).cobrosActivos).toBe(false);
+  });
+});
+
+describe('dispositivos para avisos push', () => {
+  it('apunta el token (el más nuevo primero, sin repetir, como mucho 10) con el idioma', async () => {
+    mockStore.set('dispositivos/uid-1', { tokens: ['viejo', 'T'], idioma: 'en' });
+
+    await api.guardarDispositivo('T', 'es');
+
+    expect(mockStore.get('dispositivos/uid-1')).toMatchObject({ tokens: ['T', 'viejo'], idioma: 'es' });
+  });
+
+  it('el primero crea el documento; nunca más de 10', async () => {
+    mockStore.delete('dispositivos/uid-1');
+    await api.guardarDispositivo('T1', 'de');
+    expect(mockStore.get('dispositivos/uid-1')).toMatchObject({ tokens: ['T1'], idioma: 'de' });
+
+    mockStore.set('dispositivos/uid-1', { tokens: Array.from({ length: 10 }, (_, i) => `t${i}`), idioma: 'de' });
+    await api.guardarDispositivo('nuevo', 'de');
+    expect(mockStore.get('dispositivos/uid-1')?.tokens).toHaveLength(10);
+    expect(mockStore.get('dispositivos/uid-1')?.tokens[0]).toBe('nuevo');
+  });
+
+  it('olvidar quita solo ese token y conserva el idioma', async () => {
+    mockStore.set('dispositivos/uid-1', { tokens: ['A', 'B'], idioma: 'es' });
+
+    await api.olvidarDispositivo('A');
+
+    expect(mockStore.get('dispositivos/uid-1')).toMatchObject({ tokens: ['B'], idioma: 'es' });
+  });
+
+  it('olvidar sin documento no hace nada', async () => {
+    mockStore.delete('dispositivos/uid-1');
+
+    await expect(api.olvidarDispositivo('A')).resolves.toBeUndefined();
+    expect(mockStore.has('dispositivos/uid-1')).toBe(false);
+  });
+});
+
+describe('bloquear y denunciar', () => {
+  // La lista se guarda en memoria por sesión: cada test con un usuario distinto.
+  let n = 0;
+  const nuevoUsuario = () => {
+    const uid = `bloq-${++n}`;
+    const { auth } = require('../index');
+    auth.currentUser.uid = uid;
+    return uid;
+  };
+  afterEach(() => {
+    require('../index').auth.currentUser.uid = 'uid-1';
+  });
+
+  it('bloquear y desbloquear guardan la lista privada, sin repetir ni bloquearse a uno mismo', async () => {
+    const yo = nuevoUsuario();
+    await api.bloquear('luis');
+    await api.bloquear('luis');
+    await api.bloquear(yo);
+    expect(mockStore.get(`bloqueos/${yo}`)?.usuarios).toEqual(['luis']);
+    expect(await api.misBloqueos()).toEqual(['luis']);
+
+    await api.desbloquear('luis');
+    expect(mockStore.get(`bloqueos/${yo}`)?.usuarios).toEqual([]);
+  });
+
+  it('lee la lista guardada la primera vez', async () => {
+    const yo = nuevoUsuario();
+    mockStore.set(`bloqueos/${yo}`, { usuarios: ['mia'] });
+
+    expect(await api.misBloqueos()).toEqual(['mia']);
+  });
+
+  it('el muro y las ofertas no enseñan a los bloqueados; sus servicios, vacíos', async () => {
+    const yo = nuevoUsuario();
+    mockStore.set(`bloqueos/${yo}`, { usuarios: ['malo'] });
+    mockStore.set('helpRequests/b1', { title: 'Del malo', status: 'approved', requesterId: 'malo' });
+    mockStore.set('helpRequests/b2', { title: 'De otra', status: 'approved', requesterId: 'buena' });
+    mockStore.set('applications/b2_malo', { serviceId: 'b2', applicantId: 'malo', requesterId: yo, status: 'pending' });
+    mockStore.set('applications/b2_buena', { serviceId: 'b2', applicantId: 'otra', requesterId: yo, status: 'pending' });
+
+    const titulos = (await api.listServices()).map((s) => s.title);
+    expect(titulos).toContain('De otra');
+    expect(titulos).not.toContain('Del malo');
+    expect((await api.listApplicationsForService('b2')).map((o) => o.applicantId)).toEqual(['otra']);
+    expect(await api.listServicesBy('malo')).toEqual([]);
+  });
+
+  it('denunciar deja la denuncia a nombre propio, nueva', async () => {
+    const yo = nuevoUsuario();
+    await api.denunciar('service', 's9', 'spam');
+
+    const denuncia = [...mockStore.entries()].find(([k, v]) => k.startsWith('reports/') && v.objetoId === 's9')?.[1];
+    expect(denuncia).toMatchObject({ reporterId: yo, tipo: 'service', objetoId: 's9', motivo: 'spam', estado: 'nuevo' });
   });
 });

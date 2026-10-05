@@ -44,11 +44,11 @@ describe('WallScreen', () => {
     expect(screen.getByText('Hi, Ruben 👋')).toBeTruthy();
   });
 
-  it('enseña los servicios y los créditos reales', async () => {
+  it('enseña los servicios reales, ya sin créditos', async () => {
     await renderMuro();
 
     expect(await screen.findByText('Pasear a Toby')).toBeTruthy();
-    expect(screen.getByText('42')).toBeTruthy();
+    expect(screen.queryByText('42')).toBeNull();
     expect(screen.queryByText(/Showing demo data/)).toBeNull();
   });
 

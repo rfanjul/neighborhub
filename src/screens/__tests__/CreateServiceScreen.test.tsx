@@ -1,10 +1,14 @@
 import React from 'react';
 import { Alert } from 'react-native';
+import { Linking } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import CreateServiceScreen from '../CreateServiceScreen';
 import { api } from '../../firebase/data';
+import { useAuth } from '../../auth/AuthContext';
+import { authValue } from '../../test-utils/renderWithAuth';
+import { miPerfil } from '../../test-utils/perfil';
 
 jest.mock('expo-image-picker', () => ({
   requestCameraPermissionsAsync: jest.fn(async () => ({ granted: true })),
@@ -18,10 +22,12 @@ jest.mock('expo-location', () => ({
   Accuracy: { Balanced: 3 },
 }));
 
+jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
+
 const mockedApi = api as jest.Mocked<typeof api>;
 
 function renderScreen(serviceId?: string) {
-  const navigation = { goBack: jest.fn(), navigate: jest.fn() };
+  const navigation = { goBack: jest.fn(), navigate: jest.fn(), replace: jest.fn() };
   const route = { key: 'k', name: 'CreateService', params: serviceId ? { serviceId } : undefined };
   return render(<CreateServiceScreen navigation={navigation as never} route={route as never} />).then(() => navigation);
 }
@@ -45,16 +51,118 @@ async function anadirFoto(opcion: 'Take photo' | 'Choose from library') {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (useAuth as jest.Mock).mockReturnValue(authValue({ profile: miPerfil() }));
   mockedApi.getMe.mockResolvedValue({ id: 'uid-1', name: 'Ana' } as never);
   mockedApi.createService.mockResolvedValue({} as never);
   mockedApi.uploadServicePhoto.mockImplementation(async (uri: string) => `https://storage/${uri}`);
 });
 
 describe('CreateServiceScreen', () => {
-  it('ya no pide créditos', async () => {
+  it('ya no pide créditos y por defecto es un favor gratis', async () => {
     await renderScreen();
 
     expect(screen.queryByText('Credits')).toBeNull();
+    expect(screen.getByText('A favor between neighbors: nobody pays anything.')).toBeTruthy();
+  });
+
+  it('con precio se paga al enviarlo: lo crea, abre Stripe y deja ver el servicio', async () => {
+    const abrir = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    mockedApi.createService.mockResolvedValue({ id: 'nuevo' } as never);
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Subir un sofá');
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '40');
+
+    expect(screen.getByText(/You'll pay CHF\s43\.20 now: CHF\s40\.00 for your neighbor plus a CHF\s3\.20 service fee/)).toBeTruthy();
+    expect(screen.getByText(/Cancel before choosing someone and you get it all back/)).toBeTruthy();
+    await fireEvent.press(screen.getByText(/^Pay CHF\s43\.20 and submit$/));
+
+    await waitFor(() => expect(mockedApi.createService).toHaveBeenCalledWith(expect.objectContaining({ priceCents: 4000 })));
+    expect(navigation.replace).toHaveBeenCalledWith('ServiceOffers', { serviceId: 'nuevo' });
+    expect(mockedApi.pagarServicio).toHaveBeenCalledWith('nuevo');
+    await waitFor(() => expect(abrir).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_crear'));
+    expect(navigation.goBack).not.toHaveBeenCalled();
+    abrir.mockRestore();
+  });
+
+  it('si no se puede abrir el pago, el servicio queda creado y explica cómo pagarlo luego', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockedApi.createService.mockResolvedValue({ id: 'nuevo' } as never);
+    mockedApi.pagarServicio.mockRejectedValueOnce(new Error('sin red'));
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Subir un sofá');
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '40');
+    await fireEvent.press(screen.getByText(/^Pay CHF/));
+
+    await waitFor(() =>
+      expect(alerta).toHaveBeenCalledWith("Couldn't start the payment", expect.stringMatching(/pay it later from Activity → My services/))
+    );
+    expect(navigation.replace).toHaveBeenCalledWith('ServiceOffers', { serviceId: 'nuevo' });
+    alerta.mockRestore();
+  });
+
+  it('ya no pide duración ni distancia: el precio (o gratis) es lo que cuenta', async () => {
+    await renderScreen();
+
+    expect(screen.queryByText('Duration')).toBeNull();
+    expect(screen.queryByText(/Max\. distance|Maximum distance/)).toBeNull();
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Pasear a Toby');
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    await waitFor(() =>
+      expect(mockedApi.createService).toHaveBeenCalledWith(expect.objectContaining({ durationLabel: '—', travelRadiusKm: 5 }))
+    );
+  });
+
+  it('con el perfil a medias no publica: pide completarlo y lleva a sus datos', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    (useAuth as jest.Mock).mockReturnValue(authValue({ profile: miPerfil({ dateOfBirth: null }) }));
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Pasear a Toby');
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    expect(alerta).toHaveBeenCalledWith('Complete your details', expect.stringMatching(/To post a request/), expect.any(Array));
+    expect(mockedApi.createService).not.toHaveBeenCalled();
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Complete')!.onPress!());
+    expect(navigation.navigate).toHaveBeenCalledWith('ProfileDetails', { motivo: 'publicar' });
+    alerta.mockRestore();
+  });
+
+  it('gratis no pide pago', async () => {
+    const navigation = await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Pasear a Toby');
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
+    expect(mockedApi.pagarServicio).not.toHaveBeenCalled();
+  });
+
+  it('acepta coma decimal y la gestión mínima es CHF 1', async () => {
+    await renderScreen();
+
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '12,50');
+
+    expect(screen.getByText(/You'll pay CHF\s13\.50 now: CHF\s12\.50 for your neighbor plus a CHF\s1\.00 service fee/)).toBeTruthy();
+  });
+
+  it.each(['', '3', '2000', 'abc'])('con precio "%s" no publica y explica el rango', async (texto) => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderScreen();
+
+    await fireEvent.changeText(screen.getByPlaceholderText('e.g. Need help moving a wardrobe'), 'Subir un sofá');
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), texto);
+    await fireEvent.press(screen.getByText('Submit for review'));
+
+    expect(alerta).toHaveBeenCalledWith('Check the price', expect.stringMatching(/Between CHF\s5 and CHF\s1,000/));
+    expect(mockedApi.createService).not.toHaveBeenCalled();
+    alerta.mockRestore();
   });
 
   it('pide título antes de enviar', async () => {
@@ -68,7 +176,7 @@ describe('CreateServiceScreen', () => {
     alerta.mockRestore();
   });
 
-  it('publica con fotos, coordenadas y créditos a cero', async () => {
+  it('publica con fotos, coordenadas y gratis', async () => {
     (ImagePicker.launchCameraAsync as jest.Mock).mockResolvedValue({ canceled: false, assets: [{ uri: 'foto-1.jpg' }] });
     const navigation = await renderScreen();
 
@@ -80,7 +188,7 @@ describe('CreateServiceScreen', () => {
     expect(mockedApi.createService).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'Pintar pared',
-        credits: 0,
+        priceCents: null,
         photos: ['https://storage/foto-1.jpg'],
         coords: { latitude: 47.37, longitude: 8.54 },
       })
@@ -203,6 +311,8 @@ describe('editar un servicio', () => {
     description: 'Del salón',
     durationLabel: '—',
     photos: ['https://storage/vieja-1.jpg', 'https://storage/vieja-2.jpg'],
+    status: 'pending',
+    priceCents: null,
   };
 
   beforeEach(() => {
@@ -235,9 +345,35 @@ describe('editar un servicio', () => {
       title: 'Pintar dos paredes',
       category: 'painting',
       description: 'Del salón',
-      durationLabel: '—',
       photos: ['https://storage/vieja-1.jpg', 'https://storage/vieja-2.jpg'],
+      priceCents: null,
     });
+  });
+
+  it('mientras está pendiente se le puede poner o cambiar el precio', async () => {
+    const navigation = await renderScreen('s1');
+    await screen.findByDisplayValue('Pintar pared');
+
+    await fireEvent.press(screen.getByText('Paid'));
+    await fireEvent.changeText(screen.getByLabelText('Price'), '55');
+    await fireEvent.press(screen.getByText('Save changes'));
+
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
+    expect(mockedApi.updateService.mock.calls[0][1].priceCents).toBe(5500);
+  });
+
+  it('publicado ya no deja tocar el precio, y al guardar no lo envía', async () => {
+    mockedApi.getService.mockResolvedValue({ ...existente, status: 'approved', priceCents: 3000 } as never);
+    const navigation = await renderScreen('s1');
+
+    expect(await screen.findByDisplayValue('30')).toBeTruthy();
+    expect(screen.getByLabelText('Price').props.editable).toBe(false);
+    expect(screen.getByText(/can't change once the request is published/)).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Save changes'));
+
+    await waitFor(() => expect(navigation.goBack).toHaveBeenCalled());
+    expect(mockedApi.updateService.mock.calls[0][1]).not.toHaveProperty('priceCents');
   });
 
   it('sube solo las fotos nuevas y borra de Storage las que se quitaron', async () => {

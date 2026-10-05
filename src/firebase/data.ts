@@ -24,11 +24,38 @@ import {
 // doesn't need one — it's just fetch()/Blob under the hood, which works
 // fine via the regular browser build in React Native.
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { auth, db } from './index';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from './index';
 import type { ServiceCategory, ServiceRequest } from '../data/mock';
 import { t } from '../i18n';
 
 const storage = getStorage();
+
+/** Un pago o un cobro, tal como lo devuelve la función misPagos (sin datos de Stripe). */
+export type PagoMovimiento = {
+  serviceId: string;
+  /** pagado: lo pagué yo (quien pide). cobrado: lo cobro yo (quien ayuda). */
+  rol: 'pagado' | 'cobrado';
+  /** pendiente: Checkout sin terminar; retenido: pagado y guardado; pagado: transferido a quien ayudó. */
+  estado: 'pendiente' | 'retenido' | 'pagado' | 'reembolsado' | 'error';
+  /** Céntimos: lo pagado con la gestión, o lo que cobra quien ayuda. */
+  importe: number;
+  precio: number;
+  comision: number;
+  titulo: string;
+  otraPersona: string;
+  fecha: number;
+  /** Solo a quien pidió, si tiene que volver a pagar: el enlace de Stripe Checkout. */
+  urlPago?: string;
+};
+
+/** Por qué se denuncia algo: lo revisa el equipo en menos de 24 horas. */
+export type MotivoDenuncia = 'spam' | 'inapropiado' | 'acoso' | 'otro';
+/** Qué se denuncia: un servicio, un vecino o una conversación. */
+export type TipoDenuncia = 'service' | 'user' | 'message';
+
+/** Vecinos bloqueados por quien tiene la sesión (se lee una vez por sesión). */
+let bloqueos: { uid: string; usuarios: Set<string> } | null = null;
 
 export type ApplicationStatus = 'pending' | 'selected' | 'rejected';
 
@@ -100,12 +127,15 @@ function masNuevosPrimero<T extends { data: () => any }>(docs: T[]): T[] {
   return [...docs].sort((a, b) => milisegundos(b.data().createdAt) - milisegundos(a.data().createdAt));
 }
 
+/**
+ * Perfil público de un vecino (users/{uid}): lo lee cualquiera con sesión,
+ * así que aquí no va nada personal. El email y la fecha de nacimiento van
+ * aparte, en privado/{uid} (ver DatosPrivados).
+ */
 export type ApiUserProfile = {
   id: string;
   name: string;
-  email: string;
   bio: string | null;
-  dateOfBirth: string | null;
   city: string | null;
   postalCode: string | null;
   country: string | null;
@@ -120,6 +150,8 @@ export type ApiUserProfile = {
   ratingCount: number;
   responseLabel: string;
   identityVerified: boolean;
+  /** Ha activado los cobros con Stripe: se le puede pagar en servicios con precio. */
+  cobrosActivos: boolean;
   onboardingCompleted: boolean;
   hasPhoto: boolean;
   photoURL: string | null;
@@ -127,22 +159,34 @@ export type ApiUserProfile = {
   memberSince: number | null;
 };
 
+/** Datos personales (privado/{uid}): solo los lee su dueño (y la administración). */
+export type DatosPrivados = {
+  email: string;
+  dateOfBirth: string | null;
+};
+
+/** Mi perfil: el público más mis datos privados. */
+export type MiPerfil = ApiUserProfile & DatosPrivados;
+
 function currentUid(): string {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
   return uid;
 }
 
-/** Creates the Firestore profile doc on a user's very first sign-in. */
+/**
+ * Creates the Firestore profile docs on a user's very first sign-in: el
+ * perfil público en users/ y el email en privado/, en la misma escritura.
+ */
 export async function ensureUserDocument(uid: string, defaults: { name: string; email: string }) {
   const userRef = doc(db, 'users', uid);
   const snap = await getDoc(userRef);
   if (snap.exists()) return;
-  await setDoc(userRef, {
+  const lote = writeBatch(db);
+  lote.set(doc(db, 'privado', uid), { email: defaults.email, dateOfBirth: null });
+  lote.set(userRef, {
     name: defaults.name || 'New neighbor',
-    email: defaults.email,
     bio: null,
-    dateOfBirth: null,
     city: null,
     postalCode: null,
     country: null,
@@ -158,6 +202,7 @@ export async function ensureUserDocument(uid: string, defaults: { name: string; 
     photoURL: null,
     createdAt: serverTimestamp(),
   });
+  await lote.commit();
 }
 
 /**
@@ -171,11 +216,10 @@ export function valoracionMedia(d: any): number {
 
 function profileFromDoc(id: string, d: any): ApiUserProfile {
   return {
+    cobrosActivos: d.cobrosActivos === true,
     id,
     name: d.name,
-    email: d.email,
     bio: d.bio ?? null,
-    dateOfBirth: d.dateOfBirth ?? null,
     city: d.city ?? null,
     postalCode: d.postalCode ?? null,
     country: d.country ?? null,
@@ -243,7 +287,16 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
     category: (d.category as ServiceCategory) ?? 'other',
     description: d.description ?? '',
     distanceKm: parseFloat(d.locationLabel) || 0,
-    credits: d.credits ?? 0,
+    priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
+    pago: d.pago?.estado
+      ? {
+          estado: d.pago.estado,
+          precio: d.pago.precio,
+          comision: d.pago.comision,
+          total: d.pago.total,
+          ...(d.pago.porPagar ? { porPagar: true } : {}),
+        }
+      : null,
     postedLabel: d.availableLabel ?? '',
     status: d.status ?? 'pending',
     durationLabel: d.durationLabel ?? '',
@@ -265,11 +318,23 @@ function serviceFromDoc(id: string, d: any): ServiceRequest {
 }
 
 export const api = {
-  async getMe(): Promise<ApiUserProfile> {
+  /** Mi perfil público (users/) junto con mis datos privados (privado/). */
+  async getMe(): Promise<MiPerfil> {
     const uid = currentUid();
-    const snap = await getDoc(doc(db, 'users', uid));
+    const [snap, privado] = await Promise.all([
+      getDoc(doc(db, 'users', uid)),
+      // Sin poder leerlos (sin red o sin permiso) el perfil sigue valiendo: la
+      // fecha sale vacía y un campo vacío del formulario no se guarda.
+      getDoc(doc(db, 'privado', uid)).catch(() => null),
+    ]);
     if (!snap.exists()) throw new Error(t('erroresDatos.perfilNoEncontrado'));
-    return profileFromDoc(uid, snap.data());
+    const p = privado?.data();
+    return {
+      ...profileFromDoc(uid, snap.data()),
+      // Sin documento privado (cuentas aún sin migrar) el email es el de la cuenta.
+      email: p?.email || auth.currentUser?.email || '',
+      dateOfBirth: p?.dateOfBirth ?? null,
+    };
   },
 
   /** Perfil de otro vecino, o null si no existe. */
@@ -287,12 +352,17 @@ export const api = {
     country: string;
     languages: string;
     onboardingCompleted: boolean;
-  }>): Promise<ApiUserProfile> {
+  }>): Promise<MiPerfil> {
     const uid = currentUid();
     // Firestore rechaza undefined; un campo vacío del formulario simplemente
     // no se toca.
-    const cambios = Object.fromEntries(Object.entries(input).filter(([, valor]) => valor !== undefined));
-    await updateDoc(doc(db, 'users', uid), cambios);
+    const { dateOfBirth, ...publicos } = input;
+    const cambios = Object.fromEntries(Object.entries(publicos).filter(([, valor]) => valor !== undefined));
+    const lote = writeBatch(db);
+    if (Object.keys(cambios).length) lote.update(doc(db, 'users', uid), cambios);
+    // La fecha de nacimiento es privada: va a privado/, que se crea si aún no existe.
+    if (dateOfBirth !== undefined) lote.set(doc(db, 'privado', uid), { dateOfBirth }, { merge: true });
+    await lote.commit();
     return api.getMe();
   },
 
@@ -313,7 +383,7 @@ export const api = {
   },
 
   /** `localUri` is a file:// path from expo-camera's takePictureAsync(). */
-  async uploadMyPhoto(localUri: string): Promise<ApiUserProfile> {
+  async uploadMyPhoto(localUri: string): Promise<MiPerfil> {
     const uid = currentUid();
     const response = await fetch(localUri);
     const blob = await response.blob();
@@ -335,13 +405,15 @@ export const api = {
    */
   async listServices(): Promise<ServiceRequest[]> {
     const uid = currentUid();
-    const [aprobados, mios] = await Promise.all([
+    const [aprobados, mios, bloqueados] = await Promise.all([
       getDocs(query(collection(db, 'helpRequests'), where('status', '==', 'approved'))),
       getDocs(query(collection(db, 'helpRequests'), where('requesterId', '==', uid))),
+      api.misBloqueos(),
     ]);
     const porId = new Map<string, any>();
     for (const d of [...aprobados.docs, ...mios.docs]) {
-      porId.set(d.id, d.data());
+      // Lo de vecinos bloqueados no se ve en el muro ni en el mapa.
+      if (!bloqueados.includes(d.data().requesterId)) porId.set(d.id, d.data());
     }
     return conAutores(
       [...porId.entries()]
@@ -361,7 +433,8 @@ export const api = {
     title: string;
     category: ServiceCategory;
     description: string;
-    credits: number;
+    /** Céntimos que recibe quien ayuda; null si es gratis. */
+    priceCents: number | null;
     photos?: string[];
     coords?: { latitude: number; longitude: number } | null;
     durationLabel: string;
@@ -402,6 +475,8 @@ export const api = {
       durationLabel: string;
       travelRadiusKm: number;
       photos: string[];
+      // Solo mientras está pendiente: publicado ya puede tener ofertas.
+      priceCents: number | null;
     }>
   ): Promise<ServiceRequest> {
     const limpios = Object.fromEntries(Object.entries(cambios).filter(([, v]) => v !== undefined));
@@ -476,12 +551,61 @@ export const api = {
    * y mi perfil. Lo que ya implica a otra persona (servicios en curso o
    * hechos, reseñas, chats) se conserva, como explica la política de privacidad.
    */
+  /** Los vecinos que he bloqueado (documento privado bloqueos/{uid}). */
+  async misBloqueos(): Promise<string[]> {
+    const uid = currentUid();
+    if (bloqueos?.uid !== uid) {
+      const snap = await getDoc(doc(db, 'bloqueos', uid));
+      const usuarios = snap.exists() && Array.isArray(snap.data().usuarios) ? snap.data().usuarios : [];
+      bloqueos = { uid, usuarios: new Set(usuarios) };
+    }
+    return [...bloqueos.usuarios];
+  },
+
+  /**
+   * Bloquear a un vecino: dejo de ver sus servicios y sus ofertas, y no me
+   * puede mandar mensajes ni ofertarse en lo mío (las reglas lo impiden).
+   */
+  async bloquear(otro: string): Promise<void> {
+    const uid = currentUid();
+    if (otro === uid) return;
+    const usuarios = new Set(await api.misBloqueos());
+    usuarios.add(otro);
+    await setDoc(doc(db, 'bloqueos', uid), { usuarios: [...usuarios], actualizado: serverTimestamp() });
+    bloqueos = { uid, usuarios };
+  },
+
+  async desbloquear(otro: string): Promise<void> {
+    const uid = currentUid();
+    const usuarios = new Set(await api.misBloqueos());
+    usuarios.delete(otro);
+    await setDoc(doc(db, 'bloqueos', uid), { usuarios: [...usuarios], actualizado: serverTimestamp() });
+    bloqueos = { uid, usuarios };
+  },
+
+  /** Denunciar un servicio, un vecino o una conversación: lo revisa el equipo. */
+  async denunciar(tipo: TipoDenuncia, objetoId: string, motivo: MotivoDenuncia): Promise<void> {
+    await addDoc(collection(db, 'reports'), {
+      reporterId: currentUid(),
+      tipo,
+      objetoId,
+      motivo,
+      estado: 'nuevo',
+      createdAt: serverTimestamp(),
+    });
+  },
+
   async deleteMyData(): Promise<void> {
     const uid = currentUid();
     const mios = await getDocs(query(collection(db, 'helpRequests'), where('requesterId', '==', uid)));
     for (const d of mios.docs) {
       const servicio = d.data();
       if (!['pending', 'approved'].includes(servicio.status)) continue;
+      if (servicio.pago) {
+        // Pagado: no se borra, se cancela y se le devuelve el dinero.
+        await api.cancelarServicio(d.id);
+        continue;
+      }
       const recibidas = await getDocs(
         query(collection(db, 'applications'), where('serviceId', '==', d.id), where('requesterId', '==', uid))
       );
@@ -494,6 +618,12 @@ export const api = {
       if (o.data().status === 'pending') await deleteDoc(doc(db, 'applications', o.id));
     }
     await deleteObject(ref(storage, `profile-photos/${uid}.jpg`)).catch(() => undefined);
+    await deleteDoc(doc(db, 'dispositivos', uid)).catch(() => undefined);
+    await deleteDoc(doc(db, 'bloqueos', uid)).catch(() => undefined);
+    bloqueos = null;
+    // Email y fecha de nacimiento: si no se pueden borrar, mejor fallar y
+    // reintentar que borrar la cuenta y dejarlos atrás.
+    await deleteDoc(doc(db, 'privado', uid));
     await deleteDoc(doc(db, 'users', uid));
   },
 
@@ -509,6 +639,7 @@ export const api = {
    */
   async listServicesBy(uid: string): Promise<ServiceRequest[]> {
     if (uid === currentUid()) return api.listMyServices();
+    if ((await api.misBloqueos()).includes(uid)) return [];
     const snap = await getDocs(
       query(collection(db, 'helpRequests'), where('requesterId', '==', uid), where('status', '==', 'approved'))
     );
@@ -547,10 +678,14 @@ export const api = {
 
   /** Ofertas recibidas en un servicio mío. */
   async listApplicationsForService(serviceId: string): Promise<Application[]> {
-    const snap = await getDocs(
-      query(collection(db, 'applications'), where('serviceId', '==', serviceId), where('requesterId', '==', currentUid()))
-    );
-    const ofertas = masNuevosPrimero(snap.docs).map((d) => applicationFromDoc(d.id, d.data()));
+    const [snap, bloqueados] = await Promise.all([
+      getDocs(query(collection(db, 'applications'), where('serviceId', '==', serviceId), where('requesterId', '==', currentUid()))),
+      api.misBloqueos(),
+    ]);
+    // Las ofertas de vecinos bloqueados no se ven.
+    const ofertas = masNuevosPrimero(snap.docs)
+      .map((d) => applicationFromDoc(d.id, d.data()))
+      .filter((o) => !bloqueados.includes(o.applicantId));
     // Con el perfil de cada vecino: foto, bio, valoración, ayudas… Un perfil
     // que no se pueda leer deja la oferta solo con el nombre.
     return Promise.all(
@@ -588,6 +723,85 @@ export const api = {
       });
     }
     await lote.commit();
+  },
+
+  /**
+   * Cobros con Stripe (functions/pagos.js): crea la cuenta de cobro si hace
+   * falta y devuelve el enlace al formulario de Stripe.
+   */
+  async activarCobros(): Promise<string> {
+    const r = await httpsCallable<void, { url: string }>(functions, 'activarCobros')();
+    return r.data.url;
+  },
+
+  /** Pregunta a Stripe si ya puede cobrar (y lo apunta en el perfil). */
+  async estadoCobros(): Promise<{ conCuenta: boolean; activos: boolean; pendiente: boolean }> {
+    const r = await httpsCallable<void, { conCuenta: boolean; activos: boolean; pendiente: boolean }>(functions, 'estadoCobros')();
+    return r.data;
+  },
+
+  /**
+   * Apunta este dispositivo para los avisos push (el más nuevo primero, como
+   * mucho 10), con el idioma de la app. Es un documento privado: los
+   * perfiles los ve cualquiera.
+   */
+  async guardarDispositivo(token: string, idioma: string): Promise<void> {
+    const ref = doc(db, 'dispositivos', currentUid());
+    const actual = await getDoc(ref);
+    const otros = ((actual.exists() ? actual.data().tokens : null) ?? []).filter((t: string) => t !== token);
+    await setDoc(ref, { tokens: [token, ...otros].slice(0, 10), idioma, actualizado: serverTimestamp() });
+  },
+
+  /** Este dispositivo deja de recibir avisos de la cuenta (al cerrar sesión). */
+  async olvidarDispositivo(token: string): Promise<void> {
+    const ref = doc(db, 'dispositivos', currentUid());
+    const actual = await getDoc(ref);
+    if (!actual.exists()) return;
+    const datos = actual.data();
+    await setDoc(ref, {
+      tokens: (datos.tokens ?? []).filter((t: string) => t !== token),
+      idioma: datos.idioma ?? 'en',
+      actualizado: serverTimestamp(),
+    });
+  },
+
+  /** Mis pagos y cobros, los más recientes primero. */
+  async misPagos(): Promise<PagoMovimiento[]> {
+    const r = await httpsCallable<void, PagoMovimiento[]>(functions, 'misPagos')();
+    return r.data;
+  },
+
+  /**
+   * Pagar un servicio con precio al crearlo (precio + gestión): devuelve el
+   * enlace a Stripe Checkout. El dinero queda retenido hasta que se marque
+   * como hecho; solo pagado pasa a revisión.
+   */
+  async pagarServicio(serviceId: string): Promise<string> {
+    const r = await httpsCallable<{ serviceId: string }, { url: string }>(functions, 'pagarServicio')({ serviceId });
+    return r.data.url;
+  },
+
+  /** Elegir una oferta de un servicio ya pagado: no se cobra nada más (lo hace el servidor). */
+  async elegirOfertaPagada(serviceId: string, applicantId: string): Promise<void> {
+    await httpsCallable<{ serviceId: string; applicantId: string }, unknown>(functions, 'elegirOferta')({ serviceId, applicantId });
+  },
+
+  /** Cancelar un servicio propio antes de elegir a nadie; si estaba pagado, se devuelve (céntimos). */
+  async cancelarServicio(serviceId: string): Promise<{ reembolsado: number }> {
+    const r = await httpsCallable<{ serviceId: string }, { reembolsado: number }>(functions, 'cancelarServicio')({ serviceId });
+    return r.data;
+  },
+
+  /**
+   * Elegir una oferta de un servicio con precio sin pagar aún (servicios de
+   * antes de pagar al crear): devuelve el enlace a Stripe Checkout.
+   */
+  async pagarOferta(serviceId: string, applicantId: string): Promise<string> {
+    const r = await httpsCallable<{ serviceId: string; applicantId: string }, { url: string }>(functions, 'pagarOferta')({
+      serviceId,
+      applicantId,
+    });
+    return r.data.url;
   },
 
   /** Mensajes del chat de un servicio en tiempo real. Devuelve cómo dejar de escuchar. */

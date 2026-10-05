@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Neighborhub · Administración</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script defer src="/__/firebase/10.12.2/firebase-app-compat.js"></script>
+  <script defer src="/__/firebase/10.12.2/firebase-auth-compat.js"></script>
+  <script defer src="/__/firebase/10.12.2/firebase-firestore-compat.js"></script>
+  <script defer src="/__/firebase/10.12.2/firebase-functions-compat.js"></script>
+  <script defer src="/__/firebase/init.js"></script>
+  <script defer src="/admin/admin.js"></script>
+</head>
+<body class="admin">
+  <header class="admin-cabecera">
+    <div class="contenedor admin-cabecera-fila">
+      <span class="marca"><img src="/img/icono-512.png" alt=""><span class="marca-nombre">Neighborhub</span><span class="admin-etiqueta">Admin</span></span>
+      <span class="admin-sesion">
+        <button id="pagos" class="boton boton-secundario boton-pequeno" type="button" hidden>Pagos: …</button>
+        <span id="quien"></span>
+        <button id="salir" class="boton boton-secundario boton-pequeno" type="button" hidden>Salir</button>
+      </span>
+    </div>
+  </header>
+
+  <main class="contenedor admin-cuerpo">
+    <p id="cargando" class="admin-cargando">Cargando…</p>
+
+    <section id="vista-login" class="admin-login" hidden>
+      <h1>Administración</h1>
+      <p class="admin-gris">Entra con tu cuenta de administración.</p>
+      <form id="form-login" novalidate>
+        <label>Email
+          <input type="email" name="email" autocomplete="username" required>
+        </label>
+        <label>Contraseña
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button class="boton boton-primario" type="submit">Entrar</button>
+        <p id="estado-login" class="admin-aviso error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="vista-panel" hidden>
+      <div class="admin-barra">
+        <div class="admin-filtros" role="tablist" aria-label="Estado">
+          <button type="button" role="tab" data-filtro="pendientes">En revisión <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="publicados">Publicados <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="en-marcha">En marcha <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="terminados">Terminados <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="todos">Todos <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="pagos">Con pago <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="denuncias" class="tab-denuncias">Denuncias <span class="cuenta"></span></button>
+          <button type="button" role="tab" data-filtro="usuarios">Usuarios <span class="cuenta"></span></button>
+        </div>
+        <input id="buscar" type="search" placeholder="Buscar por título, vecino o texto" aria-label="Buscar">
+      </div>
+      <p id="error-panel" class="admin-aviso error" role="alert"></p>
+      <ul id="lista" class="admin-lista"></ul>
+      <ul id="denuncias" class="admin-lista" hidden></ul>
+      <ul id="usuarios" class="admin-lista" hidden></ul>
+      <p id="vacio" class="admin-vacio" hidden>No hay servicios aquí.</p>
+    </section>
+  </main>
+
+  <!-- Confirmaciones dentro de la página: algunos navegadores bloquean confirm(). -->
+  <dialog id="pregunta" aria-labelledby="pregunta-texto">
+    <form method="dialog" class="pregunta">
+      <p id="pregunta-texto"></p>
+      <div class="editor-acciones">
+        <button class="boton boton-secundario" value="no" type="submit">Cancelar</button>
+        <button id="pregunta-si" class="boton boton-primario" value="si" type="submit">Sí</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="usuario" aria-labelledby="usuario-nombre">
+    <div class="usuario-ficha">
+      <header class="editor-cabecera">
+        <div class="usuario-cabecera">
+          <div id="usuario-foto" class="mini"></div>
+          <div>
+            <h2 id="usuario-nombre">Usuario</h2>
+            <p id="usuario-email" class="editor-vecino"></p>
+          </div>
+        </div>
+        <button id="usuario-cerrar" class="editor-cerrar" type="button" aria-label="Cerrar">×</button>
+      </header>
+      <div id="usuario-chips" class="usuario-chips"></div>
+      <dl id="usuario-datos" class="usuario-datos"></dl>
+      <section>
+        <h3>Servicios que pide</h3>
+        <ul id="usuario-pide" class="usuario-servicios"></ul>
+      </section>
+      <section>
+        <h3>Servicios en los que ayuda</h3>
+        <ul id="usuario-ayuda" class="usuario-servicios"></ul>
+      </section>
+      <p class="pago-ids">uid: <span id="usuario-uid"></span></p>
+    </div>
+  </dialog>
+
+  <dialog id="editor" aria-labelledby="editor-titulo">
+    <form id="form-editor" novalidate>
+      <header class="editor-cabecera">
+        <div>
+          <h2 id="editor-titulo">Servicio</h2>
+          <span id="editor-estado" class="chip"></span>
+        </div>
+        <button id="cerrar" class="editor-cerrar" type="button" aria-label="Cerrar">×</button>
+      </header>
+
+      <div id="editor-fotos" class="editor-fotos"></div>
+      <p id="editor-vecino" class="editor-vecino"></p>
+
+      <label>Título
+        <input name="title" maxlength="120" required>
+      </label>
+      <label>Categoría
+        <select name="category"></select>
+      </label>
+      <label>Descripción
+        <textarea name="description" rows="5" maxlength="2000"></textarea>
+      </label>
+      <div class="editor-dos">
+        <label>Duración
+          <input name="durationLabel" maxlength="60">
+        </label>
+        <label>Disponibilidad
+          <input name="availableLabel" maxlength="60">
+        </label>
+      </div>
+      <fieldset class="editor-precio">
+        <legend>Precio que recibe quien ayuda</legend>
+        <label class="editor-check"><input type="checkbox" name="gratis"> Favor gratis</label>
+        <label class="editor-chf">CHF
+          <input name="precio" inputmode="decimal" placeholder="40">
+        </label>
+      </fieldset>
+
+      <p id="editor-datos" class="editor-datos"></p>
+
+      <section id="editor-pago" class="editor-pago" aria-labelledby="editor-pago-titulo" hidden>
+        <h3 id="editor-pago-titulo">Pago</h3>
+        <div id="pago-cuerpo"></div>
+        <p id="pago-aviso" class="admin-aviso" role="alert"></p>
+      </section>
+      <p id="editor-aviso" class="admin-aviso" role="alert"></p>
+
+      <footer class="editor-acciones">
+        <button id="cancelar-servicio" class="boton boton-secundario boton-peligro" type="button">Rechazar</button>
+        <button id="marcar-hecho" class="boton boton-primario" type="button">Marcar como hecho y pagar</button>
+        <button id="despublicar" class="boton boton-secundario" type="button">Despublicar</button>
+        <button id="guardar" class="boton boton-secundario" type="button">Guardar cambios</button>
+        <button id="aprobar" class="boton boton-primario" type="button">Guardar y aprobar</button>
+      </footer>
+    </form>
+  </dialog>
+</body>
+</html>

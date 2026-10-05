@@ -32,7 +32,10 @@ async function sembrar(db, { Timestamp } = {}) {
   // Fechas relativas al momento de sembrar: el muro siempre parece reciente.
   const { usuarios, servicios, resenas } = construir({ fecha, ahora: new Date() });
   const batch = db.batch();
-  for (const u of usuarios) batch.set(db.collection('users').doc(u.id), u.data);
+  for (const u of usuarios) {
+    batch.set(db.collection('users').doc(u.id), u.data);
+    batch.set(db.collection('privado').doc(u.id), u.privado);
+  }
   for (const s of servicios) batch.set(db.collection('helpRequests').doc(s.id), s.data);
   for (const r of resenas) batch.set(db.collection('reviews').doc(r.id), r.data);
   await batch.commit();
@@ -99,7 +102,7 @@ async function limpiar(db) {
     await o.ref.delete();
     borrados++;
   }
-  for (const coleccion of ['reviews', 'helpRequests', 'users']) {
+  for (const coleccion of ['reviews', 'helpRequests', 'users', 'privado', 'cuentasCobro', 'pagos']) {
     const snap = await db.collection(coleccion).where('seed', '==', true).get();
     for (const d of snap.docs) {
       // Las ofertas y mensajes que otros hayan hecho sobre servicios de prueba.
@@ -129,7 +132,9 @@ async function demo(db, auth, { Timestamp } = {}) {
   const { uid, email, password, nombre } = cuentaDemo;
   await auth.deleteUser(uid).catch(() => {});
   await auth.createUser({ uid, email, password, displayName: nombre });
-  await prepararCuenta(db, { uid, email, nombre }, { Timestamp });
+  // En el emulador no se habla con Stripe: una cuenta de cobro inventada y el
+  // servicio con precio ya pagado, para ver en las capturas cómo queda.
+  await prepararCuenta(db, { uid, email, nombre }, { Timestamp, cuentaCobro: 'acct_demo', pagado: true });
   return { email };
 }
 
@@ -139,7 +144,7 @@ async function demo(db, auth, { Timestamp } = {}) {
  * aquí y solo se devuelve (no queda en ningún fichero); si la cuenta ya
  * existe se respeta la suya, salvo con nuevaClave.
  */
-async function revision(db, auth, { email = cuentaRevision.email, nuevaClave = false, Timestamp } = {}) {
+async function revision(db, auth, { email = cuentaRevision.email, nuevaClave = false, cuentaCobro = null, Timestamp } = {}) {
   await sembrar(db, { Timestamp });
   let usuario = await auth.getUserByEmail(email).catch((e) => {
     if (e.code === 'auth/user-not-found') return null;
@@ -155,7 +160,7 @@ async function revision(db, auth, { email = cuentaRevision.email, nuevaClave = f
     password = generarClave();
     await auth.updateUser(usuario.uid, { password });
   }
-  await prepararCuenta(db, { uid: usuario.uid, email, nombre: cuentaRevision.nombre }, { Timestamp });
+  await prepararCuenta(db, { uid: usuario.uid, email, nombre: cuentaRevision.nombre }, { Timestamp, cuentaCobro });
   return { uid: usuario.uid, email, password };
 }
 
@@ -167,21 +172,29 @@ function generarClave() {
 }
 
 /**
- * Deja una cuenta con algo que ver en cada pantalla: un servicio abierto
- * con tres ofertas, otro en curso con chat, otro pendiente de revisión, una
- * oferta enviada y otra elegida, y dos ayudas ya valoradas. Todo lleva
- * seed: true, así que npm run seed:clean lo borra (la cuenta de Auth no).
+ * Deja una cuenta con algo que ver en cada pantalla: un servicio con precio
+ * abierto con tres ofertas (sin pagar: se paga con la tarjeta de prueba de
+ * Stripe y se elige), un favor en curso con chat, otro pendiente de
+ * revisión, una oferta enviada y otra elegida, y dos ayudas ya valoradas.
+ * Todo lleva seed: true, así que npm run seed:clean lo borra (la cuenta de
+ * Auth no).
+ *
+ * cuentaCobro: la cuenta conectada de Stripe (modo prueba) a la que cobran
+ * los vecinos que ofertan; sin ella no se les puede elegir en uno de pago.
+ * pagado: «Move a table» ya pagado y retenido (solo en el emulador).
  */
-async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
+async function prepararCuenta(db, { uid, email, nombre }, { Timestamp, cuentaCobro = null, pagado = false } = {}) {
   const fecha = Timestamp ? (d) => Timestamp.fromDate(d) : (d) => d;
   const hace = (horas) => fecha(new Date(Date.now() - horas * 3600000));
 
   const photoURL = avatar(nombre);
   const b = db.batch();
   const yo = { requesterId: uid, requesterName: nombre, requesterRating: 4.5, requesterResponseLabel: '< 1h', requesterPhotoURL: photoURL };
+  // Perfil completo (nombre, nacimiento, ciudad, PLZ, idiomas): puede publicar y ofrecer sin más pasos.
+  b.set(db.doc(`privado/${uid}`), { email, dateOfBirth: '14/03/1992', seed: true });
   b.set(db.doc(`users/${uid}`), {
-    name: nombre, email, bio: 'Designer, new in Langstrasse. Happy to help with anything creative or techy.',
-    dateOfBirth: null, city: 'Zürich', postalCode: '8004', country: 'Switzerland', languages: 'English, German, Spanish',
+    name: nombre, bio: 'Designer, new in Langstrasse. Happy to help with anything creative or techy.',
+    city: 'Zürich', postalCode: '8004', country: 'Switzerland', languages: 'English, German, Spanish',
     credits: 20, level: 2, levelLabel: 'Helpful neighbor', servicesCompleted: 2, rating: 4.5, ratingSum: 9, ratingCount: 2,
     responseLabel: '< 1h', identityVerified: true, onboardingCompleted: true, photoURL, seed: true, createdAt: hace(24 * 40),
   });
@@ -192,7 +205,7 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
       const id = `demo-review-${i + 1}`;
       const serviceTitle = i ? 'Pumped and oiled two bikes' : 'Set up a printer';
       b.set(db.doc(`helpRequests/${id}`), {
-        title: serviceTitle, category: 'other', description: serviceTitle, credits: 0, photos: [], coords: null,
+        title: serviceTitle, category: 'other', description: serviceTitle, priceCents: null, photos: [], coords: null,
         durationLabel: '1 hour', availableLabel: '', locationLabel: '', travelRadiusKm: 5, status: 'rated',
         requesterId: autor, requesterName: autorNombre, requesterPhotoURL: avatar(autorNombre),
         helperId: uid, helperName: nombre, seed: true, createdAt: hace(24 * (11 + i * 12)), updatedAt: hace(24 * (10 + i * 12)),
@@ -205,16 +218,28 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
 
   const servicio = (id, datos) =>
     b.set(db.doc(`helpRequests/${id}`), {
-      category: 'moving', credits: 0, locationLabel: '', travelRadiusKm: 5, durationLabel: '1 hour', availableLabel: 'This week',
+      category: 'moving', priceCents: null, locationLabel: '', travelRadiusKm: 5, durationLabel: '1 hour', availableLabel: 'This week',
       coords: { latitude: 47.3785, longitude: 8.5262 }, helperId: null, helperName: null, seed: true,
       createdAt: hace(26), updatedAt: hace(26), ...yo, ...datos,
     });
+  const mesa = { precio: 3000, comision: 240, total: 3240 };
   servicio('demo-move-table', {
-    title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)],
+    title: 'Move a table to the balcony', status: 'approved', photos: [foto(1068)], priceCents: mesa.precio,
     description: 'Solid oak table, about 40 kg. It needs to go from the living room to the balcony, through one door. Two people will do.',
+    ...(pagado ? { pago: { estado: 'retenido', ...mesa } } : {}),
   });
+  // Un pago anterior (de otra revisión) no debe quedar colgado del servicio rehecho.
+  b.delete(db.doc('pagos/demo-move-table'));
+  if (pagado) {
+    b.set(db.doc('pagos/demo-move-table'), {
+      serviceId: 'demo-move-table', titulo: 'Move a table to the balcony', requesterId: uid, requesterName: nombre,
+      helperId: null, helperName: '', cuentaDestino: null, ...mesa, moneda: 'chf', estado: 'retenido', alCrear: true,
+      chargeId: 'ch_demo', paymentIntentId: 'pi_demo', seed: true, creado: hace(26), actualizado: hace(26),
+    });
+  }
+  // Un favor (gratis) ya en curso: con precio y sin pago no cuadraría con el flujo de pagos.
   servicio('demo-mirror', {
-    title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)],
+    title: 'Hang a big mirror in the hallway', status: 'accepted', category: 'other', photos: [foto(834)], priceCents: null,
     // Cada uno en su sitio: con chinchetas superpuestas el mapa elige mal.
     coords: { latitude: 47.3773, longitude: 8.5243 },
     helperId: 'seed-user-08', helperName: 'Elias Huber', createdAt: hace(30),
@@ -249,6 +274,16 @@ async function prepararCuenta(db, { uid, email, nombre }, { Timestamp } = {}) {
   await b.commit();
 
   await ofertar(db, 'demo-move-table', { Timestamp });
+
+  // Quien oferta en el de pago tiene los cobros activos (si no, no se le podría elegir).
+  if (cuentaCobro) {
+    const cobros = db.batch();
+    for (const o of ofertantes) {
+      cobros.set(db.doc(`cuentasCobro/${o.id}`), { stripeAccountId: cuentaCobro, cobrosActivos: true, seed: true });
+      cobros.update(db.doc(`users/${o.id}`), { cobrosActivos: true });
+    }
+    await cobros.commit();
+  }
 }
 
 function proyecto() {
@@ -261,10 +296,12 @@ function proyecto() {
   throw new Error('No encuentro el id del proyecto: define FIREBASE_PROJECT_ID o rellena .env');
 }
 
-async function main() {
+/**
+ * App del Admin SDK con las credenciales de la cabecera: contra el emulador
+ * si FIRESTORE_EMULATOR_HOST está definido. Lo comparte scripts/admin.js.
+ */
+function iniciarAdmin() {
   const { initializeApp, cert, applicationDefault } = require('firebase-admin/app');
-  const { getFirestore, Timestamp } = require('firebase-admin/firestore');
-
   const projectId = proyecto();
   const clave = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '..', 'service-account.json');
   const credential = process.env.FIRESTORE_EMULATOR_HOST
@@ -272,15 +309,39 @@ async function main() {
     : fs.existsSync(clave)
       ? cert(JSON.parse(fs.readFileSync(clave, 'utf8')))
       : applicationDefault();
-  const db = getFirestore(initializeApp({ projectId, ...(credential && { credential }) }));
-
+  const app = initializeApp({ projectId, ...(credential && { credential }) });
   const destino = process.env.FIRESTORE_EMULATOR_HOST ? `emulador ${process.env.FIRESTORE_EMULATOR_HOST}` : projectId;
+  return { app, destino };
+}
+
+async function main() {
+  const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+  const { app, destino } = iniciarAdmin();
+  const db = getFirestore(app);
   if (process.argv.includes('--revision')) {
     const { getAuth } = require('firebase-admin/auth');
     const iEmail = process.argv.indexOf('--email');
+    // La cuenta conectada (modo prueba) que cobra por los vecinos de prueba: sin
+    // ella quien revisa no puede elegir a nadie en el servicio de pago.
+    // --cuenta acct_… directamente, o --cuenta-de email: la de cobros de esa persona.
+    const iCuenta = process.argv.indexOf('--cuenta');
+    const iDe = process.argv.indexOf('--cuenta-de');
+    let cuentaCobro = iCuenta !== -1 ? process.argv[iCuenta + 1] : null;
+    if (iDe !== -1) {
+      const persona = await getAuth().getUserByEmail(process.argv[iDe + 1] || '');
+      const cuenta = (await db.doc(`cuentasCobro/${persona.uid}`).get()).data();
+      if (!cuenta?.cobrosActivos) throw new Error(`${process.argv[iDe + 1]} no tiene los cobros activos`);
+      cuentaCobro = cuenta.stripeAccountId;
+    }
+    if (!/^acct_\w+$/.test(cuentaCobro || '')) {
+      throw new Error(
+        'Falta la cuenta de cobro de prueba: npm run seed:revision -- --cuenta-de <email con cobros activos> (o --cuenta acct_…)'
+      );
+    }
     const r = await revision(db, getAuth(), {
       email: iEmail !== -1 ? process.argv[iEmail + 1] : undefined,
       nuevaClave: process.argv.includes('--nueva-clave'),
+      cuentaCobro,
       Timestamp,
     });
     console.log(`🍏 ${destino}: cuenta para la revisión de Apple lista, con datos en cada pantalla\n`);
@@ -288,7 +349,7 @@ async function main() {
     console.log(
       r.password
         ? `   Contraseña:  ${r.password}\n\n   Cópiala ahora en App Store Connect > App Review Information: no se guarda en ningún sitio.`
-        : '   Contraseña:  la que ya tenía (para generar otra: npm run seed:revision -- --nueva-clave)'
+        : '   Contraseña:  la que ya tenía (para generar otra: npm run seed:revision -- --cuenta-de <email> --nueva-clave)'
     );
     return;
   }
@@ -320,4 +381,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { sembrar, limpiar, ofertar, demo, revision, generarClave };
+module.exports = { sembrar, limpiar, ofertar, demo, revision, generarClave, iniciarAdmin };

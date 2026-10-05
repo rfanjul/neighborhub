@@ -11,7 +11,6 @@ let env: RulesTestEnvironment;
 
 const perfilInicial = {
   name: 'Ana',
-  email: 'ana@example.com',
   credits: 0,
   level: 1,
   levelLabel: 'New neighbor',
@@ -81,12 +80,54 @@ describe('users', () => {
     await assertFails(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, identityVerified: true }));
   });
 
+  // TRANSICIÓN: mientras haya builds hasta la 15 (escriben el email y la fecha
+  // en users/), las reglas aún lo admiten. Al quitarlo, estos dos tests vuelven
+  // a esperar assertFails (ver firestore.rules).
+  it('en transición: las builds antiguas aún crean el perfil con email y fecha', async () => {
+    await assertSucceeds(setDoc(doc(como('ana'), 'users/ana'), { ...perfilInicial, email: 'ana@example.com' }));
+    await assertSucceeds(setDoc(doc(como('luis'), 'users/luis'), { ...perfilInicial, dateOfBirth: null }));
+  });
+
   it('cada uno edita sus datos personales', async () => {
     await sembrar('users/ana', perfilInicial);
 
     await assertSucceeds(
       updateDoc(doc(como('ana'), 'users/ana'), { city: 'Zurich', bio: 'Hola', languages: 'German', photoURL: 'https://x' })
     );
+  });
+
+  it('los datos se validan al cambiarlos: nombre y ciudad con letras, código postal suizo', async () => {
+    await sembrar('users/ana', perfilInicial);
+    const ana = doc(como('ana'), 'users/ana');
+
+    await assertSucceeds(updateDoc(ana, { name: 'Ana Müller-López', city: 'Zürich', postalCode: '8004', bio: 'Hola' }));
+    await assertSucceeds(updateDoc(ana, { name: "Zoë O'Brien", city: 'La Chaux-de-Fonds' }));
+    await assertFails(updateDoc(ana, { name: 'R2D2' }));
+    await assertFails(updateDoc(ana, { name: 'A' }));
+    await assertFails(updateDoc(ana, { city: '8004' }));
+    await assertFails(updateDoc(ana, { city: '' }));
+    await assertFails(updateDoc(ana, { postalCode: '804' }));
+    await assertFails(updateDoc(ana, { postalCode: '0800' }));
+    await assertFails(updateDoc(ana, { postalCode: 8004 }));
+    await assertFails(updateDoc(ana, { bio: 'x'.repeat(501) }));
+  });
+
+  it('un perfil antiguo a medias aún puede cambiar solo su bio', async () => {
+    await sembrar('users/ana', { ...perfilInicial, city: '', postalCode: '' });
+
+    await assertSucceeds(updateDoc(doc(como('ana'), 'users/ana'), { bio: 'Nueva bio' }));
+  });
+
+  it('nadie pone su email en el perfil público', async () => {
+    await sembrar('users/ana', perfilInicial);
+
+    await assertFails(updateDoc(doc(como('ana'), 'users/ana'), { email: 'ana@example.com' }));
+  });
+
+  it('en transición: las builds antiguas aún guardan la fecha de nacimiento en el perfil', async () => {
+    await sembrar('users/ana', perfilInicial);
+
+    await assertSucceeds(updateDoc(doc(como('ana'), 'users/ana'), { dateOfBirth: '08/07/1979' }));
   });
 
   it.each([
@@ -116,6 +157,85 @@ describe('users', () => {
   });
 });
 
+describe('privado (email y fecha de nacimiento)', () => {
+  const privados = { email: 'ana@example.com', dateOfBirth: null };
+  const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
+
+  it('al entrar por primera vez se crean el perfil y los datos privados a la vez', async () => {
+    const ana = como('ana');
+    const lote = writeBatch(ana);
+    lote.set(doc(ana, 'privado/ana'), privados);
+    lote.set(doc(ana, 'users/ana'), perfilInicial);
+
+    await assertSucceeds(lote.commit());
+  });
+
+  it('cada uno lee los suyos, cambia su fecha de nacimiento y los borra', async () => {
+    const ref = doc(como('ana'), 'privado/ana');
+    await assertSucceeds(setDoc(ref, privados));
+
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(updateDoc(ref, { dateOfBirth: '08/07/1979' }));
+    await assertSucceeds(updateDoc(ref, { dateOfBirth: null }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('la fecha se guarda aunque el documento aún no exista (cuentas sin migrar)', async () => {
+    await assertSucceeds(setDoc(doc(como('ana'), 'privado/ana'), { dateOfBirth: '08/07/1979' }, { merge: true }));
+  });
+
+  it('ningún otro vecino los lee, ni sin sesión, ni listando la colección', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertFails(getDoc(doc(como('luis'), 'privado/ana')));
+    await assertFails(getDoc(doc(anonimo(), 'privado/ana')));
+    await assertFails(getDocs(collection(como('luis'), 'privado')));
+    await assertFails(getDoc(doc(env.authenticatedContext('luis', { admin: false }).firestore(), 'privado/ana')));
+  });
+
+  it('nadie crea, cambia ni borra los de otro', async () => {
+    await assertFails(setDoc(doc(como('luis'), 'privado/ana'), privados));
+    await sembrar('privado/ana', privados);
+
+    await assertFails(updateDoc(doc(como('luis'), 'privado/ana'), { dateOfBirth: '01/01/2000' }));
+    await assertFails(deleteDoc(doc(como('luis'), 'privado/ana')));
+  });
+
+  it('la administración los lee (también listando) pero no los cambia ni los borra', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertSucceeds(getDoc(doc(admin(), 'privado/ana')));
+    await assertSucceeds(getDocs(collection(admin(), 'privado')));
+    await assertFails(updateDoc(doc(admin(), 'privado/ana'), { dateOfBirth: '01/01/2000' }));
+    await assertFails(setDoc(doc(admin(), 'privado/jefa2'), privados));
+    await assertFails(deleteDoc(doc(admin(), 'privado/ana')));
+  });
+
+  it('el email no se cambia desde la app', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertFails(updateDoc(doc(como('ana'), 'privado/ana'), { email: 'otra@example.com' }));
+  });
+
+  it.each([
+    ['otros campos', { ...privados, admin: true }],
+    ['un email que no es texto', { ...privados, email: 42 }],
+    ['un email larguísimo', { ...privados, email: `${'a'.repeat(200)}@example.com` }],
+    ['una fecha que no es texto', { ...privados, dateOfBirth: 1979 }],
+    ['una fecha larguísima', { ...privados, dateOfBirth: 'x'.repeat(51) }],
+    ['una fecha sin formato', { ...privados, dateOfBirth: 'ayer' }],
+    ['un mes que no existe', { ...privados, dateOfBirth: '01/13/1990' }],
+  ])('no se guardan %s', async (_caso, datos) => {
+    await assertFails(setDoc(doc(como('ana'), 'privado/ana'), datos));
+  });
+
+  it('tampoco se cuela una fecha que no es texto al cambiarla', async () => {
+    await sembrar('privado/ana', privados);
+
+    await assertFails(updateDoc(doc(como('ana'), 'privado/ana'), { dateOfBirth: 1979 }));
+  });
+});
+
 describe('helpRequests', () => {
   it('se publica pendiente de revisión y a nombre propio', async () => {
     await assertSucceeds(addDoc(collection(como('ana'), 'helpRequests'), servicio()));
@@ -127,6 +247,48 @@ describe('helpRequests', () => {
 
   it('no se publica a nombre de otro', async () => {
     await assertFails(addDoc(collection(como('luis'), 'helpRequests'), servicio()));
+  });
+
+  describe('precio', () => {
+    it.each([
+      ['sin precio (favor gratis)', {}],
+      ['con precio null', { priceCents: null }],
+      ['con CHF 5', { priceCents: 500 }],
+      ['con CHF 40', { priceCents: 4000 }],
+      ['con CHF 1000', { priceCents: 100000 }],
+    ])('se publica %s', async (_caso, precio) => {
+      await assertSucceeds(addDoc(collection(como('ana'), 'helpRequests'), servicio(precio)));
+    });
+
+    it.each([
+      ['por debajo de CHF 5', 499],
+      ['por encima de CHF 1000', 100001],
+      ['con medio céntimo', 4000.5],
+      ['como texto', '4000'],
+      ['negativo', -4000],
+    ])('no se publica %s', async (_caso, priceCents) => {
+      await assertFails(addDoc(collection(como('ana'), 'helpRequests'), servicio({ priceCents })));
+    });
+
+    it('mientras está pendiente se puede poner, cambiar o quitar', async () => {
+      await sembrar('helpRequests/s1', servicio());
+      const ana = doc(como('ana'), 'helpRequests/s1');
+
+      await assertSucceeds(updateDoc(ana, { priceCents: 4000 }));
+      await assertSucceeds(updateDoc(ana, { priceCents: 5500 }));
+      await assertSucceeds(updateDoc(ana, { priceCents: null }));
+      await assertFails(updateDoc(ana, { priceCents: 300 }));
+    });
+
+    it('publicado ya no cambia: puede haber ofertas con ese precio', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+      const ana = doc(como('ana'), 'helpRequests/s1');
+
+      await assertFails(updateDoc(ana, { priceCents: 3000 }));
+      await assertFails(updateDoc(ana, { priceCents: null }));
+      // El resto del contenido sí se puede seguir corrigiendo.
+      await assertSucceeds(updateDoc(ana, { title: 'Pintar dos paredes' }));
+    });
   });
 
   it('los aprobados los ve cualquier vecino', async () => {
@@ -207,7 +369,7 @@ describe('helpRequests', () => {
   it('marcar como completado no permite colar otros cambios', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
 
-    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed', title: 'Otra cosa' }));
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'completed', title: 'Otra cosa' }));
   });
 
   it('completado no vuelve atrás', async () => {
@@ -235,10 +397,14 @@ describe('helpRequests', () => {
   });
 
 
-  it('una vez aceptado, quien ayuda lo marca como hecho', async () => {
+  it('quien ayuda no lo da por hecho (liberaría su propio pago): solo lo pone en marcha', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+    const luis = doc(como('luis'), 'helpRequests/s1');
 
-    await assertSucceeds(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed' }));
+    await assertFails(updateDoc(luis, { status: 'completed' }));
+    await assertSucceeds(updateDoc(luis, { status: 'in_progress' }));
+    await assertFails(updateDoc(luis, { status: 'completed' }));
+    await assertSucceeds(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'completed' }));
   });
 
   it('nadie devuelve un servicio aceptado a aprobado o pendiente', async () => {
@@ -251,7 +417,7 @@ describe('helpRequests', () => {
   it('quien ayuda no se pasa el servicio a otro', async () => {
     await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
 
-    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'completed', helperId: 'marta' }));
+    await assertFails(updateDoc(doc(como('luis'), 'helpRequests/s1'), { status: 'in_progress', helperId: 'marta' }));
   });
 
   it.each(['pending', 'approved'])('quien publica borra su servicio %s, sin nadie elegido', async (status) => {
@@ -265,6 +431,260 @@ describe('helpRequests', () => {
     await sembrar('helpRequests/s1', servicio({ status, helperId: 'luis' }));
 
     await assertFails(deleteDoc(doc(como('ana'), 'helpRequests/s1')));
+  });
+});
+
+describe('pagos con Stripe (los escribe solo el servidor)', () => {
+  beforeEach(() => sembrar('config/app', { pagosActivos: true }));
+
+  it('con precio, la app no puede elegir oferta: lo acepta el servidor al cobrar', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+    await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+    await assertFails(
+      updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+    );
+  });
+
+  it('con los pagos apagados, uno con precio se elige como si fuera gratis', async () => {
+    await sembrar('config/app', { pagosActivos: false });
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+    await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+    await assertSucceeds(
+      updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+    );
+  });
+
+  it('la configuración la lee quien entra y solo la cambia la administración', async () => {
+    await sembrar('config/app', { pagosActivos: false });
+
+    await assertSucceeds(getDoc(doc(como('ana'), 'config/app')));
+    await assertFails(getDoc(doc(anonimo(), 'config/app')));
+    await assertFails(setDoc(doc(como('ana'), 'config/app'), { pagosActivos: true }));
+    const admin = env.authenticatedContext('jefa', { admin: true }).firestore();
+    await assertSucceeds(setDoc(doc(admin, 'config/app'), { pagosActivos: true, actualizadoPor: 'jefa' }));
+    await assertFails(setDoc(doc(admin, 'config/app'), { pagosActivos: 'sí' }));
+  });
+
+  it('gratis se sigue eligiendo desde la app', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: null }));
+    await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+    await assertSucceeds(
+      updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+    );
+  });
+
+  it('nadie se apunta un pago desde la app, ni quien publica ni la administración', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { pago: { estado: 'pagado' } }));
+    await assertFails(
+      updateDoc(doc(env.authenticatedContext('jefa', { admin: true }).firestore(), 'helpRequests/s1'), { pago: { estado: 'pagado' } })
+    );
+  });
+
+  it('pagos y cuentas de cobro no se leen ni se escriben desde fuera, ni siendo el dueño', async () => {
+    await sembrar('pagos/s1', { requesterId: 'ana', helperId: 'luis', estado: 'retenido' });
+    await sembrar('cuentasCobro/luis', { stripeAccountId: 'acct_luis', cobrosActivos: true });
+
+    await assertFails(getDoc(doc(como('ana'), 'pagos/s1')));
+    await assertFails(getDoc(doc(como('luis'), 'cuentasCobro/luis')));
+    await assertFails(setDoc(doc(como('luis'), 'cuentasCobro/luis'), { stripeAccountId: 'acct_otra', cobrosActivos: true }));
+    await assertFails(setDoc(doc(como('ana'), 'pagos/s2'), { estado: 'pagado' }));
+  });
+
+  describe('pagado al crearlo (dinero retenido)', () => {
+    const retenido = { pago: { estado: 'retenido', precio: 4000, comision: 320, total: 4320 } };
+    const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
+
+    it('su precio ya no cambia, ni pendiente ni por la administración', async () => {
+      await sembrar('helpRequests/s1', servicio({ priceCents: 4000, ...retenido }));
+
+      await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { priceCents: 100000 }));
+      await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { priceCents: 100000 }));
+      // El resto sí se corrige.
+      await assertSucceeds(updateDoc(doc(como('ana'), 'helpRequests/s1'), { title: 'Subir dos sofás' }));
+    });
+
+    it('no se borra (se cancela y se devuelve desde el servidor)', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000, ...retenido }));
+
+      await assertFails(deleteDoc(doc(como('ana'), 'helpRequests/s1')));
+    });
+
+    it('no se elige desde la app, ni con los pagos apagados: lo hace el servidor', async () => {
+      await sembrar('config/app', { pagosActivos: false });
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000, ...retenido }));
+      await sembrar('applications/s1_luis', { serviceId: 's1', applicantId: 'luis', status: 'pending' });
+
+      await assertFails(
+        updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'accepted', helperId: 'luis', helperName: 'Luis', updatedAt: serverTimestamp() })
+      );
+    });
+
+    it('la administración no publica uno con precio sin pagar (con los pagos encendidos); pagado sí', async () => {
+      await sembrar('helpRequests/s1', servicio({ priceCents: 4000 }));
+      await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'approved' }));
+
+      await sembrar('helpRequests/s2', servicio({ priceCents: 4000, ...retenido }));
+      await assertSucceeds(updateDoc(doc(admin(), 'helpRequests/s2'), { status: 'approved' }));
+
+      await sembrar('helpRequests/s3', servicio({ priceCents: null }));
+      await assertSucceeds(updateDoc(doc(admin(), 'helpRequests/s3'), { status: 'approved' }));
+
+      await sembrar('config/app', { pagosActivos: false });
+      await assertSucceeds(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'approved' }));
+    });
+
+    it('nadie lo cancela desde la app (lo hace el servidor, devolviendo el dinero)', async () => {
+      await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000, ...retenido }));
+
+      await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'cancelled' }));
+      await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'cancelled' }));
+    });
+  });
+
+  it('nadie se pone los cobros como activos en su perfil', async () => {
+    await sembrar('users/luis', { ...perfilInicial, name: 'Luis' });
+
+    await assertFails(updateDoc(doc(como('luis'), 'users/luis'), { cobrosActivos: true }));
+  });
+});
+
+describe('dispositivos (avisos push)', () => {
+  const datos = { tokens: ['ExponentPushToken[abc]'], idioma: 'es', actualizado: serverTimestamp() };
+
+  it('cada uno guarda, lee y borra los suyos', async () => {
+    const ref = doc(como('ana'), 'dispositivos/ana');
+    await assertSucceeds(setDoc(ref, datos));
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(updateDoc(ref, { idioma: 'de' }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it('nadie lee ni toca los de otro', async () => {
+    await sembrar('dispositivos/ana', { tokens: ['ExponentPushToken[abc]'], idioma: 'es' });
+
+    await assertFails(getDoc(doc(como('luis'), 'dispositivos/ana')));
+    await assertFails(setDoc(doc(como('luis'), 'dispositivos/ana'), datos));
+    await assertFails(getDoc(doc(anonimo(), 'dispositivos/ana')));
+  });
+
+  it('solo tokens en lista (como mucho 10), un idioma conocido y nada más', async () => {
+    const ref = doc(como('ana'), 'dispositivos/ana');
+    await assertFails(setDoc(ref, { ...datos, tokens: 'ExponentPushToken[abc]' }));
+    await assertFails(setDoc(ref, { ...datos, tokens: Array.from({ length: 11 }, (_, i) => `t${i}`) }));
+    await assertFails(setDoc(ref, { ...datos, idioma: 'fr' }));
+    await assertFails(setDoc(ref, { ...datos, admin: true }));
+  });
+});
+
+describe('bloquear y denunciar (contenido de usuarios)', () => {
+  it('cada uno guarda y lee su lista de bloqueados; nadie más', async () => {
+    const ref = doc(como('ana'), 'bloqueos/ana');
+    await assertSucceeds(setDoc(ref, { usuarios: ['luis'], actualizado: serverTimestamp() }));
+    await assertSucceeds(getDoc(ref));
+    await assertFails(getDoc(doc(como('luis'), 'bloqueos/ana')));
+    await assertFails(setDoc(doc(como('luis'), 'bloqueos/ana'), { usuarios: [] }));
+    await assertFails(setDoc(ref, { usuarios: 'luis' }));
+  });
+
+  it('a quien me bloqueó ya no le llegan mis mensajes; el resto de la conversación sigue', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+    const mensaje = (uid: string) => ({ senderId: uid, senderName: uid, text: 'Hola', createdAt: serverTimestamp() });
+    await assertSucceeds(addDoc(collection(como('luis'), 'helpRequests/s1/messages'), mensaje('luis')));
+
+    await sembrar('bloqueos/ana', { usuarios: ['luis'] });
+
+    await assertFails(addDoc(collection(como('luis'), 'helpRequests/s1/messages'), mensaje('luis')));
+    await assertSucceeds(addDoc(collection(como('ana'), 'helpRequests/s1/messages'), mensaje('ana')));
+  });
+
+  it('quien me bloqueó no recibe mis ofertas', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+    const oferta = { serviceId: 's1', applicantId: 'luis', requesterId: 'ana', status: 'pending', comment: 'Yo puedo' };
+    await sembrar('bloqueos/ana', { usuarios: ['luis'] });
+
+    await assertFails(setDoc(doc(como('luis'), 'applications/s1_luis'), oferta));
+    await assertSucceeds(setDoc(doc(como('mia'), 'applications/s1_mia'), { ...oferta, applicantId: 'mia' }));
+  });
+
+  it('se denuncia a nombre propio, con un motivo conocido; solo la administración lo lee', async () => {
+    const denuncia = { reporterId: 'ana', tipo: 'user', objetoId: 'luis', motivo: 'acoso', estado: 'nuevo', createdAt: serverTimestamp() };
+    await assertSucceeds(addDoc(collection(como('ana'), 'reports'), denuncia));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, reporterId: 'luis' }));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, motivo: 'me cae mal' }));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, estado: 'revisado' }));
+    await assertFails(addDoc(collection(como('ana'), 'reports'), { ...denuncia, extra: 1 }));
+
+    await sembrar('reports/r1', { ...denuncia, createdAt: new Date() });
+    await assertFails(getDoc(doc(como('ana'), 'reports/r1')));
+    const admin = env.authenticatedContext('jefa', { admin: true }).firestore();
+    await assertSucceeds(getDoc(doc(admin, 'reports/r1')));
+    await assertSucceeds(updateDoc(doc(admin, 'reports/r1'), { estado: 'retirado', revisadoPor: 'jefa' }));
+    await assertFails(updateDoc(doc(admin, 'reports/r1'), { motivo: 'spam' }));
+  });
+});
+
+describe('administración', () => {
+  const admin = () => env.authenticatedContext('jefa', { admin: true }).firestore();
+
+  it('ve los pendientes de cualquiera y puede listarlos todos', async () => {
+    await sembrar('helpRequests/s1', servicio());
+    await sembrar('helpRequests/s2', servicio({ status: 'accepted', requesterId: 'luis', helperId: 'ana' }));
+
+    await assertSucceeds(getDoc(doc(admin(), 'helpRequests/s1')));
+    await assertSucceeds(getDocs(collection(admin(), 'helpRequests')));
+  });
+
+  it('aprueba un pendiente y lo vuelve a despublicar', async () => {
+    await sembrar('helpRequests/s1', servicio());
+    const ref = doc(admin(), 'helpRequests/s1');
+
+    await assertSucceeds(updateDoc(ref, { status: 'approved', reviewedBy: 'jefa', reviewedAt: serverTimestamp() }));
+    await assertSucceeds(updateDoc(ref, { status: 'pending' }));
+  });
+
+  it('corrige el contenido y el precio, también ya publicado', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved', priceCents: 4000 }));
+
+    await assertSucceeds(
+      updateDoc(doc(admin(), 'helpRequests/s1'), { title: 'Pintar una pared del salón', category: 'painting', priceCents: 4500 })
+    );
+  });
+
+  it('no cambia quién pide ni elige a quién ayuda', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'approved' }));
+    const ref = doc(admin(), 'helpRequests/s1');
+
+    await assertFails(updateDoc(ref, { requesterId: 'luis' }));
+    await assertFails(updateDoc(ref, { helperId: 'luis', helperName: 'Luis' }));
+    await assertFails(updateDoc(ref, { status: 'accepted' }));
+  });
+
+  it('no toca los que ya están en marcha', async () => {
+    await sembrar('helpRequests/s1', servicio({ status: 'accepted', helperId: 'luis' }));
+
+    await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { status: 'pending' }));
+    await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { title: 'Otra cosa' }));
+  });
+
+  it('respeta el rango de precios', async () => {
+    await sembrar('helpRequests/s1', servicio());
+
+    await assertFails(updateDoc(doc(admin(), 'helpRequests/s1'), { priceCents: 100 }));
+  });
+
+  it('sin el claim de admin nadie aprueba, ni siquiera con una cuenta normal', async () => {
+    await sembrar('helpRequests/s1', servicio({ requesterId: 'luis' }));
+
+    await assertFails(updateDoc(doc(como('ana'), 'helpRequests/s1'), { status: 'approved' }));
+    await assertFails(
+      updateDoc(doc(env.authenticatedContext('ana', { admin: false }).firestore(), 'helpRequests/s1'), { status: 'approved' })
+    );
+    await assertFails(getDoc(doc(como('ana'), 'helpRequests/s1')));
   });
 });
 
@@ -452,7 +872,7 @@ describe('mensajes de un servicio', () => {
 });
 
 describe('reseñas', () => {
-  const luis = { ...perfilInicial, name: 'Luis', email: 'luis@example.com', ratingSum: 8, ratingCount: 2, servicesCompleted: 2 };
+  const luis = { ...perfilInicial, name: 'Luis', ratingSum: 8, ratingCount: 2, servicesCompleted: 2 };
 
   beforeEach(async () => {
     await sembrar('users/ana', perfilInicial);

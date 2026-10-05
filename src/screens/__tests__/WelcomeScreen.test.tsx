@@ -60,7 +60,7 @@ describe('WelcomeScreen en el development build', () => {
   it('explica de qué va la app y, paso a paso, cómo pedir, ofrecerse, elegir y valorar', async () => {
     await renderWelcome();
 
-    expect(screen.getByText(/acumulan créditos/)).toBeTruthy();
+    expect(screen.getByText(/como favor o por un precio justo/)).toBeTruthy();
     expect(screen.getAllByLabelText('Neighborhub').length).toBeGreaterThan(0);
     for (const paso of ['1 · Pide ayuda', '2 · Ofrécete', '3 · Elige', '4 · Valora']) {
       expect(screen.getByText(paso)).toBeTruthy();

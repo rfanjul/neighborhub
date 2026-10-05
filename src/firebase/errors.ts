@@ -24,3 +24,15 @@ export function dataErrorMessage(error: unknown): string {
   }
   return message || t('comun.errorInesperado');
 }
+
+const MOTIVOS_PAGO = ['sinCobros', 'yaPagado', 'noDisponible', 'oferta', 'gratis', 'noEsTuyo', 'noExiste', 'sinPagar', 'yaElegido'] as const;
+
+/**
+ * Mensaje de un error de los pagos: el servidor manda un motivo corto
+ * (functions/pagos.js) y aquí se traduce al idioma de la app.
+ */
+export function pagoErrorMessage(e: unknown): string {
+  const motivo = (e as { details?: { motivo?: string } })?.details?.motivo;
+  const conocido = MOTIVOS_PAGO.find((m) => m === motivo);
+  return t(conocido ? (`pagos.errores.${conocido}` as Clave) : 'pagos.errores.generico');
+}

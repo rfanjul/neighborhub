@@ -70,11 +70,80 @@ describe('insignias', () => {
 });
 
 describe('MyProfileScreen', () => {
-  it('enseña los créditos, pero no ofrece comprarlos (la app no vende nada)', async () => {
+  it('ya no enseña créditos: se paga en francos o es gratis', async () => {
     await render(<MyProfileScreen />);
 
-    expect(await screen.findByText('Your credits')).toBeTruthy();
-    expect(screen.queryByText(/Add credits/)).toBeNull();
+    expect(await screen.findByText('Ruben')).toBeTruthy();
+    expect(screen.queryByText(/credits/i)).toBeNull();
+    expect(screen.queryByText('30')).toBeNull();
+  });
+
+  it('los pagos están en ajustes, no a la vista del perfil', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await render(<MyProfileScreen />);
+
+    await screen.findByText('Ruben');
+    expect(mockedApi.misPagos).not.toHaveBeenCalled();
+    expect(screen.queryByText('Payments')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Payments')!.onPress!());
+
+    expect(mockNavigate).toHaveBeenCalledWith('Payments');
+    alerta.mockRestore();
+  });
+
+  it('con los pagos apagados no hay cobros ni pagos en el perfil ni en ajustes', async () => {
+    const { __ponerPagos } = require('../../config/remota');
+    __ponerPagos(false);
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await render(<MyProfileScreen />);
+
+    await screen.findByText('Ruben');
+    expect(screen.queryByText('Set up payouts')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    expect(alerta.mock.calls.at(-1)![2]!.map((b) => b.text)).not.toContain('Payments');
+    alerta.mockRestore();
+    __ponerPagos(true);
+  });
+
+  it('con los pagos apagados, quien ya tiene pagos los sigue viendo en ajustes', async () => {
+    const { __ponerPagos } = require('../../config/remota');
+    __ponerPagos(false);
+    mockedApi.misPagos.mockResolvedValueOnce([
+      { serviceId: 's1', rol: 'cobrado', estado: 'reembolsado', importe: 3000, precio: 3000, comision: 240, titulo: 'Move TV', otraPersona: 'Ana', fecha: 1 },
+    ]);
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await render(<MyProfileScreen />);
+
+    await screen.findByText('Ruben');
+    await waitFor(() => expect(mockedApi.misPagos).toHaveBeenCalled());
+    expect(screen.queryByText('Set up payouts')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Payments')!.onPress!());
+
+    expect(mockNavigate).toHaveBeenCalledWith('Payments');
+    alerta.mockRestore();
+    __ponerPagos(true);
+  });
+
+  it('en ajustes están los vecinos bloqueados', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await render(<MyProfileScreen />);
+
+    await fireEvent.press(screen.getByLabelText('Settings'));
+    await act(async () => alerta.mock.calls.at(-1)![2]!.find((b) => b.text === 'Blocked neighbors')!.onPress!());
+
+    expect(mockNavigate).toHaveBeenCalledWith('Blocked');
+    alerta.mockRestore();
+  });
+
+  it('ofrece activar los cobros y, si ya están, lo dice', async () => {
+    await render(<MyProfileScreen />);
+    expect(await screen.findByText('Set up payouts')).toBeTruthy();
+
+    mockedApi.getMe.mockResolvedValue({ ...perfil, cobrosActivos: true } as never);
+    await render(<MyProfileScreen />);
+    expect(await screen.findByText('✓ Payouts set up')).toBeTruthy();
   });
 
   it('en ajustes se puede cambiar el idioma de la app', async () => {
@@ -138,7 +207,6 @@ describe('MyProfileScreen', () => {
 
     expect(await screen.findByText('Ruben')).toBeTruthy();
     expect(screen.getByText('Level 2 · Helpful neighbor')).toBeTruthy();
-    expect(screen.getByText('30')).toBeTruthy();
     expect(screen.getByText('4.9 ★')).toBeTruthy();
   });
 

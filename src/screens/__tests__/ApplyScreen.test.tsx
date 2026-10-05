@@ -4,10 +4,16 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import ApplyScreen from '../ApplyScreen';
 import { api } from '../../firebase/data';
 import { servicio } from '../../test-utils/servicio';
+import { miPerfil } from '../../test-utils/perfil';
+import { useAuth } from '../../auth/AuthContext';
+import { authValue } from '../../test-utils/renderWithAuth';
+
+jest.mock('../../auth/AuthContext', () => ({ useAuth: jest.fn() }));
 
 const mockedApi = api as jest.Mocked<typeof api>;
 
-async function renderOferta() {
+async function renderOferta(perfilDeQuienOferta = miPerfil()) {
+  (useAuth as jest.Mock).mockReturnValue(authValue({ profile: perfilDeQuienOferta }));
   const navigation = { goBack: jest.fn(), navigate: jest.fn() };
   await render(<ApplyScreen navigation={navigation as never} route={{ params: { serviceId: 's1' } } as never} />);
   return navigation;
@@ -15,7 +21,7 @@ async function renderOferta() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockedApi.getService.mockResolvedValue(servicio({ title: 'Pintar una pared', status: 'approved' }));
+  mockedApi.getService.mockResolvedValue(servicio({ title: 'Pintar una pared', status: 'approved', priceCents: null }));
 });
 
 describe('ApplyScreen', () => {
@@ -33,6 +39,20 @@ describe('ApplyScreen', () => {
 
     await waitFor(() => expect(mockedApi.applyToService).toHaveBeenCalledWith('s1', 'Tengo escalera, el sábado me va bien'));
     expect(navigation.navigate).toHaveBeenCalledWith('Main', { screen: 'ActivityTab', params: { segmento: 'offers' } });
+  });
+
+  it('con el perfil a medias no envía la oferta: pide completarlo', async () => {
+    const alerta = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const navigation = await renderOferta(miPerfil({ postalCode: '' }));
+
+    await fireEvent.changeText(screen.getByPlaceholderText(/When could you help/), 'Tengo escalera');
+    await fireEvent.press(screen.getByText('Send offer'));
+
+    expect(alerta).toHaveBeenCalledWith('Complete your details', expect.stringMatching(/To offer help/), expect.any(Array));
+    expect(mockedApi.applyToService).not.toHaveBeenCalled();
+    alerta.mock.calls.at(-1)![2]!.find((b: { text?: string }) => b.text === 'Complete')!.onPress!();
+    expect(navigation.navigate).toHaveBeenCalledWith('ProfileDetails', { motivo: 'ofrecer' });
+    alerta.mockRestore();
   });
 
   it('pide un comentario antes de enviar', async () => {
@@ -74,5 +94,33 @@ describe('ApplyScreen', () => {
     await renderOferta();
 
     expect(screen.getByPlaceholderText(/When could you help/)).toBeTruthy();
+  });
+});
+
+describe('servicios con precio', () => {
+  beforeEach(() => {
+    mockedApi.getService.mockResolvedValue(servicio({ title: 'Subir un sofá', status: 'approved', priceCents: 4000 }));
+  });
+
+  it('sin cobros activos pide activarlos antes y no deja enviar', async () => {
+    mockedApi.getMe.mockResolvedValue(miPerfil({ cobrosActivos: false }));
+    await renderOferta();
+
+    expect(await screen.findByText(/set up payouts before offering your help/)).toBeTruthy();
+    expect(screen.getByText('Set up payouts')).toBeTruthy();
+    await fireEvent.changeText(screen.getByPlaceholderText(/When could you help/), 'El sábado puedo');
+    await fireEvent.press(screen.getByText('Send offer'));
+    expect(mockedApi.applyToService).not.toHaveBeenCalled();
+  });
+
+  it('con cobros activos se oferta como siempre', async () => {
+    mockedApi.getMe.mockResolvedValue(miPerfil({ cobrosActivos: true }));
+    await renderOferta();
+
+    await screen.findByText('Subir un sofá');
+    expect(screen.queryByText(/set up payouts before/)).toBeNull();
+    await fireEvent.changeText(screen.getByPlaceholderText(/When could you help/), 'El sábado puedo');
+    await fireEvent.press(screen.getByText('Send offer'));
+    await waitFor(() => expect(mockedApi.applyToService).toHaveBeenCalledWith('s1', 'El sábado puedo'));
   });
 });

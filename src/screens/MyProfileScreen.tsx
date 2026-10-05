@@ -11,6 +11,8 @@ import { api } from '../firebase/data';
 import { useAuth } from '../auth/AuthContext';
 import PhotoCaptureModal from '../components/PhotoCaptureModal';
 import { insignias } from '../components/insignias';
+import CobrosTarjeta from '../components/CobrosTarjeta';
+import { pagosActivos, usePagosActivos } from '../config/remota';
 import { cambiarIdioma, decimal, idiomaActual, idiomas, nivelTexto, t } from '../i18n';
 import { abrirEnlace, enlaces } from '../config/enlaces';
 import { authErrorMessage } from '../auth/errors';
@@ -25,13 +27,20 @@ export default function MyProfileScreen() {
   // Servicios completados en los que he ayudado: la cifra de "Services" y
   // la base de las insignias. Se calcula, no se guarda en el perfil.
   const [ayudas, setAyudas] = useState(0);
+  const [cobros, setCobros] = useState(false);
+  // Con los pagos apagados, Ajustes → Pagos solo sale a quien ya tiene
+  // pagos o cobros (su historial no desaparece).
+  const [conHistorial, setConHistorial] = useState(false);
+  const pagos = usePagosActivos();
 
   const handleSettingsPress = () => {
     Alert.alert(t('miPerfil.cuenta'), undefined, [
       { text: t('comun.cancelar'), style: 'cancel' },
       { text: t('miPerfil.editarDatos'), onPress: () => navigation.navigate('ProfileDetails') },
       { text: t('idioma.titulo'), onPress: elegirIdioma },
+      ...(pagosActivos() || conHistorial ? [{ text: t('pagos.titulo'), onPress: () => navigation.navigate('Payments') }] : []),
       { text: t('cuenta.legal'), onPress: ayudaYLegal },
+      { text: t('moderacion.bloqueadosTitulo'), onPress: () => navigation.navigate('Blocked') },
       { text: t('miPerfil.salir'), onPress: () => logout() },
       { text: t('cuenta.borrar'), style: 'destructive', onPress: confirmarBorrado },
     ]);
@@ -111,6 +120,7 @@ export default function MyProfileScreen() {
         .getMe()
         .then((me) => {
           setPhotoURL(me.photoURL);
+          setCobros(me.cobrosActivos);
           setCurrentUser({
             name: me.name,
             level: me.level,
@@ -123,6 +133,12 @@ export default function MyProfileScreen() {
           });
         })
         .catch(() => setCurrentUser(mockCurrentUser));
+      if (!pagosActivos()) {
+        api
+          .misPagos()
+          .then((p) => setConHistorial(p.length > 0))
+          .catch(() => {});
+      }
     }, [])
   );
 
@@ -189,12 +205,12 @@ export default function MyProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.creditsCard}>
-          <View>
-            <Text style={styles.creditsCaption}>{t('miPerfil.creditos')}</Text>
-            <Text style={styles.creditsValue}>{currentUser.credits}</Text>
+        {pagos && (
+          <View style={styles.section}>
+            <CobrosTarjeta activos={cobros} onCambio={setCobros} />
           </View>
-        </View>
+        )}
+
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('miPerfil.insignias')}</Text>
@@ -250,19 +266,6 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: fonts.display, fontSize: 18, lineHeight: 22, color: colors.ink },
   statLink: { marginTop: 2, fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accentDark },
   statLabel: { marginTop: 2, fontFamily: fonts.body, fontSize: 13, color: colors.muted },
-  creditsCard: {
-    marginHorizontal: 20,
-    marginTop: 14,
-    backgroundColor: colors.accent,
-    borderRadius: radii.md,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  creditsCaption: { fontFamily: fonts.body, fontSize: 14, color: 'rgba(255,255,255,0.85)' },
-  creditsValue: { fontFamily: fonts.display, fontSize: 26, lineHeight: 32, color: colors.white },
   section: { marginHorizontal: 20, marginTop: 20 },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.muted },
   badgesRow: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
