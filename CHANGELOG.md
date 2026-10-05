@@ -8,6 +8,14 @@ Lo que aún no está en ninguna build va en **Sin publicar**.
 
 Nada todavía.
 
+## [1.1.0 (19)] — 2026-10-05 · TestFlight
+
+Build EAS `45a2cbc1` desde el commit `8f9ca5c`, la primera desde `main`
+(con `feature/pagos` ya mezclada en el PR #4). La app es **igual que la 18**:
+desde `f3d3894` solo cambian `CHANGELOG.md`, `docs/` y `scripts/seed.js`
+(`seed:revision -- --cuenta-de <email>`). La 18 sigue en revisión de App
+Store.
+
 ## [1.1.0 (18)] — 2026-10-03 · TestFlight → revisión de App Store
 
 Build EAS `fe181312` desde el commit `f3d3894`. Sustituye a la 17 para la

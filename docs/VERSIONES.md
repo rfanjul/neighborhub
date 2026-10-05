@@ -48,6 +48,7 @@ v<versión>-build.<build>        p. ej. v1.1.0-build.5
 
 | Versión | Build | Etiqueta | Destino |
 |---|---|---|---|
+| 1.1.0 | 19 | `v1.1.0-build.19` | TestFlight (igual que la 18; la primera desde `main`) |
 | 1.1.0 | 18 | `v1.1.0-build.18` | Revisión de App Store (alta sin duración ni radio, perfil validado) |
 | 1.1.0 | 17 | `v1.1.0-build.17` | TestFlight (la anterior para la revisión) |
 | 1.1.0 | 16 | `v1.1.0-build.16` | TestFlight (pago al crear, cancelar con reembolso, privado/) |
